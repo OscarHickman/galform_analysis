@@ -1,4 +1,23 @@
 # Core dependencies
-numpy
-matplotlib
-scipy
+numpy>=1.23.0
+scipy>=1.7.0
+matplotlib>=3.3.0
+pandas>=1.3.0
+h5py>=3.0.0
+seaborn>=0.11.0
+
+# Testing dependencies
+pytest>=8.0.0
+ruff>=0.1.0
+
+# Optional but recommended
+astropy>=4.0
+hmf>=3.0  # For theoretical halo mass functions
+psutil>=5.8.0  # For memory monitoring in examples
+scikit-learn>=1.0.0  # For ML surrogate models in advanced examples
+
+# Advanced optional dependencies (for specialized notebooks)
+# Uncomment if running imf_replication.ipynb with Bayesian inference
+# pymc>=5.0.0
+# arviz>=0.11.0
+# fsps  # Stellar population synthesis
