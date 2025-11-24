@@ -109,7 +109,7 @@ galform_analysis/
 │       └── plotting.py       # Plotting utilities and layout helpers
 ├── src/galform_execution/
 │   ├── runner.py             # GALFORM execution wrapper
-│   └── submit_galform_slurm.py  # Python script for submitting GALFORM jobs to SLURM
+│   └── submit_galform_job.py  # Python script for submitting GALFORM jobs to SLURM
 ├── examples/                  # Example notebooks and plots
 ├── tests/                     # Unit tests
 └── README.md
@@ -117,45 +117,45 @@ galform_analysis/
 
 ## GALFORM Job Submission
 
-The `submit_galform_slurm.py` script provides a Python interface for submitting GALFORM N-body runs to the SLURM batch queue on COSMA, replacing the traditional bash qsub scripts.
+The `submit_galform_job.py` script provides a Python interface for submitting GALFORM N-body runs to the SLURM batch queue on COSMA, replacing the traditional bash qsub scripts.
 
 ### Basic Usage
 
 ```bash
 # Submit jobs for L800 simulation with gp14 model (default)
-python src/galform_execution/submit_galform_slurm.py \
+python src/galform_execution/submit_galform_job.py \
     /path/to/galform2 \
     /path/to/run_galform_Nbody_example.csh
 
 # Dry run to preview what would be submitted
-python src/galform_execution/submit_galform_slurm.py \
+python src/galform_execution/submit_galform_job.py \
     /path/to/galform2 \
     /path/to/run_galform_Nbody_example.csh \
     --dry-run
 
 # List available simulation configurations
-python src/galform_execution/submit_galform_slurm.py --list-simulations
+python src/galform_execution/submit_galform_job.py --list-simulations
 ```
 
 ### Advanced Options
 
 ```bash
 # Submit with custom simulation and model
-python src/galform_execution/submit_galform_slurm.py \
+python src/galform_execution/submit_galform_job.py \
     /path/to/galform2 \
     /path/to/run_script.csh \
     --nbody-sim MillGas \
     --model b06
 
 # Custom snapshot list and subvolume range
-python src/galform_execution/submit_galform_slurm.py \
+python src/galform_execution/submit_galform_job.py \
     /path/to/galform2 \
     /path/to/run_script.csh \
     --iz-list 100 120 155 \
     --nvol-range 1-50
 
 # Custom SLURM parameters
-python src/galform_execution/submit_galform_slurm.py \
+python src/galform_execution/submit_galform_job.py \
     /path/to/galform2 \
     /path/to/run_script.csh \
     --partition cosma7 \

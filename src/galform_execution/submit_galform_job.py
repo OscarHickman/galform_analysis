@@ -12,6 +12,7 @@ Date: November 2025
 import argparse
 import subprocess
 import sys
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -107,16 +108,37 @@ class GalformSubmitter:
         self.account = account
         self.walltime = walltime
         
-        # Set log path, with safe fallback when /cosma5 is unavailable (e.g., CI)
-        if log_path is None:
-            cosma_root = Path('/cosma5')
-            if cosma_root.exists():
-                self.log_path = Path(f'/cosma5/data/durham/{Path.home().name}/Galform_Out/logs/')
-            else:
-                # Fallback to a local, writable path to support non-HPC environments (e.g., GitHub Actions)
-                self.log_path = Path.cwd() / 'Galform_Out' / 'logs'
-        else:
+        # Determine log path with CI-safe fallback
+        # Priority: explicit arg > env var > writable COSMA path > local cwd
+        def _deepest_existing_ancestor(p: Path) -> Path:
+            for ancestor in [p] + list(p.parents):
+                if ancestor.exists():
+                    return ancestor
+            # Should not happen (at least '/' exists), but be safe
+            return Path('/')
+
+        def _is_creatable(p: Path) -> bool:
+            ancestor = _deepest_existing_ancestor(p)
+            return os.access(ancestor, os.W_OK)
+
+        if log_path is not None:
             self.log_path = Path(log_path)
+        else:
+            # Environment override (useful for CI): GALFORM_LOG_PATH
+            env_log = os.environ.get('GALFORM_LOG_PATH')
+            if env_log:
+                self.log_path = Path(env_log)
+            else:
+                # If running in CI, always use local writable path
+                if os.environ.get('CI', '').lower() == 'true':
+                    self.log_path = Path.cwd() / 'Galform_Out' / 'logs'
+                else:
+                    # Prefer COSMA default if we can create it; otherwise fallback to local
+                    cosma_default = Path(f'/cosma5/data/durham/{Path.home().name}/Galform_Out/logs')
+                    if _is_creatable(cosma_default):
+                        self.log_path = cosma_default
+                    else:
+                        self.log_path = Path.cwd() / 'Galform_Out' / 'logs'
         
         # Get simulation configuration
         if nbody_sim in self.SIMULATION_CONFIGS:
@@ -312,7 +334,7 @@ Examples:
     
     parser.add_argument(
         '--log-path',
-        help='Directory for log files (default: /cosma5/data/durham/$USER/Galform_Out/logs/)'
+        help='Directory for log files (default: COSMA path if writable; otherwise a local Galform_Out/logs). Can be overridden with GALFORM_LOG_PATH.'
     )
     
     parser.add_argument(

@@ -1,0 +1,38 @@
+{
+  "created": "2025-11-24T17:21:23.330233Z",
+  "sections_completed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+  ],
+  "plots": [],
+  "tables": [
+    "approx_ml_ratios.csv",
+    "galform_imf_groups.json",
+    "imf_combined_metadata.json",
+    "imf_cosmic_mass_density_toy.csv",
+    "imf_mass_number_fractions.csv",
+    "imf_sampling_ks.csv",
+    "imf_sensitivity_massive_fraction.csv",
+    "imf_systematics_ml.csv"
+  ],
+  "notes": "IMF replication notebook using synthetic placeholders where observational or SED data absent."
+}

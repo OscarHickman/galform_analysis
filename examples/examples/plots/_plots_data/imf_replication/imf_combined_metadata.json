@@ -1,0 +1,92 @@
+{
+  "summary": [
+    {
+      "IMF": "Salpeter",
+      "TotalNumber": 3.5061490807620204,
+      "TotalMass": 0.9982820704852465
+    },
+    {
+      "IMF": "Kroupa",
+      "TotalNumber": 1.7233470984157144,
+      "TotalMass": 0.9986300717190715
+    },
+    {
+      "IMF": "Chabrier",
+      "TotalNumber": 1.259265332097159,
+      "TotalMass": 0.9985604225055447
+    }
+  ],
+  "fractions": [
+    {
+      "IMF": "Salpeter",
+      "Threshold": 8.0,
+      "NumberFrac": 0.0019438287822558778,
+      "MassFrac": 0.13243489410416293
+    },
+    {
+      "IMF": "Salpeter",
+      "Threshold": 20.0,
+      "NumberFrac": 0.0005277672058363268,
+      "MassFrac": 0.07311514056091896
+    },
+    {
+      "IMF": "Salpeter",
+      "Threshold": "R_return",
+      "NumberFrac": NaN,
+      "MassFrac": -1.1175395654986717
+    },
+    {
+      "IMF": "Kroupa",
+      "Threshold": 8.0,
+      "NumberFrac": 0.006323486721931812,
+      "MassFrac": 0.2168300849845636
+    },
+    {
+      "IMF": "Kroupa",
+      "Threshold": 20.0,
+      "NumberFrac": 0.001787771727460644,
+      "MassFrac": 0.12315467980963439
+    },
+    {
+      "IMF": "Kroupa",
+      "Threshold": "R_return",
+      "NumberFrac": NaN,
+      "MassFrac": -0.05216586888777597
+    },
+    {
+      "IMF": "Chabrier",
+      "Threshold": 8.0,
+      "NumberFrac": 0.010078679508187837,
+      "MassFrac": 0.2525464948318664
+    },
+    {
+      "IMF": "Chabrier",
+      "Threshold": 20.0,
+      "NumberFrac": 0.002849437196156646,
+      "MassFrac": 0.14344080854959868
+    },
+    {
+      "IMF": "Chabrier",
+      "Threshold": "R_return",
+      "NumberFrac": NaN,
+      "MassFrac": 0.22385511224331622
+    }
+  ],
+  "approx_ml": [
+    {
+      "IMF": "Salpeter",
+      "Approx_ML_ratio": 0.8908565735506383,
+      "Rel_to_Salpeter": 1.0
+    },
+    {
+      "IMF": "Kroupa",
+      "Approx_ML_ratio": 1.0552171546262294,
+      "Rel_to_Salpeter": 1.184497242267078
+    },
+    {
+      "IMF": "Chabrier",
+      "Approx_ML_ratio": 1.1259790684465658,
+      "Rel_to_Salpeter": 1.2639285625505492
+    }
+  ]
+}

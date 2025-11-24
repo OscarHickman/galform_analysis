@@ -1,4 +1,4 @@
-"""Tests for submit_galform_slurm.py script."""
+"""Tests for submit_galform_job.py script (renamed)."""
 
 import subprocess
 import tempfile
@@ -9,7 +9,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from galform_execution.submit_galform_slurm import GalformSubmitter
+from galform_execution.submit_galform_job import GalformSubmitter
 
 
 def test_galform_submitter_initialization():
@@ -188,7 +188,7 @@ def test_unknown_simulation():
 
 def test_script_help_option():
     """Test that the script's help option works."""
-    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_slurm.py'
+    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_job.py'
     
     result = subprocess.run(
         ['python', str(script_path), '--help'],
@@ -206,7 +206,7 @@ def test_script_help_option():
 
 def test_script_list_simulations():
     """Test that the script can list available simulations."""
-    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_slurm.py'
+    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_job.py'
     
     result = subprocess.run(
         ['python', str(script_path), '--list-simulations'],
@@ -224,7 +224,7 @@ def test_script_list_simulations():
 
 def test_script_dry_run():
     """Test that the script's dry-run mode works."""
-    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_slurm.py'
+    script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_job.py'
     
     # Create temporary files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.exe', delete=False) as exe_file:
