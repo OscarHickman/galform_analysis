@@ -107,9 +107,14 @@ class GalformSubmitter:
         self.account = account
         self.walltime = walltime
         
-        # Set log path
+        # Set log path, with safe fallback when /cosma5 is unavailable (e.g., CI)
         if log_path is None:
-            self.log_path = Path(f'/cosma5/data/durham/{Path.home().name}/Galform_Out/logs/')
+            cosma_root = Path('/cosma5')
+            if cosma_root.exists():
+                self.log_path = Path(f'/cosma5/data/durham/{Path.home().name}/Galform_Out/logs/')
+            else:
+                # Fallback to a local, writable path to support non-HPC environments (e.g., GitHub Actions)
+                self.log_path = Path.cwd() / 'Galform_Out' / 'logs'
         else:
             self.log_path = Path(log_path)
         
