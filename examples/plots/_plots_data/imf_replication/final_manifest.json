@@ -1,5 +1,5 @@
 {
-  "created": "2025-11-24T17:21:23.330233Z",
+  "created": "2025-11-24T17:23:40.857294Z",
   "sections_completed": [
     1,
     2,
@@ -32,7 +32,11 @@
     "imf_mass_number_fractions.csv",
     "imf_sampling_ks.csv",
     "imf_sensitivity_massive_fraction.csv",
-    "imf_systematics_ml.csv"
+    "imf_systematics_ml.csv",
+    "ml_active_learning_mass_fraction_bootstrap.csv",
+    "ml_surrogate_selected_candidates.csv",
+    "smf_combined_iz100.csv",
+    "xi_combined_iz100.csv"
   ],
   "notes": "IMF replication notebook using synthetic placeholders where observational or SED data absent."
 }
