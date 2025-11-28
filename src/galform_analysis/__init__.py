@@ -43,7 +43,10 @@ from .io import read_snapshot_data, close_snapshot
 from .analysis import (
     aggregate_snapshot,
     compute_smf_avg_by_snapshot,
-    compute_hmf_avg_by_snapshot,
+    hmf_given_redshift_and_subvolume,
+    hmfs_given_redshifts_and_subvolume,
+    avg_hmf_given_redshift_and_subvolumes,
+    avg_hmf_given_redshifts_and_subvolume,
 )
 
 __all__ = [
@@ -63,5 +66,8 @@ __all__ = [
     'close_snapshot',
     'aggregate_snapshot',
     'compute_smf_avg_by_snapshot',
-    'compute_hmf_avg_by_snapshot',
+    'hmf_given_redshift_and_subvolume',
+    'hmfs_given_redshifts_and_subvolume',
+    'avg_hmf_given_redshift_and_subvolumes',
+    'avg_hmf_given_redshifts_and_subvolume',
 ]

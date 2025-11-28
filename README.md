@@ -40,7 +40,33 @@ set_base_dir('/cosma5/data/durham/dc-hick2/Galform_Out/L800/gp14')
 # Option 3: Edit src/galform_analysis/config.py directly
 ```
 
-### 2. Compute a Stellar Mass Function
+### 2. Compute a Halo Mass Function (new HMF API)
+
+The HMF API was refreshed. Use the functions in `analysis/hmf.py` which take
+explicit snapshot numbers (`iz_num`) and subvolume indices (`ivol`).
+
+Average HMF over selected subvolumes at a single snapshot:
+
+```python
+from galform_analysis.config import get_base_dir
+from galform_analysis.analysis.hmf import avg_hmf_given_redshift_and_subvolumes
+
+hmf = avg_hmf_given_redshift_and_subvolumes(
+    iz_num=100,           # e.g. 'iz100'
+    ivols=[0,1,2,3,4],    # pick your subvolumes
+)
+centers, phi = hmf['centers'], hmf['phi']
+```
+
+Single subvolume HMF:
+
+```python
+from galform_analysis.analysis.hmf import hmf_given_redshift_and_subvolume
+res = hmf_given_redshift_and_subvolume(str(get_base_dir() / 'iz100'), ivol=0)
+centers, phi = res['centers'], res['phi']
+```
+
+### 3. Compute a Stellar Mass Function
 
 ```python
 from galform_analysis.analysis import compute_smf_avg_by_snapshot
@@ -52,12 +78,12 @@ smf = compute_smf_avg_by_snapshot('iz99')
 # Plot
 plt.plot(smf['centers'], smf['phi'], 'o-')
 plt.yscale('log')
-plt.xlabel(r'$\log_{10}(M_*/M_\odot)$')
-plt.ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]')
+plt.xlabel(r'$\\log_{10}(M_*/M_\\odot)$')
+plt.ylabel(r'$\\Phi$ [Mpc$^{-3}$ dex$^{-1}$]')
 plt.show()
 ```
 
-### 3. Aggregate Data from a Snapshot
+### 4. Aggregate Data from a Snapshot
 
 ```python
 from galform_analysis.analysis import aggregate_snapshot
@@ -75,9 +101,9 @@ print(f"Number of galaxies: {len(agg['mstar'])}")
 See the `examples/` directory for complete working Jupyter notebooks:
 
 - **`compute_smf.ipynb`** - Basic stellar mass function computation
-- **`compare_mass_functions.ipynb`** - Multi-redshift SMF and HMF comparison with observational data
+- **`compare_mass_functions.ipynb`** - HMF comparison to Press–Schechter, Sheth–Tormen, and Tinker08 (via `hmf`)
 - **`galaxy_efficiency.ipynb`** - Galaxy formation efficiency analysis
-- **`subvolume_convergence.ipynb`** - Convergence testing with varying subvolume counts
+- **`subvolume_convergence.ipynb`** - HMF convergence with varying subvolume counts (updated API)
 - **`imf_replication.ipynb`** - Initial mass function analysis and replication studies
 - **`test_memory_loading.ipynb`** - Memory optimization and data loading performance tests
 
@@ -102,14 +128,13 @@ galform_analysis/
 │   ├── analysis/              # Analysis functions
 │   │   ├── aggregation.py    # Data aggregation across subvolumes
 │   │   ├── smf.py            # Stellar mass function computation
-│   │   ├── hmf.py            # Halo mass function computation
-│   │   └── convergence.py    # Convergence testing utilities
+│   │   ├── hmf.py            # Halo mass function computation (new API)
+│   │   └── plot_massfunction_convergence.py    # HMF convergence plotting (SMF plotting removed)
 │   └── utils/                 # Utilities
 │       ├── statistics.py     # Statistical helper functions
 │       └── plotting.py       # Plotting utilities and layout helpers
 ├── src/galform_execution/
-│   ├── runner.py             # GALFORM execution wrapper
-│   └── submit_galform_job.py  # Python script for submitting GALFORM jobs to SLURM
+│   └── submit_galform_slurm.py  # Python script for submitting GALFORM jobs to SLURM
 ├── examples/                  # Example notebooks and plots
 ├── tests/                     # Unit tests
 └── README.md
@@ -117,59 +142,11 @@ galform_analysis/
 
 ## GALFORM Job Submission
 
-The `submit_galform_job.py` script provides a Python interface for submitting GALFORM N-body runs to the SLURM batch queue on COSMA, replacing the traditional bash qsub scripts.
-
-### Basic Usage
+Use `submit_galform_slurm.py` to submit GALFORM runs to SLURM on COSMA.
 
 ```bash
-# Submit jobs for L800 simulation with gp14 model (default)
-python src/galform_execution/submit_galform_job.py \
-    /path/to/galform2 \
-    /path/to/run_galform_Nbody_example.csh
-
-# Dry run to preview what would be submitted
-python src/galform_execution/submit_galform_job.py \
-    /path/to/galform2 \
-    /path/to/run_galform_Nbody_example.csh \
-    --dry-run
-
-# List available simulation configurations
-python src/galform_execution/submit_galform_job.py --list-simulations
+python src/galform_execution/submit_galform_slurm.py --help
 ```
-
-### Advanced Options
-
-```bash
-# Submit with custom simulation and model
-python src/galform_execution/submit_galform_job.py \
-    /path/to/galform2 \
-    /path/to/run_script.csh \
-    --nbody-sim MillGas \
-    --model b06
-
-# Custom snapshot list and subvolume range
-python src/galform_execution/submit_galform_job.py \
-    /path/to/galform2 \
-    /path/to/run_script.csh \
-    --iz-list 100 120 155 \
-    --nvol-range 1-50
-
-# Custom SLURM parameters
-python src/galform_execution/submit_galform_job.py \
-    /path/to/galform2 \
-    /path/to/run_script.csh \
-    --partition cosma7 \
-    --account dp004 \
-    --walltime 48:00:00
-```
-
-### Supported Simulations
-
-- **L800** (default): iz=[271, 207, 176, 155, 142, 120, 105, 100, 82], nvol=701-900
-- **MilliMil**: iz=[63], nvol=1-8
-- **MillGas**: iz=[61], nvol=1-10
-- **EagleDM**: iz=[200], nvol=1-128
-- And more... (use `--list-simulations` to see all)
 
 ## Key Functions
 
@@ -223,7 +200,7 @@ from galform_analysis import (
 from galform_analysis.config import Cosmology, load_redshift_mapping
 from galform_analysis.analysis.smf import compute_smf_from_aggregated
 from galform_analysis.analysis.hmf import compute_hmf_from_aggregated
-from galform_analysis.analysis.convergence import plot_smf_convergence
+from galform_analysis.analysis.plot_massfunction_convergence import plot_smf_convergence
 from galform_analysis.io.loaders import get_completed_subvolumes
 from galform_analysis.io.readers import LuminosityFunction
 from galform_analysis.utils.statistics import count_occurrences

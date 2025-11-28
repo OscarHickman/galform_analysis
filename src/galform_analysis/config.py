@@ -124,10 +124,10 @@ def find_snapshot_at_redshift(target_z, tolerance=0.1):
 class Cosmology:
     """Cosmological parameters for the simulation."""
     
-    OMEGA_M = 0.226
-    OMEGA_L = 0.774
-    OMEGA_B = 0.045
-    H0 = 73.0
+    OMEGA_M = 0.307
+    OMEGA_L = 0.693
+    OMEGA_B = 0.04825
+    H0 = 67.77
     h = H0 / 100.0
     SIGMA_8 = 0.8288
     DELTA_C = 1.686
@@ -137,6 +137,9 @@ class Cosmology:
 # ==============================================================================
 # ANALYSIS CONSTANTS
 # ==============================================================================
+
+# Simulation volume parameters
+N_SUBVOLUMES = 1024  # Total number of subvolumes in the simulation
 
 # Default binning for correlation functions
 DEFAULT_RBINS = np.logspace(-1, 1.5, 21)  # Mpc

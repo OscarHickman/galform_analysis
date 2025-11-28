@@ -1,107 +1,247 @@
 """Halo Mass Function (HMF) computation utilities."""
 
 import os
-import glob
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from ..io.loaders import read_snapshot_data, close_snapshot
-from ..config import DEFAULT_HALO_MASS_BINS
+from ..config import DEFAULT_HALO_MASS_BINS, get_base_dir
 
 
-def compute_hmf_avg_by_snapshot(iz_path: str,
-                                bins: np.ndarray = None,
-                                ivol_sample: Optional[int] = None,
-                                ivol_list: Optional[List[int]] = None,
-                                random_seed: int = 42) -> Optional[Dict[str, Any]]:
-    """Compute halo mass function by averaging across subvolumes.
-    
-    This function iterates through all subvolumes in a snapshot, computes
-    the halo mass function for each, and returns the average with
-    standard deviation.
-    
+def hmf_given_redshift_and_subvolume(iz_path: str,
+                          ivol: int,
+                          bins: np.ndarray = None) -> Optional[Dict[str, Any]]:
+    """Compute halo mass function for a single subvolume.
+
     Args:
-        iz_path: Path to snapshot directory (e.g., '/path/to/iz155')
-        bins: Mass bins in log10(M_sun), defaults to DEFAULT_HALO_MASS_BINS
-        ivol_sample: If set, randomly sample this many subvolumes instead of using all
-        ivol_list: Explicit list of ivol indices to use (overrides ivol_sample if provided)
-        random_seed: Random seed for sampling (default: 42)
-        
+        iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
+        ivol: Subvolume index (integer extracted from 'ivolXXX').
+        bins: log10(M) bin edges. Defaults to DEFAULT_HALO_MASS_BINS.
+
     Returns:
         Dictionary with keys:
-            - 'iz': Snapshot name (e.g., 'iz155')
-            - 'z': Redshift
-            - 'centers': Bin centers in log10(M_sun)
-            - 'phi': Mean number density [Mpc^-3 dex^-1]
-            - 'phi_std': Standard deviation of phi
-            - 'n_used': Number of subvolumes successfully processed
-            - 'n_total': Total number of subvolumes attempted
-        Returns None if no valid data found
+            - 'iz': snapshot folder name
+            - 'ivol': subvolume index
+            - 'z': redshift (from file)
+            - 'centers': bin centers log10(M)
+            - 'phi': number density [Mpc^-3 dex^-1]
+            - 'counts': raw counts per bin
+            - 'V_ivol': comoving volume (if present)
+        Returns None if data invalid or missing.
     """
     if bins is None:
         bins = DEFAULT_HALO_MASS_BINS
-        
-    ivol_paths_all = sorted(glob.glob(os.path.join(iz_path, 'ivol*')))
-    ivol_paths = ivol_paths_all
-    if not ivol_paths:
+
+    try:
+        d = read_snapshot_data(iz_path, ivol=ivol)
+    except Exception:
         return None
 
-    # Explicit selection overrides sampling
-    if ivol_list:
-        # Filter paths by requested indices (silently ignore missing)
-        index_map = {int(Path(p).name.replace('ivol', '')): p for p in ivol_paths_all}
-        ivol_paths = [index_map[i] for i in ivol_list if i in index_map]
-    elif ivol_sample is not None and ivol_sample > 0:
-        if ivol_sample < len(ivol_paths):
-            rng = np.random.default_rng(random_seed)
-            sel_idx = rng.choice(len(ivol_paths), size=ivol_sample, replace=False)
-            ivol_paths = [ivol_paths[i] for i in sel_idx]
+    V_ivol = d.get('V_ivol')
+    mhalo = d.get('mhalo')
+    z = d.get('z')
+    close_snapshot(d)
+
+    if V_ivol is None or V_ivol <= 0 or mhalo is None:
+        return None
+
+    mhalo = mhalo[(mhalo > 0) & np.isfinite(mhalo)]
+    if mhalo.size == 0:
+        return None
+
+    logM = np.log10(mhalo)
+    counts, edges = np.histogram(logM, bins=bins)
+    dlogM = np.diff(edges)
+    phi = counts / (dlogM * V_ivol)
+    centers = 0.5 * (edges[1:] + edges[:-1])
+
+    return {
+        'iz': Path(iz_path).name,
+        'ivol': ivol,
+        'z': z,
+        'centers': centers,
+        'phi': phi,
+        'counts': counts,
+        'V_ivol': V_ivol,
+    }
+
+def hmfs_given_redshifts_and_subvolume(ivol: int,
+                             iz_nums: List[int],
+                             base_dir: Optional[str] = None) -> None:
+    """Compute HMFs for a single subvolume across multiple snapshots (redshifts)."""
+
+    results_by_z = []
+    for iz_num in iz_nums:
+        iz_path = str(base_dir / f'iz{iz_num}')
+        result = hmf_given_redshift_and_subvolume(iz_path, ivol)
+        if result is not None:
+            results_by_z.append({
+                'iz': f'iz{iz_num}',
+                'iz_num': iz_num,
+                'z': result['z'],
+                'centers': result['centers'],
+                'phi': result['phi'],
+                'counts': result['counts']
+            })
+
+    if not results_by_z:
+        print("No valid data found for this subvolume across requested redshifts.")
+    else:
+        print(f"Successfully loaded {len(results_by_z)} snapshots")
+        
+        # Build DataFrame (one row per mass bin per redshift)
+        df_rows = []
+        for res in results_by_z:
+            for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
+                df_rows.append({
+                    'iz': res['iz'],
+                    'iz_num': res['iz_num'],
+                    'z': res['z'],
+                    'log_M': center,
+                    'phi': phi_val,
+                    'counts': res['counts'][i]
+                })
+        
+        return pd.DataFrame(df_rows), results_by_z
+
+
+def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
+                                ivols: List[int],
+                                bins: np.ndarray = None,
+                                base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Average HMF over a provided list of subvolumes for a snapshot.
+
+    This replaces the previous path/sampling interface. It simply calls
+    ``hmf_given_redshift_and_subvolume`` for each requested ``ivol`` and averages the
+    resulting ``phi`` arrays.
+
+    Args:
+        iz_num: Numeric snapshot identifier (e.g. 207 for 'iz207').
+        ivols: List of subvolume indices to include in the average.
+        bins: Optional log10(M) bin edges (defaults to DEFAULT_HALO_MASS_BINS).
+        base_dir: Optional base directory; defaults to configured base dir.
+
+    Returns:
+        Dictionary with keys:
+            - 'iz': snapshot name (e.g. 'iz207')
+            - 'z': redshift (from first successful subvolume)
+            - 'centers': bin centers
+            - 'phi': mean number density across provided subvolumes
+            - 'phi_std': standard deviation across provided subvolumes
+            - 'n_used': number of successful subvolumes
+            - 'n_requested': length of ivols list
+        Returns None if no subvolume produced valid data.
+    """
+    if bins is None:
+        bins = DEFAULT_HALO_MASS_BINS
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    iz_path = os.path.join(base_dir, f'iz{iz_num}')
+    if not os.path.isdir(iz_path):
+        return None
 
     per_phi = []
     z = None
-    n_total = len(ivol_paths)
-    
-    for ivp in ivol_paths:
-        iv = int(Path(ivp).name.replace('ivol', ''))
-        try:
-            d = read_snapshot_data(iz_path, ivol=iv)
-        except Exception:
+    centers_ref = None
+
+    for iv in ivols:
+        res = hmf_given_redshift_and_subvolume(iz_path, iv, bins=bins)
+        if res is None:
             continue
-            
-        V_ivol = d.get('V_ivol')
-        mhalo = d.get('mhalo')
+        if centers_ref is None:
+            centers_ref = res['centers']
         if z is None:
-            z = d.get('z')
-        close_snapshot(d)
-        
-        if V_ivol is None or V_ivol <= 0 or mhalo is None:
-            continue
-            
-        mhalo = mhalo[(mhalo > 0) & np.isfinite(mhalo)]
-        if mhalo.size == 0:
-            continue
-            
-        logM = np.log10(mhalo)
-        counts, edges = np.histogram(logM, bins=bins)
-        dlogM = np.diff(edges)
-        phi = counts / (dlogM * V_ivol)
-        per_phi.append(phi)
+            z = res['z']
+        per_phi.append(res['phi'])
 
     if not per_phi:
         return None
 
     per_phi = np.array(per_phi)
-    centers = 0.5 * (bins[1:] + bins[:-1])
-    
+    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
+
     return {
-        'iz': Path(iz_path).name,
+        'iz': f'iz{iz_num}',
         'z': z,
         'centers': centers,
         'phi': per_phi.mean(axis=0),
         'phi_std': per_phi.std(axis=0),
         'n_used': per_phi.shape[0],
-        'n_total': n_total,
+        'n_requested': len(ivols),
+    }
+
+
+def avg_hmf_given_redshifts_and_subvolume(ivol: int,
+                                 iz_nums: List[int],
+                                 bins: np.ndarray = None,
+                                 base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Average HMF for a single subvolume across multiple snapshots (redshifts).
+
+    Calls ``hmf_given_redshift_and_subvolume`` for the same subvolume at different redshifts
+    and averages the resulting ``phi`` arrays.
+
+    Args:
+        ivol: Subvolume index to use across all snapshots.
+        iz_nums: List of numeric snapshot identifiers (e.g. [82, 100, 120, 155]).
+        bins: Optional log10(M) bin edges (defaults to DEFAULT_HALO_MASS_BINS).
+        base_dir: Optional base directory; defaults to configured base dir.
+
+    Returns:
+        Dictionary with keys:
+            - 'ivol': the subvolume index used
+            - 'iz_list': list of snapshot names that contributed data
+            - 'z_list': list of redshifts (parallel to iz_list)
+            - 'centers': bin centers
+            - 'phi': mean number density across provided snapshots
+            - 'phi_std': standard deviation across provided snapshots
+            - 'n_used': number of successful snapshots
+            - 'n_requested': length of iz_nums list
+        Returns None if no snapshot produced valid data.
+    """
+    if bins is None:
+        bins = DEFAULT_HALO_MASS_BINS
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    per_phi = []
+    iz_list = []
+    z_list = []
+    centers_ref = None
+
+    for iz_num in iz_nums:
+        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        if not os.path.isdir(iz_path):
+            continue
+
+        res = hmf_given_redshift_and_subvolume(iz_path, ivol, bins=bins)
+        if res is None:
+            continue
+
+        if centers_ref is None:
+            centers_ref = res['centers']
+
+        per_phi.append(res['phi'])
+        iz_list.append(f'iz{iz_num}')
+        z_list.append(res['z'])
+
+    if not per_phi:
+        return None
+
+    per_phi = np.array(per_phi)
+    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
+
+    return {
+        'ivol': ivol,
+        'iz_list': iz_list,
+        'z_list': z_list,
+        'centers': centers,
+        'phi': per_phi.mean(axis=0),
+        'phi_std': per_phi.std(axis=0),
+        'n_used': per_phi.shape[0],
+        'n_requested': len(iz_nums),
     }
 
 

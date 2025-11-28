@@ -8,6 +8,8 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
+from ..config import N_SUBVOLUMES
+
 
 def get_completed_subvolumes(iz_path: str) -> List[int]:
     """Scan all subvolumes in a snapshot directory and return list of ivol numbers
@@ -234,9 +236,24 @@ def read_snapshot_data(iz_path: str, ivol: int = 0) -> Dict[str, Any]:
     # Volume
     data['V_total'] = data['V_ivol'] = None
     if 'Parameters' in f and 'volume' in f['Parameters']:
-        V_total = float(np.array(f['Parameters']['volume']))
-        data['V_total'] = V_total
-        data['V_ivol'] = V_total
+        # The 'volume' parameter in GALFORM HDF5 files stores the PER-SUBVOLUME volume
+        # NOT the total simulation box volume
+        V_ivol = float(np.array(f['Parameters']['volume']))
+        data['V_ivol'] = V_ivol
+        
+        # Calculate total volume by multiplying by number of subvolumes
+        n_subvol = None
+        if 'n_subvolumes' in f['Parameters']:
+            n_subvol = int(np.array(f['Parameters']['n_subvolumes']))
+        else:
+            # Use the configured value from config.py
+            n_subvol = N_SUBVOLUMES
+        
+        if n_subvol and n_subvol > 0:
+            data['V_total'] = V_ivol * n_subvol
+        else:
+            # Fallback: if not specified, assume this is the total
+            data['V_total'] = V_ivol
 
     return data
 
