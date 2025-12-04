@@ -17,7 +17,7 @@ psutil>=5.8.0  # For memory monitoring in examples
 scikit-learn>=1.0.0  # For ML surrogate models in advanced examples
 pymc3>=3.11.0  # For Bayesian inference examples
 arviz>=0.11.0  # For Bayesian inference examples
-fsps>=0.9.0  # Stellar population synthesis
+fsps>=0.4.4  # Stellar population synthesis
 Corrfunc>=2.5.0 # For correlation function
 
 # Advanced optional dependencies (for specialized notebooks)
