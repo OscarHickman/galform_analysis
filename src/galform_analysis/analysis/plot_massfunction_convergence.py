@@ -7,9 +7,10 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import random
+from matplotlib.patches import Patch
 
-from galform_analysis.config import get_snapshot_redshift, DEFAULT_HALO_MASS_BINS
-from .hmf import avg_hmf_given_redshift_and_subvolumes, hmf_given_redshift_and_subvolume
+from galform_analysis.config import DEFAULT_HALO_MASS_BINS
+from .hmf import avg_hmf_given_redshift_and_subvolumes
 
 def plot_hmf_convergence_by_subvolumes(
     base_dir,
@@ -147,6 +148,7 @@ def plot_hmf_convergence_by_subvolumes(
             ax.set_title(panel_label, fontsize=14)
             continue
         
+        any_shaded = False
         for i, h in enumerate(hmfs):
             color = cmap(i / (len(hmfs) - 1 if len(hmfs) > 1 else 1))
             if h['z'] is not None and not np.isnan(h['z']):
@@ -176,6 +178,7 @@ def plot_hmf_convergence_by_subvolumes(
                     alpha=0.15,
                     linewidth=0,
                 )
+                any_shaded = True
         
         ax.set_yscale('log')
         if ylim:
@@ -190,7 +193,12 @@ def plot_hmf_convergence_by_subvolumes(
         ax.set_xlabel(r'$\log_{10}(M_{\rm halo}/M_\odot)$', fontsize=11)
         ax.set_title(panel_label, fontsize=14)
         ax.grid(True, which='both', alpha=0.25)
-        ax.legend(fontsize=8, ncol=1, loc='best')
+        handles, labels = ax.get_legend_handles_labels()
+        if any_shaded:
+            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.15, label='±1σ')
+            handles.append(sigma_patch)
+            labels.append('±1σ')
+        ax.legend(handles, labels, fontsize=8, ncol=1, loc='best')
     
     # Hide unused subplots
     for idx in range(n_plots, len(axes)):
@@ -273,7 +281,7 @@ def plot_hmf_convergence_by_redshift(
         # Get completed subvolumes for this redshift
         if df_completed is not None:
             iz_name = f'iz{iz_num}'
-            iz_completed = df_completed[(df_completed['iz'] == iz_name) & (df_completed['completed'] == True)]
+            iz_completed = df_completed[(df_completed['iz'] == iz_name) & (df_completed['completed'])]
             available_ivols = sorted(iz_completed['ivol'].unique())
         else:
             # Fallback: scan for available subvolumes
@@ -360,7 +368,7 @@ def plot_hmf_convergence_by_redshift(
     cmap = plt.get_cmap('viridis')
 
     for idx, (z_label, data) in enumerate(results_by_z.items()):
-        ax = axes[idx]
+        ax: plt.Axes = axes[idx]
         hmfs_dict = data['hmfs']
 
         if not hmfs_dict:
@@ -369,6 +377,7 @@ def plot_hmf_convergence_by_redshift(
             ax.set_title(z_label, fontsize=14)
             continue
 
+        any_shaded = False
         for i, key in enumerate(sorted(hmfs_dict.keys(), key=lambda k: str(k))):
             h = hmfs_dict[key]
             color = cmap(i / (len(hmfs_dict) - 1 if len(hmfs_dict) > 1 else 1))
@@ -393,6 +402,7 @@ def plot_hmf_convergence_by_redshift(
                     alpha=0.18,
                     linewidth=0,
                 )
+                any_shaded = True
 
         ax.set_yscale('log')
         if ylim:
@@ -407,7 +417,12 @@ def plot_hmf_convergence_by_redshift(
         ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]', fontsize=11)
         ax.set_title(z_label, fontsize=14)
         ax.grid(True, which='both', alpha=0.25)
-        ax.legend(fontsize=8, loc='best')
+        handles, labels = ax.get_legend_handles_labels()
+        if any_shaded:
+            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.18, label='±1σ')
+            handles.append(sigma_patch)
+            labels.append('±1σ')
+        ax.legend(handles, labels, fontsize=8, loc='best')
 
     # Hide any unused axes
     for j in range(n_panels, len(axes)):
