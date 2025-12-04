@@ -17,6 +17,13 @@ from .smf import (
     plot_smf_convergence_by_subvolumes,
     plot_smf_convergence_by_redshift,
 )
+from .galaxy_efficiency import (
+    compute_efficiency_vs_mass,
+    process_efficiency_redshifts,
+    plot_efficiency_vs_mass,
+    save_efficiency_data,
+    find_peak_efficiency,
+)
 
 __all__ = [
     'aggregate_snapshot',
@@ -34,4 +41,10 @@ __all__ = [
     'avg_smf_given_redshifts_and_subvolume',
     'plot_smf_convergence_by_subvolumes',
     'plot_smf_convergence_by_redshift',
+    # Galaxy efficiency functions
+    'compute_efficiency_vs_mass',
+    'process_efficiency_redshifts',
+    'plot_efficiency_vs_mass',
+    'save_efficiency_data',
+    'find_peak_efficiency',
 ]

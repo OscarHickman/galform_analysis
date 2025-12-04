@@ -19,7 +19,7 @@ def plot_smf_convergence_by_subvolumes(
     n_subvolumes: Optional[List[int]] = None,
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
-    outdir: str = 'plots/convergence',
+    outdir: str = '_plots/convergence',
     do_save: bool = True,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
@@ -48,7 +48,7 @@ def plot_smf_convergence_by_subvolumes(
         bins = DEFAULT_STELLAR_MASS_BINS
     
     os.makedirs(outdir, exist_ok=True)
-    data_dir = 'plots/_plots_data/convergence'
+    data_dir = '_plots/_plots_data/convergence'
     os.makedirs(data_dir, exist_ok=True)
     
     print(f"Testing convergence with {len(n_subvolumes)} sample sizes: {n_subvolumes}")
@@ -234,7 +234,7 @@ def plot_smf_convergence_by_redshift(
     n_subvolumes: Optional[List[int]] = None,
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
-    outdir: str = 'plots/convergence',
+    outdir: str = '_plots/convergence',
     do_save: bool = True,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
@@ -269,7 +269,7 @@ def plot_smf_convergence_by_redshift(
         n_subvolumes = [1, 2, 5, 10]
 
     os.makedirs(outdir, exist_ok=True)
-    data_dir = 'plots/_plots_data/convergence_by_redshift'
+    data_dir = '_plots/_plots_data/convergence_by_redshift'
     os.makedirs(data_dir, exist_ok=True)
 
     sorted_snapshots = sorted(iz_snapshots)
