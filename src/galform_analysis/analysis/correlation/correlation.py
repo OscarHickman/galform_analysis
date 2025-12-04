@@ -4,8 +4,8 @@ from typing import Dict, Optional, Tuple, List, Any
 import numpy as np
 from Corrfunc.theory.xi import xi as corrfunc_xi
 
-from ..config import DEFAULT_RBINS, get_base_dir
-from ..io.loaders import open_galaxies_hdf5, get_output_group, read_snapshot_data
+from ...config import DEFAULT_RBINS, get_base_dir
+from ...io.loaders import open_galaxies_hdf5, get_output_group, read_snapshot_data
 
 
 def _load_positions_from_hdf5(
