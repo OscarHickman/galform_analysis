@@ -6,8 +6,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from ..io.loaders import read_snapshot_data, close_snapshot
-from ..config import DEFAULT_HALO_MASS_BINS, get_base_dir
+from ...io.loaders import read_snapshot_data, close_snapshot
+from ...config import DEFAULT_HALO_MASS_BINS, get_base_dir
 
 
 def hmf_given_redshift_and_subvolume(iz_path: str,

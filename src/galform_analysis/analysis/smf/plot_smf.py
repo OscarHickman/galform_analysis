@@ -1,4 +1,4 @@
-"""Correlation function convergence testing utilities."""
+"""SMF convergence testing utilities."""
 
 import os
 import numpy as np
@@ -9,35 +9,32 @@ from typing import List, Optional, Dict, Any
 import random
 from matplotlib.patches import Patch
 
-from galform_analysis.config import DEFAULT_RBINS
-from .correlation import avg_correlation_given_redshift_and_subvolumes
+from ...config import DEFAULT_STELLAR_MASS_BINS
+from .smf import avg_smf_given_redshift_and_subvolumes
 
-
-def plot_correlation_convergence_by_subvolumes(
+def plot_smf_convergence_by_subvolumes(
     base_dir,
     df_completed: Optional[pd.DataFrame],
     iz_snapshots: List[str], 
     n_subvolumes: Optional[List[int]] = None,
     n_iterations: int = 1,
-    rbins: Optional[np.ndarray] = None,
-    nmesh: int = 128,
-    outdir: str = 'plots/correlation',
+    bins: Optional[np.ndarray] = None,
+    outdir: str = 'plots/convergence',
     do_save: bool = True,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Plot correlation function convergence with varying subvolume sample sizes.
+    """Plot SMF convergence with varying subvolume sample sizes.
 
     Args:
         base_dir: Base directory containing snapshot subdirectories
         df_completed: DataFrame with completed galaxy files (from completed_galaxies())
                      If provided, only completed subvolumes will be sampled
-        iz_snapshots: List of snapshot numbers (e.g., ['82', '100', '207'])
+        iz_snapshots: List of snapshot numbers (e.g., [82, 100, 120, 155])
         n_subvolumes: List of subvolume counts to test
         n_iterations: Number of random iterations per subvolume sample size
-        rbins: Radial bin edges (Mpc). Defaults to DEFAULT_RBINS
-        nmesh: Mesh size for FFT grid
+        bins: log10(M_star) bin edges (default from config)
         outdir: Output directory for figure and data
         do_save: Save figure and CSVs if True
         xlim: Tuple (xmin,xmax) for x-axis limits
@@ -45,26 +42,23 @@ def plot_correlation_convergence_by_subvolumes(
         panel_size: (width, height) for each subplot panel
 
     Returns:
-        Dict mapping panel label to list of correlation function result dicts.
+        Dict mapping panel label to list of SMF result dicts.
     """
-    if rbins is None:
-        rbins = DEFAULT_RBINS
-    
-    if n_subvolumes is None:
-        n_subvolumes = [1, 2, 5, 10, 20]
+    if bins is None:
+        bins = DEFAULT_STELLAR_MASS_BINS
     
     os.makedirs(outdir, exist_ok=True)
-    data_dir = 'plots/_plots_data/correlation'
+    data_dir = 'plots/_plots_data/convergence'
     os.makedirs(data_dir, exist_ok=True)
     
-    print(f"Testing correlation function convergence with {len(n_subvolumes)} sample sizes: {n_subvolumes}")
+    print(f"Testing convergence with {len(n_subvolumes)} sample sizes: {n_subvolumes}")
     print(f"Averaging over {n_iterations} iteration(s) per sample size")
     
     results_by_panel = {}
     
     for n in n_subvolumes:
         print(f"\n=== Computing with n={n} subvolume(s) ===")
-        correlations = []
+        smfs = []
         
         for iz_num in iz_snapshots:
             # Get completed subvolumes for this redshift
@@ -74,6 +68,7 @@ def plot_correlation_convergence_by_subvolumes(
                 available_ivols = sorted(iz_completed['ivol'].unique())
             else:
                 # Fallback: scan for available subvolumes
+                print("failed to parse completed df")
                 iz_path = os.path.join(str(base_dir), f'iz{iz_num}')
                 if not os.path.isdir(iz_path):
                     continue
@@ -89,49 +84,48 @@ def plot_correlation_convergence_by_subvolumes(
             print(f"  iz{iz_num}: ", end='')
             
             # Perform n_iterations with random sampling
-            iteration_results = []
+            iteration_smfs = []
             for iteration in range(n_iterations):
                 # Randomly sample n subvolumes
                 sampled_ivols = random.sample(available_ivols, n)
-                corr = avg_correlation_given_redshift_and_subvolumes(
-                    iz_num=int(iz_num), 
+                smf = avg_smf_given_redshift_and_subvolumes(
+                    iz_num=iz_num, 
                     ivols=sampled_ivols, 
-                    rbins=rbins,
-                    nthreads=nmesh,
+                    bins=bins, 
                     base_dir=str(base_dir)
                 )
                 
-                if corr:
-                    iteration_results.append(corr)
+                if smf:
+                    iteration_smfs.append(smf)
             
-            if not iteration_results:
+            if not iteration_smfs:
                 print("no data")
                 continue
             
             # Average over iterations
             if n_iterations > 1:
-                # Average xi values across iterations
-                xi_avg = np.mean([c['xi'] for c in iteration_results], axis=0)
-                xi_std = np.std([c['xi'] for c in iteration_results], axis=0)
+                # Average phi values across iterations
+                phi_avg = np.mean([s['phi'] for s in iteration_smfs], axis=0)
+                phi_std = np.std([s['phi'] for s in iteration_smfs], axis=0)
                 
-                averaged_corr = {
+                averaged_smf = {
                     'iz': f'iz{iz_num}',
-                    'z': iteration_results[0].get('z'),
-                    'r': iteration_results[0]['r'],
-                    'xi': xi_avg,
-                    'xi_std': xi_std,
+                    'z': iteration_smfs[0].get('z'),
+                    'centers': iteration_smfs[0]['centers'],
+                    'phi': phi_avg,
+                    'phi_std': phi_std,
                     'n_used': n,
                     'n_iterations': n_iterations
                 }
             else:
                 # Single iteration, just use that result
-                averaged_corr = iteration_results[0]
-                averaged_corr['n_iterations'] = 1
+                averaged_smf = iteration_smfs[0]
+                averaged_smf['n_iterations'] = 1
             
-            correlations.append(averaged_corr)
+            smfs.append(averaged_smf)
             print(f"done ({n} ivols × {n_iterations} iterations)")
         
-        results_by_panel[str(n)] = correlations
+        results_by_panel[str(n)] = smfs
     
     # Create grid of subplots; scale by panel_size
     n_plots = len(results_by_panel)
@@ -145,27 +139,27 @@ def plot_correlation_convergence_by_subvolumes(
     
     cmap = plt.colormaps['viridis']
     
-    for idx, (panel_label, correlations) in enumerate(results_by_panel.items()):
+    for idx, (panel_label, smfs) in enumerate(results_by_panel.items()):
         ax: plt.Axes = axes[idx]
         
-        if not correlations:
+        if not smfs:
             ax.text(0.5, 0.5, f'No data for {panel_label}', ha='center', va='center',
                    transform=ax.transAxes, fontsize=12)
             ax.set_title(panel_label, fontsize=14)
             continue
         
         any_shaded = False
-        for i, c in enumerate(correlations):
-            color = cmap(i / (len(correlations) - 1 if len(correlations) > 1 else 1))
-            if c['z'] is not None and not np.isnan(c['z']):
-                label = f"z={c['z']:.2f}"
+        for i, s in enumerate(smfs):
+            color = cmap(i / (len(smfs) - 1 if len(smfs) > 1 else 1))
+            if s['z'] is not None and not np.isnan(s['z']):
+                label = f"z={s['z']:.2f}"
             else:
-                label = c['iz']
+                label = s['iz']
             
-            # Plot smooth line with markers
+            # Plot smooth line with markers (no step style)
             ax.plot(
-                c['r'],
-                c['xi'],
+                s['centers'],
+                s['phi'],
                 color=color,
                 lw=2,
                 marker='o',
@@ -174,82 +168,79 @@ def plot_correlation_convergence_by_subvolumes(
                 alpha=0.9,
             )
             
-            # Show uncertainty if available and n > 1 (standard error of the mean)
-            if 'xi_std' in c and c['xi_std'] is not None and c['n_used'] > 1:
-                xi_sem = c['xi_std'] / np.sqrt(c['n_used'])
+            # Show uncertainty if available and n > 1
+            if 'phi_std' in s and s['phi_std'] is not None and s['n_used'] > 1:
                 ax.fill_between(
-                    c['r'],
-                    c['xi'] - xi_sem,
-                    c['xi'] + xi_sem,
+                    s['centers'],
+                    np.maximum(s['phi'] - s['phi_std'], 1e-10),
+                    s['phi'] + s['phi_std'],
                     color=color,
                     alpha=0.15,
                     linewidth=0,
                 )
                 any_shaded = True
         
-        ax.set_xscale('log')
         ax.set_yscale('log')
         if ylim:
             ax.set_ylim(*ylim)
         else:
-            ax.set_ylim(bottom=0.01)
+            ax.set_ylim(bottom=1e-5)
         if xlim:
             ax.set_xlim(*xlim)
         else:
-            ax.set_xlim(left=0.1, right=50)
-        ax.set_ylabel(r'$\xi(r)$', fontsize=11)
-        ax.set_xlabel(r'$r$ [Mpc]', fontsize=11)
-        ax.set_title(f'n={panel_label}', fontsize=14)
-        ax.grid(False)
+            ax.set_xlim(left=8)
+        ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]', fontsize=11)
+        ax.set_xlabel(r'$\log_{10}(M_{\star}/M_\odot)$', fontsize=11)
+        ax.set_title(panel_label, fontsize=14)
+        ax.grid(True, which='both', alpha=0.25)
         handles, labels = ax.get_legend_handles_labels()
         if any_shaded:
-            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.15, label='±1 SEM')
+            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.15, label='±1σ')
             handles.append(sigma_patch)
-            labels.append('±1 SEM')
+            labels.append('±1σ')
         ax.legend(handles, labels, fontsize=8, ncol=1, loc='best')
     
     # Hide unused subplots
     for idx in range(n_plots, len(axes)):
         axes[idx].set_visible(False)
     
-    fig.suptitle('Correlation Function Convergence with Increasing Subvolume Sample Size', 
+    fig.suptitle('SMF Convergence with Increasing Subvolume Sample Size', 
                 fontsize=16, y=0.995)
     plt.tight_layout()
     
     if do_save:
-        fp = os.path.join(outdir, 'correlation_convergence.png')
+        fp = os.path.join(outdir, 'smf_convergence.png')
         plt.savefig(fp, dpi=150, bbox_inches='tight')
         print(f"\nSaved convergence plot to {fp}")
         # Save plotted data as CSV
-        for panel_label, correlations in results_by_panel.items():
-            for c in correlations:
-                snap_label = f"z{c['z']:.2f}" if c['z'] is not None and not np.isnan(c['z']) else c['iz']
-                df = np.stack([c['r'], c['xi'], c.get('xi_std', np.full_like(c['xi'], np.nan))], axis=1)
-                header = 'r,xi,xi_std'
+        for panel_label, smfs in results_by_panel.items():
+            for s in smfs:
+                snap_label = f"z{s['z']:.2f}" if s['z'] is not None and not np.isnan(s['z']) else s['iz']
+                df = np.stack([s['centers'], s['phi'], s.get('phi_std', np.full_like(s['phi'], np.nan))], axis=1)
+                header = 'logM,phi,phi_std'
                 safe_panel = panel_label.replace(',', '_').replace(' ', '_')
-                fname = f"correlation_convergence_{safe_panel}_{snap_label}.csv"
+                fname = f"smf_convergence_{safe_panel}_{snap_label}.csv"
                 np.savetxt(os.path.join(data_dir, fname), df, delimiter=',', header=header, comments='')
-        print(f"Saved correlation data to {data_dir}")
+        print(f"Saved SMF data to {data_dir}")
     
     plt.show()
     return results_by_panel
 
 
-def plot_correlation_convergence_by_redshift(
+def plot_smf_convergence_by_redshift(
     base_dir,
     df_completed: Optional[pd.DataFrame],
     iz_snapshots: List[int],
     n_subvolumes: Optional[List[int]] = None,
     n_iterations: int = 1,
-    rbins: Optional[np.ndarray] = None,
-    nmesh: int = 128,
-    outdir: str = 'plots/correlation',
+    bins: Optional[np.ndarray] = None,
+    outdir: str = 'plots/convergence',
     do_save: bool = True,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
 ) -> Dict[str, Dict[str, Any]]:
-    """Plot correlation function convergence organized by redshift.
+    """Plot SMF convergence organized by redshift.
 
     Each panel shows one redshift with multiple lines for different
     subvolume counts, illustrating convergence as more subvolumes are
@@ -258,11 +249,10 @@ def plot_correlation_convergence_by_redshift(
     Args:
         base_dir: Base directory containing snapshot subdirectories
         df_completed: DataFrame with completed galaxy files
-        iz_snapshots: List of snapshot numbers (e.g., [82, 100, 207])
+        iz_snapshots: List of snapshot numbers (e.g., [82, 100, 120, 155])
         n_subvolumes: Subvolume counts to test per snapshot panel
         n_iterations: Number of random iterations per subvolume sample size
-        rbins: Radial bin edges (Mpc). Defaults to DEFAULT_RBINS
-        nmesh: Mesh size for FFT grid
+        bins: log10(M_star) bin edges (default from config)
         outdir: Directory to save figure
         do_save: Whether to save figure and CSVs
         xlim: x-axis limits
@@ -270,22 +260,22 @@ def plot_correlation_convergence_by_redshift(
         panel_size: (width, height) for each subplot panel
 
     Returns:
-        Dict keyed by redshift label with per-n sample correlation function results
+        Dict keyed by redshift label with per-n sample SMF results
     """
-    if rbins is None:
-        rbins = DEFAULT_RBINS
+    if bins is None:
+        bins = DEFAULT_STELLAR_MASS_BINS
     
     if n_subvolumes is None:
         n_subvolumes = [1, 2, 5, 10]
 
     os.makedirs(outdir, exist_ok=True)
-    data_dir = 'plots/_plots_data/correlation_by_redshift'
+    data_dir = 'plots/_plots_data/convergence_by_redshift'
     os.makedirs(data_dir, exist_ok=True)
 
     sorted_snapshots = sorted(iz_snapshots)
     results_by_z: Dict[str, Dict[str, Any]] = {}
 
-    print(f"Computing correlation convergence by redshift with n_subvolumes={n_subvolumes}")
+    print(f"Computing convergence by redshift with n_subvolumes={n_subvolumes}")
     
     for iz_num in sorted_snapshots:
         # Get completed subvolumes for this redshift
@@ -317,42 +307,41 @@ def plot_correlation_convergence_by_redshift(
                 continue
                 
             # Average over iterations
-            iteration_results = []
+            iteration_smfs = []
             for iteration in range(n_iterations):
                 sampled_ivols = random.sample(available_ivols, n)
-                corr = avg_correlation_given_redshift_and_subvolumes(
+                smf = avg_smf_given_redshift_and_subvolumes(
                     iz_num=iz_num,
                     ivols=sampled_ivols,
-                    rbins=rbins,
-                    nthreads=nmesh,
+                    bins=bins,
                     base_dir=str(base_dir)
                 )
-                if corr:
-                    iteration_results.append(corr)
+                if smf:
+                    iteration_smfs.append(smf)
             
-            if not iteration_results:
+            if not iteration_smfs:
                 print(f"  n={n}: no data")
                 continue
             
             # Average over iterations
             if n_iterations > 1:
-                xi_avg = np.mean([c['xi'] for c in iteration_results], axis=0)
-                xi_std = np.std([c['xi'] for c in iteration_results], axis=0)
-                averaged_corr = {
+                phi_avg = np.mean([s['phi'] for s in iteration_smfs], axis=0)
+                phi_std = np.std([s['phi'] for s in iteration_smfs], axis=0)
+                averaged_smf = {
                     'iz': f'iz{iz_num}',
-                    'z': iteration_results[0].get('z'),
-                    'r': iteration_results[0]['r'],
-                    'xi': xi_avg,
-                    'xi_std': xi_std,
+                    'z': iteration_smfs[0].get('z'),
+                    'centers': iteration_smfs[0]['centers'],
+                    'phi': phi_avg,
+                    'phi_std': phi_std,
                     'n_used': n,
                     'n_iterations': n_iterations
                 }
             else:
-                averaged_corr = iteration_results[0]
-                averaged_corr['n_iterations'] = 1
+                averaged_smf = iteration_smfs[0]
+                averaged_smf['n_iterations'] = 1
             
-            per_n_results[n] = averaged_corr
-            print(f"  n={n}: done ({averaged_corr['n_used']} ivols × {n_iterations} iterations)")
+            per_n_results[n] = averaged_smf
+            print(f"  n={n}: done ({averaged_smf['n_used']} ivols × {n_iterations} iterations)")
 
         z_val = per_n_results[list(per_n_results.keys())[0]]['z'] if per_n_results else None
         z_label = f"z={z_val:.2f}" if z_val is not None and not np.isnan(z_val) else f'iz{iz_num}'
@@ -360,7 +349,7 @@ def plot_correlation_convergence_by_redshift(
         results_by_z[z_label] = {
             'z': z_val,
             'iz': f'iz{iz_num}',
-            'correlations': per_n_results
+            'smfs': per_n_results
         }
 
     # Layout: one panel per redshift
@@ -380,22 +369,22 @@ def plot_correlation_convergence_by_redshift(
 
     for idx, (z_label, data) in enumerate(results_by_z.items()):
         ax: plt.Axes = axes[idx]
-        corr_dict = data['correlations']
+        smfs_dict = data['smfs']
 
-        if not corr_dict:
+        if not smfs_dict:
             ax.text(0.5, 0.5, f'No data for {z_label}', ha='center', va='center',
                     transform=ax.transAxes, fontsize=12)
             ax.set_title(z_label, fontsize=14)
             continue
 
         any_shaded = False
-        for i, key in enumerate(sorted(corr_dict.keys(), key=lambda k: str(k))):
-            c = corr_dict[key]
-            color = cmap(i / (len(corr_dict) - 1 if len(corr_dict) > 1 else 1))
+        for i, key in enumerate(sorted(smfs_dict.keys(), key=lambda k: str(k))):
+            s = smfs_dict[key]
+            color = cmap(i / (len(smfs_dict) - 1 if len(smfs_dict) > 1 else 1))
             label = f'n={key}' if isinstance(key, (int, float)) else str(key)
             ax.plot(
-                c['r'],
-                c['xi'],
+                s['centers'],
+                s['phi'],
                 color=color,
                 lw=2,
                 marker='o',
@@ -403,61 +392,59 @@ def plot_correlation_convergence_by_redshift(
                 label=label,
                 alpha=0.9,
             )
-            # Use n_used to decide if uncertainty shading is meaningful (standard error of the mean)
-            if 'xi_std' in c and c['xi_std'] is not None and c.get('n_used', 1) > 1:
-                xi_sem = c['xi_std'] / np.sqrt(c.get('n_used', 1))
+            # Use n_used to decide if uncertainty shading is meaningful; avoids undefined variable 'n'
+            if 'phi_std' in s and s['phi_std'] is not None and s.get('n_used', 1) > 1:
                 ax.fill_between(
-                    c['r'],
-                    c['xi'] - xi_sem,
-                    c['xi'] + xi_sem,
+                    s['centers'],
+                    np.maximum(s['phi'] - s['phi_std'], 1e-10),
+                    s['phi'] + s['phi_std'],
                     color=color,
                     alpha=0.18,
                     linewidth=0,
                 )
                 any_shaded = True
 
-        ax.set_xscale('log')
         ax.set_yscale('log')
         if ylim:
             ax.set_ylim(*ylim)
         else:
-            ax.set_ylim(bottom=0.01)
+            ax.set_ylim(bottom=1e-5)
         if xlim:
             ax.set_xlim(*xlim)
         else:
-            ax.set_xlim(left=0.1, right=50)
-        ax.set_xlabel(r'$r$ [Mpc]', fontsize=11)
-        ax.set_ylabel(r'$\xi(r)$', fontsize=11)
+            ax.set_xlim(left=bins.min(), right=bins.max())
+        ax.set_xlabel(r'$\log_{10}(M_{\star}/M_\odot)$', fontsize=11)
+        ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]', fontsize=11)
         ax.set_title(z_label, fontsize=14)
+        ax.grid(True, which='both', alpha=0.25)
         handles, labels = ax.get_legend_handles_labels()
         if any_shaded:
-            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.18, label='±1 SEM')
+            sigma_patch = Patch(facecolor='gray', edgecolor='none', alpha=0.18, label='±1σ')
             handles.append(sigma_patch)
-            labels.append('±1 SEM')
-        ax.legend(handles, labels, fontsize=8, loc='best')
+            labels.append('±1σ')
         ax.legend(handles, labels, fontsize=8, loc='best')
 
     # Hide any unused axes
     for j in range(n_panels, len(axes)):
         axes[j].set_visible(False)
 
-    fig.suptitle('Correlation Function Convergence by Redshift', fontsize=16, y=0.995)
+    fig.suptitle('SMF Convergence by Redshift', fontsize=16, y=0.995)
     plt.tight_layout()
 
     if do_save:
-        fp = os.path.join(outdir, 'correlation_convergence_by_redshift.png')
+        fp = os.path.join(outdir, 'smf_convergence_by_redshift.png')
         plt.savefig(fp, dpi=150, bbox_inches='tight')
         print(f"\nSaved convergence-by-redshift plot to {fp}")
         # Save per-redshift data
         for z_label, data in results_by_z.items():
-            for key, c in data['correlations'].items():
-                df = np.stack([c['r'], c['xi'], c.get('xi_std', np.full_like(c['xi'], np.nan))], axis=1)
-                header = 'r,xi,xi_std'
+            for key, s in data['smfs'].items():
+                df = np.stack([s['centers'], s['phi'], s.get('phi_std', np.full_like(s['phi'], np.nan))], axis=1)
+                header = 'logM,phi,phi_std'
                 safe_label = z_label.replace('=', '').replace('.', 'p')
                 key_str = str(key).replace(',', '_').replace(' ', '_').replace('=', '')
-                fname = f"correlation_by_z_{safe_label}_{key_str}.csv"
+                fname = f"smf_by_z_{safe_label}_{key_str}.csv"
                 np.savetxt(os.path.join(data_dir, fname), df, delimiter=',', header=header, comments='')
-        print(f"Saved per-redshift correlation data to {data_dir}")
+        print(f"Saved per-redshift SMF data to {data_dir}")
 
     plt.show()
     return results_by_z

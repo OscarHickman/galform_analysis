@@ -125,11 +125,17 @@ galform_analysis/
 │   ├── io/                    # Data loading
 │   │   ├── loaders.py        # HDF5 snapshot readers with robust error handling
 │   │   └── readers.py        # Luminosity function file readers
-│   ├── analysis/              # Analysis functions
+│   ├── analysis/              # Analysis subpackages
 │   │   ├── aggregation.py    # Data aggregation across subvolumes
-│   │   ├── smf.py            # Stellar mass function computation
-│   │   ├── hmf.py            # Halo mass function computation (new API)
-│   │   └── plot_massfunction_convergence.py    # HMF convergence plotting (SMF plotting removed)
+│   │   ├── hmf/              # Halo Mass Function (HMF) subpackage
+│   │   │   ├── hmf.py        # HMF computation functions
+│   │   │   ├── plot_hmf.py   # HMF convergence plotting
+│   │   │   └── __init__.py   # Subpackage exports
+│   │   ├── smf/              # Stellar Mass Function (SMF) subpackage
+│   │   │   ├── smf.py        # SMF computation functions
+│   │   │   ├── plot_smf.py   # SMF convergence plotting
+│   │   │   └── __init__.py   # Subpackage exports
+│   │   └── correlation.py    # Galaxy correlation function computation
 │   └── utils/                 # Utilities
 │       ├── statistics.py     # Statistical helper functions
 │       └── plotting.py       # Plotting utilities and layout helpers
@@ -165,23 +171,23 @@ python src/galform_execution/submit_galform_slurm.py --help
 - `open_galaxies_hdf5(iz_path, ivol)` - Open HDF5 file handle
 - `get_output_group(f)` - Get Output group from HDF5 file
 
-### Analysis (`galform_analysis.analysis`)
-- `aggregate_snapshot(iz_path)` - Combine all subvolumes into single dataset
-- `compute_smf_avg_by_snapshot(iz_path, bins, ivol_sample)` - Stellar mass function with averaging
-- `compute_hmf_avg_by_snapshot(iz_path, bins, ivol_sample)` - Halo mass function with averaging
-- `compute_smf_from_aggregated(agg_data, bins)` - SMF from pre-aggregated data
+### HMF Analysis (`galform_analysis.analysis.hmf`)
+- `hmf_given_redshift_and_subvolume(iz_path, ivol, bins)` - HMF for single subvolume
+- `hmfs_given_redshifts_and_subvolume(ivol, iz_nums, base_dir)` - HMF across redshifts
+- `avg_hmf_given_redshift_and_subvolumes(iz_num, ivols, bins, base_dir)` - Average HMF over subvolumes
+- `avg_hmf_given_redshifts_and_subvolume(ivol, iz_nums, bins, base_dir)` - Average HMF over redshifts
 - `compute_hmf_from_aggregated(agg_data, bins)` - HMF from pre-aggregated data
-- `plot_smf_convergence(iz_paths, n_samples)` - Plot SMF convergence across subvolumes
-- `plot_hmf_convergence(iz_paths, n_samples)` - Plot HMF convergence across subvolumes
+- `plot_hmf_convergence_by_subvolumes(...)` - Plot HMF convergence vs sample size
+- `plot_hmf_convergence_by_redshift(...)` - Plot HMF convergence organized by redshift
 
-### Utilities (`galform_analysis.utils`)
-- `count_occurrences(x, y)` - Count unique values efficiently
-- `create_mask_inside_range(x, low, upp)` - Create boolean masks for filtering
-- `create_random_sample_mask(n, percent)` - Random sampling masks
-- `change_axes_fontsize(fs)` - Set global plot font sizes
-- `set_minor_ticks(ax_obj)` - Add minor ticks to plots
-- `create_residual_axes(...)` - Create plot with residual panel
-- `draw_cuboid_3d(...)` - Draw 3D shapes in matplotlib
+### SMF Analysis (`galform_analysis.analysis.smf`)
+- `smf_given_redshift_and_subvolume(iz_path, ivol, bins)` - SMF for single subvolume
+- `smfs_given_redshifts_and_subvolume(ivol, iz_nums, base_dir)` - SMF across redshifts
+- `avg_smf_given_redshift_and_subvolumes(iz_num, ivols, bins, base_dir)` - Average SMF over subvolumes
+- `avg_smf_given_redshifts_and_subvolume(ivol, iz_nums, bins, base_dir)` - Average SMF over redshifts
+- `compute_smf_from_aggregated(agg_data, bins)` - SMF from pre-aggregated data
+- `plot_smf_convergence_by_subvolumes(...)` - Plot SMF convergence vs sample size
+- `plot_smf_convergence_by_redshift(...)` - Plot SMF convergence organized by redshift
 
 ### Import Examples
 
@@ -192,15 +198,17 @@ from galform_analysis import (
     get_snapshot_redshift,
     read_snapshot_data,
     aggregate_snapshot,
-    compute_smf_avg_by_snapshot,
-    compute_hmf_avg_by_snapshot,
+    hmf_given_redshift_and_subvolume,
+    avg_hmf_given_redshift_and_subvolumes,
+    smf_given_redshift_and_subvolume,
+    avg_smf_given_redshift_and_subvolumes,
+    plot_hmf_convergence_by_subvolumes,
+    plot_smf_convergence_by_subvolumes,
 )
 
-# Or import from specific modules
-from galform_analysis.config import Cosmology, load_redshift_mapping
-from galform_analysis.analysis.smf import compute_smf_from_aggregated
-from galform_analysis.analysis.hmf import compute_hmf_from_aggregated
-from galform_analysis.analysis.plot_massfunction_convergence import plot_smf_convergence
+# Or import from specific subpackages
+from galform_analysis.analysis.hmf import plot_hmf_convergence_by_redshift
+from galform_analysis.analysis.smf import plot_smf_convergence_by_redshift
 from galform_analysis.io.loaders import get_completed_subvolumes
 from galform_analysis.io.readers import LuminosityFunction
 from galform_analysis.utils.statistics import count_occurrences

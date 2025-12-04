@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 import random
 from matplotlib.patches import Patch
 
-from galform_analysis.config import DEFAULT_HALO_MASS_BINS
+from ...config import DEFAULT_HALO_MASS_BINS
 from .hmf import avg_hmf_given_redshift_and_subvolumes
 
 def plot_hmf_convergence_by_subvolumes(
@@ -137,7 +137,7 @@ def plot_hmf_convergence_by_subvolumes(
         axes = np.array([axes])
     axes = axes.flatten()
     
-    cmap = plt.get_cmap('viridis')
+    cmap = plt.colormaps['viridis']
     
     for idx, (panel_label, hmfs) in enumerate(results_by_panel.items()):
         ax: plt.Axes = axes[idx]
@@ -365,7 +365,7 @@ def plot_hmf_convergence_by_redshift(
         axes = np.array([axes])
     axes = axes.flatten()
 
-    cmap = plt.get_cmap('viridis')
+    cmap = plt.colormaps['viridis']
 
     for idx, (z_label, data) in enumerate(results_by_z.items()):
         ax: plt.Axes = axes[idx]

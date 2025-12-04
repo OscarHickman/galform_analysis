@@ -8,13 +8,14 @@ including:
 
 Quick Start:
     >>> from galform_analysis.config import set_base_dir
-    >>> from galform_analysis.analysis.smf import compute_smf_avg_by_snapshot
+    >>> from galform_analysis.analysis.hmf import avg_hmf_given_redshift_and_subvolumes
+    >>> from galform_analysis.analysis.smf import avg_smf_given_redshift_and_subvolumes
     >>> 
     >>> # Set your GALFORM output directory
     >>> set_base_dir('/path/to/galform/output')
     >>> 
     >>> # Compute stellar mass function
-    >>> smf = compute_smf_avg_by_snapshot('iz99')
+    >>> smf = avg_smf_given_redshift_and_subvolumes(iz_num=99, ivols=[0, 1, 2])
 
 Configuration:
     Set the BASE_DIR for your GALFORM outputs:
@@ -42,11 +43,20 @@ from .config import (
 from .io import read_snapshot_data, close_snapshot
 from .analysis import (
     aggregate_snapshot,
-    compute_smf_avg_by_snapshot,
+    # HMF functions
     hmf_given_redshift_and_subvolume,
     hmfs_given_redshifts_and_subvolume,
     avg_hmf_given_redshift_and_subvolumes,
     avg_hmf_given_redshifts_and_subvolume,
+    plot_hmf_convergence_by_subvolumes,
+    plot_hmf_convergence_by_redshift,
+    # SMF functions
+    smf_given_redshift_and_subvolume,
+    smfs_given_redshifts_and_subvolume,
+    avg_smf_given_redshift_and_subvolumes,
+    avg_smf_given_redshifts_and_subvolume,
+    plot_smf_convergence_by_subvolumes,
+    plot_smf_convergence_by_redshift,
 )
 
 __all__ = [
@@ -65,9 +75,18 @@ __all__ = [
     'read_snapshot_data',
     'close_snapshot',
     'aggregate_snapshot',
-    'compute_smf_avg_by_snapshot',
+    # HMF functions
     'hmf_given_redshift_and_subvolume',
     'hmfs_given_redshifts_and_subvolume',
     'avg_hmf_given_redshift_and_subvolumes',
     'avg_hmf_given_redshifts_and_subvolume',
+    'plot_hmf_convergence_by_subvolumes',
+    'plot_hmf_convergence_by_redshift',
+    # SMF functions
+    'smf_given_redshift_and_subvolume',
+    'smfs_given_redshifts_and_subvolume',
+    'avg_smf_given_redshift_and_subvolumes',
+    'avg_smf_given_redshifts_and_subvolume',
+    'plot_smf_convergence_by_subvolumes',
+    'plot_smf_convergence_by_redshift',
 ]
