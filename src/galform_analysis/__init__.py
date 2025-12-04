@@ -8,8 +8,8 @@ including:
 
 Quick Start:
     >>> from galform_analysis.config import set_base_dir
-    >>> from galform_analysis.analysis.hmf import avg_hmf_given_redshift_and_subvolumes
-    >>> from galform_analysis.analysis.smf import avg_smf_given_redshift_and_subvolumes
+    >>> from galform_analysis.analysis import avg_hmf_given_redshift_and_subvolumes
+    >>> from galform_analysis.analysis import avg_smf_given_redshift_and_subvolumes
     >>> 
     >>> # Set your GALFORM output directory
     >>> set_base_dir('/path/to/galform/output')

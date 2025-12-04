@@ -49,7 +49,7 @@ Average HMF over selected subvolumes at a single snapshot:
 
 ```python
 from galform_analysis.config import get_base_dir
-from galform_analysis.analysis.hmf import avg_hmf_given_redshift_and_subvolumes
+from galform_analysis.analysis import avg_hmf_given_redshift_and_subvolumes
 
 hmf = avg_hmf_given_redshift_and_subvolumes(
     iz_num=100,           # e.g. 'iz100'
@@ -61,7 +61,7 @@ centers, phi = hmf['centers'], hmf['phi']
 Single subvolume HMF:
 
 ```python
-from galform_analysis.analysis.hmf import hmf_given_redshift_and_subvolume
+from galform_analysis.analysis import hmf_given_redshift_and_subvolume
 res = hmf_given_redshift_and_subvolume(str(get_base_dir() / 'iz100'), ivol=0)
 centers, phi = res['centers'], res['phi']
 ```
@@ -207,8 +207,8 @@ from galform_analysis import (
 )
 
 # Or import from specific subpackages
-from galform_analysis.analysis.hmf import plot_hmf_convergence_by_redshift
-from galform_analysis.analysis.smf import plot_smf_convergence_by_redshift
+from galform_analysis.analysis import plot_hmf_convergence_by_redshift
+from galform_analysis.analysis import plot_smf_convergence_by_redshift
 from galform_analysis.io.loaders import get_completed_subvolumes
 from galform_analysis.io.readers import LuminosityFunction
 from galform_analysis.utils.statistics import count_occurrences
