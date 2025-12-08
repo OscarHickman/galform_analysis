@@ -1,6 +1,6 @@
 """Analysis subpackage for GALFORM data processing."""
 
-from .aggregation import aggregate_snapshot
+from .aggregation import aggregate_snapshot, completed_galaxies, incomplete_subvolumes
 from .mass_functions import (
     hmf_given_redshift_and_subvolume,
     hmfs_given_redshifts_and_subvolume,
@@ -32,6 +32,8 @@ from .correlation import (
 
 __all__ = [
     'aggregate_snapshot',
+    'completed_galaxies',
+    'incomplete_subvolumes',
     # HMF functions
     'hmf_given_redshift_and_subvolume',
     'hmfs_given_redshifts_and_subvolume',

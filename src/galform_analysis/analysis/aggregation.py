@@ -5,7 +5,7 @@ import glob
 import numpy as np
 import h5py
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import pandas as pd
 
 
@@ -21,13 +21,16 @@ except ImportError:
     from galform_analysis.io.loaders import read_snapshot_data, close_snapshot
     from galform_analysis.config import get_base_dir
 
-def completed_galaxies(basedir: str = get_base_dir()) -> pd.DataFrame:
+def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pd.DataFrame:
     """Scan base directory and return DataFrame of all completed galaxy files.
     
     Looks through all iz*/ivol* directories and checks CompletionFlag in galaxies.hdf5 files.
     
     Args:
         basedir: Base directory containing iz* snapshot folders
+        iz_snapshots: Optional list of snapshot numbers (e.g., [82, 100, 105]).
+                     If provided, only these snapshots will be scanned.
+                     If None, all iz* directories are scanned.
         
     Returns:
         DataFrame with columns:
@@ -40,7 +43,12 @@ def completed_galaxies(basedir: str = get_base_dir()) -> pd.DataFrame:
     records = []
     
     # Find all iz* directories
-    iz_dirs = sorted(glob.glob(os.path.join(basedir, 'iz*')))
+    if iz_snapshots is not None:
+        # Filter to only the requested snapshots
+        iz_dirs = sorted([os.path.join(basedir, f'iz{iz}') for iz in iz_snapshots 
+                         if os.path.isdir(os.path.join(basedir, f'iz{iz}'))])
+    else:
+        iz_dirs = sorted(glob.glob(os.path.join(basedir, 'iz*')))
     
     for iz_dir in iz_dirs:
         iz_name = Path(iz_dir).name
@@ -120,6 +128,137 @@ def completed_galaxies(basedir: str = get_base_dir()) -> pd.DataFrame:
             f"completed {completed_count}/{checked_count}; "
             f"skipped {skipped_missing} without galaxies.hdf5"
         )    
+    
+    df = pd.DataFrame(records)
+    
+    # Sort by iz_num and ivol
+    if not df.empty:
+        df = df.sort_values(['iz_num', 'ivol']).reset_index(drop=True)
+    
+    return df
+
+
+def incomplete_subvolumes(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pd.DataFrame:
+    """Scan base directory and return DataFrame of incomplete/missing galaxy files.
+    
+    This is the complement of completed_galaxies(). Returns records for subvolumes
+    where galaxies.hdf5 either doesn't exist or is incomplete/corrupted.
+    
+    Args:
+        basedir: Base directory containing iz* snapshot folders
+        iz_snapshots: Optional list of snapshot numbers (e.g., [82, 100, 105]).
+                     If provided, only these snapshots will be scanned.
+                     If None, all iz* directories are scanned.
+        
+    Returns:
+        DataFrame with columns:
+            - iz: Snapshot name (e.g., 'iz100')
+            - iz_num: Numeric iz value (e.g., 100)
+            - ivol: Subvolume number
+            - path: Path to the expected galaxies.hdf5 file (may not exist)
+            - reason: Why the file is incomplete ('missing', 'incomplete', or 'corrupted')
+    """
+    records = []
+    
+    # Find all iz* directories
+    if iz_snapshots is not None:
+        # Filter to only the requested snapshots
+        iz_dirs = sorted([os.path.join(basedir, f'iz{iz}') for iz in iz_snapshots 
+                         if os.path.isdir(os.path.join(basedir, f'iz{iz}'))])
+    else:
+        iz_dirs = sorted(glob.glob(os.path.join(basedir, 'iz*')))
+    
+    for iz_dir in iz_dirs:
+        iz_name = Path(iz_dir).name
+        iz_incomplete = []  # Track incomplete records for this redshift
+        
+        # Extract numeric iz value
+        try:
+            iz_num = int(iz_name.replace('iz', ''))
+        except ValueError:
+            continue
+        
+        ivol_dirs = sorted(glob.glob(os.path.join(iz_dir, 'ivol*')))
+        
+        for ivol_dir in ivol_dirs:
+            ivol_name = Path(ivol_dir).name
+
+            try:
+                ivol_num = int(ivol_name.replace('ivol', ''))
+            except ValueError:
+                continue
+            
+            # Check for galaxies.hdf5 file
+            gal_file = os.path.join(ivol_dir, 'galaxies.hdf5')
+            
+            if not os.path.exists(gal_file):
+                record = {
+                    'iz': iz_name,
+                    'iz_num': iz_num,
+                    'ivol': ivol_num,
+                    'path': gal_file,
+                    'reason': 'missing'
+                }
+                records.append(record)
+                iz_incomplete.append(record)
+                continue
+            
+            # Quick file size check - empty or very small files are incomplete
+            try:
+                file_size = os.path.getsize(gal_file)
+                if file_size < 1000:  # Less than 1KB is definitely incomplete
+                    record = {
+                        'iz': iz_name,
+                        'iz_num': iz_num,
+                        'ivol': ivol_num,
+                        'path': gal_file,
+                        'reason': 'incomplete'
+                    }
+                    records.append(record)
+                    iz_incomplete.append(record)
+                    continue
+            except OSError:
+                record = {
+                    'iz': iz_name,
+                    'iz_num': iz_num,
+                    'ivol': ivol_num,
+                    'path': gal_file,
+                    'reason': 'inaccessible'
+                }
+                records.append(record)
+                iz_incomplete.append(record)
+                continue
+            
+            # Try to open the file - if it fails, it's corrupted
+            try:
+                # Use swmr mode for faster read access
+                with h5py.File(gal_file, 'r', swmr=True):
+                    pass  # File is valid
+            except (OSError, KeyError, RuntimeError) as e:
+                # Check if it's the specific serialization error indicating incomplete file
+                if "Can't deserialize" in str(e) or "bad object header" in str(e):
+                    reason = 'corrupted'
+                else:
+                    reason = 'corrupted'
+                
+                record = {
+                    'iz': iz_name,
+                    'iz_num': iz_num,
+                    'ivol': ivol_num,
+                    'path': gal_file,
+                    'reason': reason
+                }
+                records.append(record)
+                iz_incomplete.append(record)
+        
+        # Print summary for this redshift
+        if iz_incomplete:
+            print(
+                f"{iz_name}: {len(iz_incomplete)} incomplete subvolumes "
+                f"({sum(r['reason']=='missing' for r in iz_incomplete)} missing, "
+                f"{sum(r['reason']=='incomplete' for r in iz_incomplete)} incomplete, "
+                f"{sum(r['reason']=='corrupted' for r in iz_incomplete)} corrupted)"
+            )
     
     df = pd.DataFrame(records)
     
