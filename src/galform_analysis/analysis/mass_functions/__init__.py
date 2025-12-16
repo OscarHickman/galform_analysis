@@ -22,6 +22,12 @@ from .plot_smf import (
     plot_smf_convergence_by_subvolumes,
     plot_smf_convergence_by_redshift,
 )
+from .theoretical_hmf import (
+    compute_theoretical_hmfs,
+    get_mvir_to_m200c_ratio,
+    create_theoretical_hmf,
+    interpolate_hmf_to_bins,
+)
 
 __all__ = [
     # HMF functions
@@ -42,4 +48,9 @@ __all__ = [
     # SMF plotting functions
     'plot_smf_convergence_by_subvolumes',
     'plot_smf_convergence_by_redshift',
+    # Theoretical HMF functions
+    'compute_theoretical_hmfs',
+    'get_mvir_to_m200c_ratio',
+    'create_theoretical_hmf',
+    'interpolate_hmf_to_bins',
 ]

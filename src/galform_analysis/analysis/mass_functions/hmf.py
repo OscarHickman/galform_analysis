@@ -12,13 +12,17 @@ from ...config import DEFAULT_HALO_MASS_BINS, get_base_dir
 
 def hmf_given_redshift_and_subvolume(iz_path: str,
                           ivol: int,
-                          bins: np.ndarray = None) -> Optional[Dict[str, Any]]:
+                          bins: np.ndarray = None,
+                          halo_mass_lower_limit: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """Compute halo mass function for a single subvolume.
 
     Args:
         iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
         ivol: Subvolume index (integer extracted from 'ivolXXX').
         bins: log10(M) bin edges. Defaults to DEFAULT_HALO_MASS_BINS.
+        halo_mass_lower_limit: Optional lower bound (in the same mass units as
+            ``mhalo``) to exclude halos with mass below this threshold before
+            binning.
 
     Returns:
         Dictionary with keys:
@@ -47,7 +51,11 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
     if V_ivol is None or V_ivol <= 0 or mhalo is None:
         return None
 
-    mhalo = mhalo[(mhalo > 0) & np.isfinite(mhalo)]
+    mask = (mhalo > 0) & np.isfinite(mhalo)
+    if halo_mass_lower_limit is not None:
+        mask &= mhalo >= halo_mass_lower_limit
+
+    mhalo = mhalo[mask]
     if mhalo.size == 0:
         return None
 
@@ -69,13 +77,22 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
 
 def hmfs_given_redshifts_and_subvolume(ivol: int,
                              iz_nums: List[int],
-                             base_dir: Optional[str] = None) -> None:
-    """Compute HMFs for a single subvolume across multiple snapshots (redshifts)."""
+                             base_dir: Optional[str] = None,
+                             halo_mass_lower_limit: Optional[float] = None) -> None:
+    """Compute HMFs for a single subvolume across multiple snapshots (redshifts).
+
+    Args:
+        ivol: Subvolume index.
+        iz_nums: List of snapshot numbers to process.
+        base_dir: Base directory containing snapshot folders (expects Path-like).
+        halo_mass_lower_limit: Optional lower mass cut applied before binning.
+    """
 
     results_by_z = []
     for iz_num in iz_nums:
         iz_path = str(base_dir / f'iz{iz_num}')
-        result = hmf_given_redshift_and_subvolume(iz_path, ivol)
+        result = hmf_given_redshift_and_subvolume(
+            iz_path, ivol, bins=None, halo_mass_lower_limit=halo_mass_lower_limit)
         if result is not None:
             results_by_z.append({
                 'iz': f'iz{iz_num}',
@@ -110,7 +127,8 @@ def hmfs_given_redshifts_and_subvolume(ivol: int,
 def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
                                 ivols: List[int],
                                 bins: np.ndarray = None,
-                                base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                                base_dir: Optional[str] = None,
+                                halo_mass_lower_limit: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """Average HMF over a provided list of subvolumes for a snapshot.
 
     This replaces the previous path/sampling interface. It simply calls
@@ -122,6 +140,7 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
         ivols: List of subvolume indices to include in the average.
         bins: Optional log10(M) bin edges (defaults to DEFAULT_HALO_MASS_BINS).
         base_dir: Optional base directory; defaults to configured base dir.
+        halo_mass_lower_limit: Optional lower mass cut applied before binning.
 
     Returns:
         Dictionary with keys:
@@ -148,7 +167,8 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
     centers_ref = None
 
     for iv in ivols:
-        res = hmf_given_redshift_and_subvolume(iz_path, iv, bins=bins)
+        res = hmf_given_redshift_and_subvolume(
+            iz_path, iv, bins=bins, halo_mass_lower_limit=halo_mass_lower_limit)
         if res is None:
             continue
         if centers_ref is None:
@@ -177,7 +197,8 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
 def avg_hmf_given_redshifts_and_subvolume(ivol: int,
                                  iz_nums: List[int],
                                  bins: np.ndarray = None,
-                                 base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                                 base_dir: Optional[str] = None,
+                                 halo_mass_lower_limit: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """Average HMF for a single subvolume across multiple snapshots (redshifts).
 
     Calls ``hmf_given_redshift_and_subvolume`` for the same subvolume at different redshifts
@@ -188,6 +209,7 @@ def avg_hmf_given_redshifts_and_subvolume(ivol: int,
         iz_nums: List of numeric snapshot identifiers (e.g. [82, 100, 120, 155]).
         bins: Optional log10(M) bin edges (defaults to DEFAULT_HALO_MASS_BINS).
         base_dir: Optional base directory; defaults to configured base dir.
+        halo_mass_lower_limit: Optional lower mass cut applied before binning.
 
     Returns:
         Dictionary with keys:
@@ -216,7 +238,8 @@ def avg_hmf_given_redshifts_and_subvolume(ivol: int,
         if not os.path.isdir(iz_path):
             continue
 
-        res = hmf_given_redshift_and_subvolume(iz_path, ivol, bins=bins)
+        res = hmf_given_redshift_and_subvolume(
+            iz_path, ivol, bins=bins, halo_mass_lower_limit=halo_mass_lower_limit)
         if res is None:
             continue
 
@@ -246,7 +269,8 @@ def avg_hmf_given_redshifts_and_subvolume(ivol: int,
 
 
 def compute_hmf_from_aggregated(agg_data: Optional[Dict[str, Any]], 
-                               bins: np.ndarray = None) -> Optional[Dict[str, Any]]:
+                               bins: np.ndarray = None,
+                               halo_mass_lower_limit: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """Compute halo mass function from pre-aggregated data.
     
     This is useful when you've already collected all halo masses
@@ -256,6 +280,7 @@ def compute_hmf_from_aggregated(agg_data: Optional[Dict[str, Any]],
         agg_data: Dictionary with keys 'mhalo' (array), 'volume' (float),
                  'iz' (str), 'z' (float)
         bins: Mass bins in log10(M_sun), defaults to DEFAULT_HALO_MASS_BINS
+        halo_mass_lower_limit: Optional lower mass cut applied before binning.
         
     Returns:
         Dictionary with keys: 'iz', 'z', 'centers', 'phi', 'counts'
@@ -268,7 +293,11 @@ def compute_hmf_from_aggregated(agg_data: Optional[Dict[str, Any]],
         return None
     
     mhalo = agg_data['mhalo']
-    mhalo = mhalo[(mhalo > 0) & np.isfinite(mhalo)]
+    mask = (mhalo > 0) & np.isfinite(mhalo)
+    if halo_mass_lower_limit is not None:
+        mask &= mhalo >= halo_mass_lower_limit
+    
+    mhalo = mhalo[mask]
     if len(mhalo) == 0:
         return None
         

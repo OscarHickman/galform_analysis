@@ -10,7 +10,63 @@ import random
 from matplotlib.patches import Patch
 
 from galform_analysis.config import DEFAULT_RBINS
-from .correlation import avg_correlation_given_redshift_and_subvolumes
+from .correlation import avg_correlation_given_redshift_and_subvolumes, correlation_given_redshift_and_subvolume
+
+
+def plot_single_correlation(
+    iz_path: str,
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    mhalo_min: Optional[float] = None,
+    figsize: tuple = (8, 6),
+    show_plot: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """Plot 2PCF for a single snapshot and subvolume.
+    
+    Args:
+        iz_path: Path to snapshot directory (e.g., str(base_dir / 'iz100'))
+        ivol: Subvolume number
+        rbins: Radial bin edges (Mpc). Defaults to DEFAULT_RBINS
+        nthreads: Number of OpenMP threads for Corrfunc
+        mhalo_min: Minimum halo mass (mhalo) in Msun; None applies no cut
+        figsize: Figure size (width, height)
+        show_plot: If True, display the plot
+    
+    Returns:
+        Dictionary with correlation function results, or None if computation failed
+    """
+    result = correlation_given_redshift_and_subvolume(
+        iz_path, ivol, rbins=rbins, nthreads=nthreads, mhalo_min=mhalo_min
+    )
+    
+    if result is None:
+        print(f"Failed to compute correlation for {iz_path}, ivol={ivol}")
+        return None
+    
+    r = result['r']
+    xi = result['xi']
+    z = result['z']
+    ngal = result['ngal']
+    boxsize = result['boxsize']
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot only positive, finite values on log-log scale
+    mask = (xi > 0) & np.isfinite(xi)
+    ax.loglog(r[mask], xi[mask], 'o-', markersize=5, label=f'z={z:.2f}')
+    
+    ax.set_xlabel(r'$r$ [Mpc/$h$]', fontsize=12)
+    ax.set_ylabel(r'$\xi(r)$', fontsize=12)
+    ax.set_title(f'Two-point correlation function\n(z={z:.2f}, N={ngal}, L={boxsize:.1f} Mpc/h, M> {mhalo_min:.1e} Msun)', fontsize=13)
+    ax.legend(fontsize=11)
+    plt.tight_layout()
+    
+    if show_plot:
+        plt.show()
+    
+    return result
 
 
 def plot_correlation_convergence_by_subvolumes(
@@ -461,3 +517,135 @@ def plot_correlation_convergence_by_redshift(
 
     plt.show()
     return results_by_z
+
+
+def plot_correlation_multi_redshift(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    base_dir: Optional[str] = None,
+    centrals_only: bool = False,
+    mhalo_min: Optional[float] = None,
+    figsize: tuple = (8, 6),
+    show_plot: bool = True,
+    colormap: str = 'plasma',
+) -> List[Dict[str, Any]]:
+    """Plot correlation functions for one subvolume across multiple redshifts.
+    
+    Args:
+        iz_nums: List of snapshot numbers (e.g., [100, 120, 142, 176, 207])
+        ivol: Subvolume number
+        rbins: Radial bin edges (Mpc). Defaults to DEFAULT_RBINS
+        nthreads: Number of OpenMP threads for Corrfunc
+        base_dir: Base directory; defaults to configured base dir
+        centrals_only: If True, only include central galaxies
+        mhalo_min: Minimum halo mass (mhalo) in Msun; None applies no cut
+        figsize: Figure size (width, height)
+        show_plot: If True, display the plot
+        colormap: Matplotlib colormap name for redshift gradient
+    
+    Returns:
+        List of dictionaries with correlation results for each snapshot
+    """
+    from .correlation import correlations_given_redshifts_and_subvolume
+    from galform_analysis.config import get_base_dir
+    
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+    
+    results = correlations_given_redshifts_and_subvolume(
+        iz_nums, ivol, rbins=rbins, nthreads=nthreads,
+        base_dir=base_dir, centrals_only=centrals_only, mhalo_min=mhalo_min
+    )
+    
+    if not results:
+        print(f"No correlation results available for ivol {ivol}")
+        return []
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=figsize)
+    colors = plt.cm.get_cmap(colormap)(np.linspace(0, 1, len(results)))
+    
+    for res, c in zip(results, colors):
+        r = res['r']
+        xi = res['xi']
+        z = res['z']
+        iz = res['iz']
+        
+        # Skip if redshift is not available
+        if z is None:
+            continue
+        
+        label = f"z={z:.2f} ({iz})"
+        ax.loglog(r, np.abs(xi), 'o-', color=c, label=label, ms=4)
+    
+    ax.set_xlabel(r'$r$ [Mpc/$h$]', fontsize=12)
+    ax.set_ylabel(r'$|\xi(r)|$', fontsize=12)
+    ax.set_title(f"2PCF: ivol {ivol} at different redshifts", fontsize=13)
+    ax.legend(fontsize=10)
+    plt.tight_layout()
+    
+    if show_plot:
+        plt.show()
+    
+    return results
+
+
+def plot_avg_correlation_over_redshifts(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    base_dir: Optional[str] = None,
+    centrals_only: bool = False,
+    mhalo_min: Optional[float] = None,
+    figsize: tuple = (8, 6),
+    show_plot: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """Plot the average 2PCF across multiple redshifts for one subvolume.
+
+    Produces a single line with a shaded ±1σ band across redshifts.
+
+    Returns the result dict with 'r', 'xi', and 'xi_std', or None if no data.
+    """
+    from .correlation import avg_correlation_given_subvolume_and_redshifts
+    from galform_analysis.config import get_base_dir
+
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    result = avg_correlation_given_subvolume_and_redshifts(
+        iz_nums=iz_nums,
+        ivol=ivol,
+        rbins=rbins,
+        nthreads=nthreads,
+        base_dir=base_dir,
+        centrals_only=centrals_only,
+        mhalo_min=mhalo_min,
+    )
+
+    if result is None:
+        print(f"No average correlation produced for ivol {ivol}")
+        return None
+
+    r = result['r']
+    xi = result['xi']
+    xi_std = result.get('xi_std', None)
+    n_used = result.get('n_used', 0)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.loglog(r, np.abs(xi), 'o-', color='C0', label=f'ivol {ivol} (avg over {n_used} z)', markersize=5)
+    if xi_std is not None and n_used > 1:
+        ax.fill_between(r, np.abs(xi - xi_std), np.abs(xi + xi_std), color='C0', alpha=0.25, label='±1σ')
+
+    ax.set_xlabel(r'$r$ [Mpc/$h$]', fontsize=12)
+    ax.set_ylabel(r'$|\xi(r)|$', fontsize=12)
+    ax.set_title(f"2PCF: ivol {ivol} averaged over {n_used} redshifts", fontsize=13)
+    ax.legend(fontsize=10)
+    plt.tight_layout()
+
+    if show_plot:
+        plt.show()
+
+    return result

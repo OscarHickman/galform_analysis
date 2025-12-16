@@ -2,7 +2,7 @@ import os
 from typing import Dict, Optional, Tuple, List, Any
 
 import numpy as np
-from Corrfunc.theory.xi import xi as corrfunc_xi
+from Corrfunc.theory.DD import DD as corrfunc_DD
 
 from ...config import DEFAULT_RBINS, get_base_dir
 from ...io.loaders import open_galaxies_hdf5, get_output_group, read_snapshot_data
@@ -94,12 +94,13 @@ def compute_xi_corrfunc(
 ) -> Dict[str, np.ndarray]:
     """Compute the real-space two-point correlation xi(r) using Corrfunc.
 
-    Uses Corrfunc's optimized pair counting with periodic boundary conditions.
-    Much faster than FFT methods and doesn't require randoms.
+    For periodic subvolumes, uses Corrfunc.theory.DD to count pairs
+    with periodic boundary conditions, then uses Landy-Szalay estimator
+    with analytic random pair counts.
 
     Args:
-        positions: (N,3) array with coordinates in [0, boxsize)
-        boxsize: Side length of the periodic domain (same units as r)
+        positions: (N,3) array with coordinates (physical positions in subvolume)
+        boxsize: Side length of the subvolume (same units as r)
         rbins: Radial bin edges. Defaults to config.DEFAULT_RBINS
         nthreads: Number of OpenMP threads for parallel execution
 
@@ -110,20 +111,7 @@ def compute_xi_corrfunc(
         rbins = DEFAULT_RBINS
     rbins = np.asarray(rbins, dtype=float)
     
-    # Corrfunc requires rmax < boxsize/2 for periodic boxes
-    # Truncate bins that exceed this limit
-    max_allowed_r = boxsize / 2.0 * 0.99  # Use 99% to be safe
-    if rbins[-1] > max_allowed_r:
-        valid_bins = rbins <= max_allowed_r
-        if np.sum(valid_bins) < 2:
-            # Need at least 2 bin edges (1 bin)
-            raise ValueError(f"Boxsize {boxsize:.2f} too small for requested rbins (need rmax < {max_allowed_r:.2f})")
-        rbins = rbins[valid_bins]
-
-    # Wrap positions into the box [0, L)
-    pos = np.mod(positions, boxsize)
-    
-    ngal = pos.shape[0]
+    ngal = positions.shape[0]
     if ngal < 2:
         # Not enough galaxies for correlation
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
@@ -134,20 +122,24 @@ def compute_xi_corrfunc(
             'ngal': ngal,
         }
 
-    # Compute xi(r) directly using Corrfunc
-    results = corrfunc_xi(
-        boxsize=boxsize,
+    # Use DD with periodic boundary conditions since subvolumes have periodic geometry
+    # autocorr=1 means this is an auto-correlation (same catalog for both sets)
+    # periodic=True is critical - subvolumes have toroidal topology with wraparound!
+    results = corrfunc_DD(
+        autocorr=1,
         nthreads=nthreads,
         binfile=rbins,
-        X=pos[:, 0],
-        Y=pos[:, 1],
-        Z=pos[:, 2],
+        X1=positions[:, 0],
+        Y1=positions[:, 1],
+        Z1=positions[:, 2],
+        periodic=True,
+        boxsize=boxsize,
         verbose=False,
-        output_ravg=True,  # Get average r for each bin
+        output_ravg=True,
     )
 
-    # Extract correlation function values
-    xi_vals = np.array([x['xi'] for x in results], dtype=np.float64)
+    # Extract pair counts and average r
+    npairs = np.array([x['npairs'] for x in results], dtype=np.float64)
     ravg = np.array([x['ravg'] for x in results], dtype=np.float64)
     
     # Use ravg if available, otherwise use bin centers
@@ -155,6 +147,34 @@ def compute_xi_corrfunc(
         r = ravg
     else:
         r = 0.5 * (rbins[:-1] + rbins[1:])
+    
+    # Compute RR analytically for a periodic cubic volume
+    # Number of random pairs in shell [r1, r2] for uniform density with periodic BC
+    # For periodic geometry: max separation = boxsize/2 (shortest image convention)
+    # RR(r) = n * (n-1) / 2 * V_shell / V_box for r <= boxsize/2
+    # where V_shell = 4/3 * pi * (r2^3 - r1^3)
+    volume = boxsize ** 3
+    n_rand = ngal  # Use same number density as data
+    
+    r1 = rbins[:-1]
+    r2 = rbins[1:]
+    
+    # Volume of spherical shells (periodic: shells within boxsize/2 are unaffected)
+    V_shell = (4.0 / 3.0) * np.pi * (r2**3 - r1**3)
+    
+    # Expected number of random pairs (normalized by total volume)
+    # For autocorrelation with periodic BC: RR = n * (n-1) / 2 * V_shell / V_box
+    RR = n_rand * (n_rand - 1.0) / 2.0 * V_shell / volume
+    
+    # Landy-Szalay estimator: xi = (DD - 2*DR + RR) / RR
+    # For auto-correlation with analytic RR: DD/RR - 1
+    # Normalize DD: DD_normalized = DD / (n_gal * (n_gal - 1) / 2)
+    # RR_normalized = RR / (n_rand * (n_rand - 1) / 2)
+    DD_norm = npairs / (ngal * (ngal - 1.0) / 2.0)
+    RR_norm = V_shell / volume
+    
+    # Avoid division by zero
+    xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan)
     
     return {
         'rbins': rbins,
@@ -195,13 +215,25 @@ def correlation_given_redshift_and_subvolume(
         # Get volumes using existing loader (also returns z if available)
         meta = read_snapshot_data(iz_path, ivol)
         V_ivol = meta.get('V_ivol', None)
-        if V_ivol is None:
-            # Fallback: infer from positions extent as a cube
-            L_est = np.ptp(np.mod(pos, np.max(pos, axis=0) - np.min(pos, axis=0)), axis=0)
-            L = float(np.max(L_est))
-            V_ivol = L ** 3
+        
+        # For periodic correlation functions, we need the full simulation box size
+        # Positions are in absolute simulation coordinates
+        # The simulation is P-Millennium L800 = 800 Mpc/h box
+        # Infer from position extent with some margin (positions might not fill entire box)
+        pos_max = float(np.max(pos))
+        if pos_max > 600:  # Likely 800 Mpc/h box (L800)
+            L = 800.0
+        elif pos_max > 400:  # Likely 542 Mpc/h box (intermediate)
+            L = 542.16  # Use exact max
+        elif pos_max > 200:  # Likely 400 Mpc/h box (L400)
+            L = 400.0
         else:
-            L = float(V_ivol) ** (1.0 / 3.0)
+            # Small box or subvolume, use actual extent
+            L = pos_max
+        
+        # V_ivol is subvolume volume, not the periodic box volume
+        if V_ivol is None:
+            V_ivol = L ** 3
 
         res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
         out = {
@@ -217,7 +249,9 @@ def correlation_given_redshift_and_subvolume(
         return out
     except (FileNotFoundError, RuntimeError, KeyError) as e:
         # Graceful failure to mirror other analysis helpers
-        print(f"Warning: correlation could not be computed for {iz_path}/ivol{ivol}: {e}")
+        import traceback
+        print(f"Warning: correlation could not be computed for {iz_path}/ivol{ivol}: {type(e).__name__}: {e}")
+        traceback.print_exc()
         return None
 
 
@@ -294,4 +328,129 @@ def avg_correlation_given_redshift_and_subvolumes(
         'xi_std': per_xi.std(axis=0),
         'n_used': per_xi.shape[0],
         'n_requested': len(ivols),
+    }
+
+
+def correlations_given_redshifts_and_subvolume(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    base_dir: Optional[str] = None,
+    centrals_only: bool = False,
+    mhalo_min: Optional[float] = None,
+) -> List[Dict[str, Any]]:
+    """Compute correlation function for one subvolume across multiple snapshots.
+
+    Args:
+        iz_nums: List of numeric snapshot identifiers (e.g. [100, 120, 142]).
+        ivol: Subvolume index.
+        rbins: Optional radial bin edges (defaults to DEFAULT_RBINS).
+        nthreads: Number of OpenMP threads for Corrfunc.
+        base_dir: Optional base directory; defaults to configured base dir.
+        centrals_only: If True, only include central galaxies (is_central=1)
+        mhalo_min: Minimum halo mass (mhalo) in Msun. None = no cut.
+
+    Returns:
+        List of dictionaries, one per snapshot. Each contains:
+            - 'iz': snapshot name (e.g. 'iz100')
+            - 'z': redshift
+            - 'r': radial bin centers
+            - 'xi': correlation function
+            - 'ngal': number of galaxies
+            - 'boxsize': box size used
+        Skips snapshots where data is unavailable.
+    """
+    if rbins is None:
+        rbins = DEFAULT_RBINS
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    results = []
+    for iz_num in iz_nums:
+        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        if not os.path.isdir(iz_path):
+            continue
+        
+        res = correlation_given_redshift_and_subvolume(
+            iz_path, ivol, rbins=rbins, nthreads=nthreads,
+            centrals_only=centrals_only, mhalo_min=mhalo_min
+        )
+        if res is not None:
+            res['iz'] = f'iz{iz_num}'
+            results.append(res)
+    
+    return results
+
+
+def avg_correlation_given_subvolume_and_redshifts(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    base_dir: Optional[str] = None,
+    centrals_only: bool = False,
+    mhalo_min: Optional[float] = None,
+) -> Optional[Dict[str, Any]]:
+    """Average xi(r) across multiple redshifts for a single subvolume.
+
+    Args:
+        iz_nums: List of numeric snapshot identifiers (e.g., [100, 120, 142]).
+        ivol: Subvolume index to evaluate.
+        rbins: Optional radial bin edges; defaults to ``DEFAULT_RBINS``.
+        nthreads: Number of OpenMP threads for Corrfunc.
+        base_dir: Optional base directory for snapshots; defaults to configured base dir.
+        centrals_only: If True, only include central galaxies (is_central==1).
+        mhalo_min: Minimum halo mass threshold in Msun; None applies no cut.
+
+    Returns:
+        dict with keys: 'r', 'xi', 'xi_std', 'ivol', 'n_used', 'used_iz', 'used_z'
+        Returns None if no snapshots produced valid data.
+    """
+    if rbins is None:
+        rbins = DEFAULT_RBINS
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    per_xi: List[np.ndarray] = []
+    r_ref: Optional[np.ndarray] = None
+    used_iz: List[str] = []
+    used_z: List[Optional[float]] = []
+
+    for iz_num in iz_nums:
+        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        if not os.path.isdir(iz_path):
+            continue
+
+        res = correlation_given_redshift_and_subvolume(
+            iz_path,
+            ivol,
+            rbins=rbins,
+            nthreads=nthreads,
+            centrals_only=centrals_only,
+            mhalo_min=mhalo_min,
+        )
+
+        if res is None:
+            continue
+        if r_ref is None:
+            r_ref = res['r']
+        per_xi.append(res['xi'])
+        used_iz.append(f'iz{iz_num}')
+        used_z.append(res.get('z'))
+
+    if not per_xi:
+        return None
+
+    per_xi_arr = np.vstack(per_xi)
+    r = r_ref if r_ref is not None else 0.5 * (rbins[1:] + rbins[:-1])
+
+    return {
+        'ivol': ivol,
+        'r': r,
+        'xi': per_xi_arr.mean(axis=0),
+        'xi_std': per_xi_arr.std(axis=0),
+        'n_used': per_xi_arr.shape[0],
+        'used_iz': used_iz,
+        'used_z': used_z,
     }

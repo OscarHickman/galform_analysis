@@ -69,11 +69,11 @@ def open_galaxies_hdf5(iz_path: str, ivol: int = 0) -> Optional[h5py.File]:
         h5py.File object or None if file cannot be opened
     """
     fpath = os.path.join(iz_path, f"ivol{ivol}", "galaxies.hdf5")
-    if not os.path.exists(fpath) or not _is_hdf5_file(fpath):
+    if not os.path.exists(fpath):
         return None
     try:
         return h5py.File(fpath, 'r')
-    except OSError:
+    except (OSError, Exception):
         return None
 
 
