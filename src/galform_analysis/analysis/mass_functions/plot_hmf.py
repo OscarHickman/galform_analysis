@@ -10,7 +10,7 @@ import random
 from matplotlib.patches import Patch
 
 from ...config import DEFAULT_HALO_MASS_BINS
-from .hmf import avg_hmf_given_redshift_and_subvolumes
+from .hmf import avg_hmf_given_redshift_and_subvolumes, hmf_given_redshift_and_subvolume
 
 def plot_hmf_convergence_by_subvolumes(
     base_dir,
@@ -20,7 +20,7 @@ def plot_hmf_convergence_by_subvolumes(
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
     outdir: str = '_plots/convergence',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
@@ -235,7 +235,7 @@ def plot_hmf_convergence_by_redshift(
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
     outdir: str = '_plots/convergence',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
@@ -448,3 +448,232 @@ def plot_hmf_convergence_by_redshift(
 
     plt.show()
     return results_by_z
+
+
+def plot_single_hmf_given_redshift_and_subvolume(
+    base_dir,
+    snapshot: str,
+    ivol: int,
+    *,
+    halo_mass_lower_limit: Optional[float] = None,
+    show_plot: bool = True,
+    do_save: bool = False,
+    save_path: Optional[str] = None,
+):
+    """
+    Plot the HMF for a given snapshot (e.g., 'iz100') and subvolume.
+
+    Parameters:
+    - base_dir: Path-like base directory for data
+    - snapshot: Snapshot folder name, e.g., 'iz100'
+    - ivol: Subvolume index
+    - halo_mass_lower_limit: Optional lower halo mass cut
+    - show_plot: If True, display the figure
+    - do_save: If True, save figure to save_path
+    - save_path: Path to save figure when do_save=True
+
+    Returns (fig, ax) or (None, None) if no data.
+    """
+    iz_path = os.path.join(str(base_dir), snapshot)
+    result = hmf_given_redshift_and_subvolume(
+        iz_path,
+        ivol,
+        halo_mass_lower_limit=halo_mass_lower_limit,
+    )
+
+    if result is None:
+        return None, None
+
+    z_val = result.get('z')
+    centers = result['centers']
+    phi = result['phi']
+    counts = result['counts']
+    V_ivol = result.get('V_ivol')
+
+    valid = np.isfinite(phi) & (phi > 0)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.set_yscale('log')
+    ax.plot(centers[valid], phi[valid], 'o-', label=f'HMF ivol {ivol}')
+    ax.set_xlabel(r'$\log_{10}(M_{\rm halo} \, [10^{10} h^{-1} M_\odot])$')
+    ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]')
+    title = f"HMF: {snapshot} ivol {ivol}"
+    ax.set_title(title)
+    ax.legend()
+
+    if do_save and save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+    
+    # Don't call plt.show() - let the caller handle display
+    # In notebooks, the returned figure will be automatically displayed
+    # In scripts, the caller can call plt.show() if needed
+
+    return fig, ax
+
+
+def plot_hmf_with_theory(
+    base_dir,
+    snapshot: str,
+    ivol: int,
+    *,
+    halo_mass_lower_limit: Optional[float] = None,
+    theory_bins: Optional[np.ndarray] = None,
+    xlim: Optional[tuple] = None,
+    ylim: Optional[tuple] = None,
+    do_save: bool = False,
+    save_path: Optional[str] = None,
+):
+    """
+    Plot the HMF for a given snapshot and subvolume with theoretical model comparisons.
+
+    Parameters:
+    - base_dir: Path-like base directory for data
+    - snapshot: Snapshot folder name, e.g., 'iz100'
+    - ivol: Subvolume index
+    - halo_mass_lower_limit: Optional lower halo mass cut
+    - theory_bins: Bin edges for theoretical HMFs (default: np.arange(9.0, 15.0, 0.1))
+    - xlim: Tuple (xmin, xmax) for x-axis limits
+    - ylim: Tuple (ymin, ymax) for y-axis limits
+    - show_plot: If True, display the figure
+    - do_save: If True, save figure to save_path
+    - save_path: Path to save figure when do_save=True
+
+    Returns (fig, ax) or (None, None) if no data.
+    """
+    from .theoretical_hmf import compute_theoretical_hmfs
+    
+    iz_path = os.path.join(str(base_dir), snapshot)
+    result = hmf_given_redshift_and_subvolume(
+        iz_path,
+        ivol,
+        halo_mass_lower_limit=halo_mass_lower_limit,
+    )
+
+    if result is None:
+        return None, None
+
+    z_val = result.get('z')
+    centers = result['centers']
+    phi = result['phi']
+    counts = result['counts']
+    V_ivol = result.get('V_ivol')
+    
+    # Compute theoretical HMFs
+    if theory_bins is None:
+        theory_bins = np.arange(9.0, 15.0, 0.1)
+    
+    theoretical = compute_theoretical_hmfs(
+        z=z_val,
+        bins=theory_bins,
+        use_mvir=True
+    )
+    
+    # Compute bin centers for theory curves
+    log10M_theory = (theory_bins[:-1] + theory_bins[1:]) / 2
+    phi_ps = theoretical['PS']
+    phi_smt = theoretical['SMT']
+    phi_tinker = theoretical['Tinker08']
+    
+    # Plot comparison
+    fig, ax = plt.subplots(figsize=(10, 7))
+    
+    # GALFORM data (mask out non-positive values)
+    valid = np.isfinite(phi) & (phi > 0)
+    ax.plot(centers[valid], phi[valid], 'o-', label=f'GALFORM {snapshot} ivol{ivol}', 
+            linewidth=2, markersize=5, color='black', zorder=10)
+    
+    # Theory curves (mask non-positive values independently)
+    valid_tinker = np.isfinite(phi_tinker) & (phi_tinker > 0)
+    ax.plot(log10M_theory[valid_tinker], phi_tinker[valid_tinker], '--', label='Tinker+08', linewidth=2, alpha=0.7)
+    valid_ps = np.isfinite(phi_ps) & (phi_ps > 0)
+    ax.plot(log10M_theory[valid_ps], phi_ps[valid_ps], '--', label='Press-Schechter', linewidth=2, alpha=0.7)
+    valid_smt = np.isfinite(phi_smt) & (phi_smt > 0)
+    ax.plot(log10M_theory[valid_smt], phi_smt[valid_smt], '--', label='Sheth-Mo-Tormen', linewidth=2, alpha=0.7, color='green')
+    
+    ax.set_yscale('log')
+    if xlim:
+        ax.set_xlim(*xlim)
+    else:
+        ax.set_xlim(10, 14)
+    if ylim:
+        ax.set_ylim(*ylim)
+    else:
+        ax.set_ylim(1e-5, 1e-1)
+    
+    ax.set_xlabel(r'$\log_{10}(M_{\rm halo} \, [10^{10} h^{-1} M_\odot])$', fontsize=13)
+    ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]', fontsize=13)
+    
+    title = f"Halo Mass Function: {snapshot} ivol {ivol}"
+    if z_val is not None:
+        title += f" (z={z_val:.2f})"
+    ax.set_title(title, fontsize=15)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+
+    if do_save and save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+        
+    return fig, ax
+
+
+def plot_hmf_multiple_redshifts(
+    base_dir,
+    ivol: int,
+    iz_nums: list,
+    *,
+    halo_mass_lower_limit: Optional[float] = None,
+    figsize: tuple = (8, 6),
+    show_plot: bool = True,
+    do_save: bool = False,
+    save_path: Optional[str] = None,
+):
+    """
+    Plot HMFs for multiple redshifts on the same axes.
+
+    Parameters:
+    - base_dir: Path-like base directory for data
+    - ivol: Subvolume index
+    - iz_nums: List of snapshot indices (e.g., [82, 100, 120])
+    - halo_mass_lower_limit: Optional lower halo mass cut
+    - figsize: Figure size tuple (width, height)
+    - show_plot: If True, display the figure
+    - do_save: If True, save figure to save_path
+    - save_path: Path to save figure when do_save=True
+
+    Returns (fig, ax, df, results_by_z) or (None, None, None, None) if no data.
+    """
+    from .hmf import hmfs_given_redshifts_and_subvolume
+    
+    # Collect results for each redshift
+    df, results_by_z = hmfs_given_redshifts_and_subvolume(
+        ivol,
+        iz_nums,
+        base_dir=base_dir,
+        halo_mass_lower_limit=halo_mass_lower_limit,
+    )
+    
+    if not results_by_z:
+        return None, None, None, None
+    
+    # Plot each redshift separately on same axes
+    fig, ax = plt.subplots(figsize=figsize)
+    colors = plt.cm.viridis(np.linspace(0, 1, len(results_by_z)))
+    
+    for res, color in zip(results_by_z, colors):
+        label = f"z={res['z']:.2f} ({res['iz']})"
+        centers = res['centers']
+        phi = res['phi']
+        valid = np.isfinite(phi) & (phi > 0)
+        ax.plot(centers[valid], phi[valid], 'o-', label=label, color=color, markersize=4)
+    
+    ax.set_yscale('log')
+    ax.set_xlabel(r'$\log_{10}(M_{\rm halo} \, [10^{10} h^{-1} M_\odot])$', fontsize=13)
+    ax.set_ylabel(r'$\Phi$ [Mpc$^{-3}$ dex$^{-1}$]', fontsize=13)
+    ax.set_title(f'Halo Mass Function for ivol {ivol} at Different Redshifts', fontsize=15)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    if do_save and save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+    
+    return fig, ax, df, results_by_z

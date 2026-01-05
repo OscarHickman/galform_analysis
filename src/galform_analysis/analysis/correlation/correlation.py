@@ -111,6 +111,13 @@ def compute_xi_corrfunc(
         rbins = DEFAULT_RBINS
     rbins = np.asarray(rbins, dtype=float)
     
+    # For periodic geometry, rmax must be < boxsize/2 to avoid double-counting
+    rmax_periodic = boxsize / 2.0
+    rbins = rbins[rbins < rmax_periodic]
+    
+    if len(rbins) < 2:
+        raise ValueError(f"rbins exceed periodic limit (rmax={rmax_periodic:.2f}). Cannot compute correlation.")
+    
     ngal = positions.shape[0]
     if ngal < 2:
         # Not enough galaxies for correlation
@@ -118,7 +125,7 @@ def compute_xi_corrfunc(
         return {
             'rbins': rbins,
             'r': r_centers,
-            'xi': np.full_like(r_centers, np.nan),
+            'xi': np.full_like(r_centers, np.nan) - 1.0, # xi 0 = uncorrelated
             'ngal': ngal,
         }
 
@@ -174,7 +181,7 @@ def compute_xi_corrfunc(
     RR_norm = V_shell / volume
     
     # Avoid division by zero
-    xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan)
+    xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan) - 1.0 # xi 0 = uncorrelated
     
     return {
         'rbins': rbins,
@@ -212,28 +219,28 @@ def correlation_given_redshift_and_subvolume(
         # Load positions and redshift
         pos, z_val = _load_positions_from_hdf5(iz_path, ivol, centrals_only=centrals_only, mhalo_min=mhalo_min)
 
-        # Get volumes using existing loader (also returns z if available)
+        # Get subvolume metadata
         meta = read_snapshot_data(iz_path, ivol)
         V_ivol = meta.get('V_ivol', None)
         
-        # For periodic correlation functions, we need the full simulation box size
-        # Positions are in absolute simulation coordinates
-        # The simulation is P-Millennium L800 = 800 Mpc/h box
-        # Infer from position extent with some margin (positions might not fill entire box)
-        pos_max = float(np.max(pos))
-        if pos_max > 600:  # Likely 800 Mpc/h box (L800)
-            L = 800.0
-        elif pos_max > 400:  # Likely 542 Mpc/h box (intermediate)
-            L = 542.16  # Use exact max
-        elif pos_max > 200:  # Likely 400 Mpc/h box (L400)
-            L = 400.0
-        else:
-            # Small box or subvolume, use actual extent
-            L = pos_max
+        # The HDF5 file contains galaxies from one subvolume (periodic subdomain).
+        # Positions are in absolute simulation coordinates; use V_ivol to get
+        # the actual subvolume box size for the periodic calculation.
         
-        # V_ivol is subvolume volume, not the periodic box volume
-        if V_ivol is None:
-            V_ivol = L ** 3
+        if V_ivol is not None and np.isfinite(V_ivol) and V_ivol > 0:
+            L = float(V_ivol) ** (1.0 / 3.0)
+        else:
+            # Fallback: infer from position extent
+            extent = np.ptp(pos, axis=0)
+            L = float(np.max(extent))
+        
+        # Shift positions into [0, L) to match Corrfunc convention
+        # Use modulo to wrap positions into the subvolume frame
+        pos = np.fmod(pos, L)
+        pos = np.where(pos < 0, pos + L, pos)  # Handle negative values
+
+        if not np.isfinite(L) or L <= 0:
+            raise RuntimeError(f"Invalid subvolume box size for {iz_path}/ivol{ivol}: L={L}")
 
         res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
         out = {

@@ -55,7 +55,7 @@ def plot_single_correlation(
     
     # Plot only positive, finite values on log-log scale
     mask = (xi > 0) & np.isfinite(xi)
-    ax.loglog(r[mask], xi[mask], 'o-', markersize=5, label=f'z={z:.2f}')
+    ax.loglog(r[mask], xi[mask] - 1, 'o-', markersize=5, label=f'z={z:.2f}')
     
     ax.set_xlabel(r'$r$ [Mpc/$h$]', fontsize=12)
     ax.set_ylabel(r'$\xi(r)$', fontsize=12)
@@ -78,7 +78,7 @@ def plot_correlation_convergence_by_subvolumes(
     rbins: Optional[np.ndarray] = None,
     nmesh: int = 128,
     outdir: str = '_plots/correlation',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
@@ -300,7 +300,7 @@ def plot_correlation_convergence_by_redshift(
     rbins: Optional[np.ndarray] = None,
     nmesh: int = 128,
     outdir: str = '_plots/correlation',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
@@ -649,3 +649,104 @@ def plot_avg_correlation_over_redshifts(
         plt.show()
 
     return result
+
+
+def plot_correlation_multi_redshift_avg_subvolumes(
+    iz_nums: List[int],
+    ivols: List[int],
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    base_dir: Optional[str] = None,
+    centrals_only: bool = False,
+    mhalo_min: Optional[float] = None,
+    figsize: tuple = (8, 6),
+    show_plot: bool = True,
+    colormap: str = 'plasma',
+) -> List[Dict[str, Any]]:
+    """Plot correlation functions averaged over subvolumes for multiple redshifts.
+    
+    This function computes the average 2PCF over the given subvolumes at each redshift,
+    producing a plot with one line per redshift showing the mean and uncertainty band.
+    
+    Args:
+        iz_nums: List of snapshot numbers (e.g., [100, 120, 142, 176, 207])
+        ivols: List of subvolume numbers to average over (e.g., [40, 50, 60, 70])
+        rbins: Radial bin edges (Mpc). Defaults to DEFAULT_RBINS
+        nthreads: Number of OpenMP threads for Corrfunc
+        base_dir: Base directory; defaults to configured base dir
+        centrals_only: If True, only include central galaxies
+        mhalo_min: Minimum halo mass (mhalo) in Msun; None applies no cut
+        figsize: Figure size (width, height)
+        show_plot: If True, display the plot
+        colormap: Matplotlib colormap name for redshift gradient
+    
+    Returns:
+        List of dictionaries with average correlation results for each redshift
+    """
+    from galform_analysis.config import get_base_dir
+    
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+    
+    if rbins is None:
+        rbins = DEFAULT_RBINS
+    
+    results = []
+    
+    for iz_num in iz_nums:
+        # Compute correlation averaged over subvolumes at this redshift
+        result = avg_correlation_given_redshift_and_subvolumes(
+            iz_num=iz_num,
+            ivols=ivols,
+            rbins=rbins,
+            nthreads=nthreads,
+            base_dir=base_dir,
+            centrals_only=centrals_only,
+            mhalo_min=mhalo_min,
+        )
+        
+        if result is not None:
+            results.append(result)
+        else:
+            print(f"Warning: No data for iz{iz_num}")
+    
+    if not results:
+        print("No correlation results available")
+        return []
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=figsize)
+    colors = plt.cm.get_cmap(colormap)(np.linspace(0, 1, len(results)))
+    
+    for res, c in zip(results, colors):
+        r = res['r']
+        xi = res['xi']
+        xi_std = res.get('xi_std', None)
+        z = res.get('z', None)
+        iz = res['iz']
+        n_used = res.get('n_used', 0)
+        
+        # Skip if redshift is not available
+        if z is None:
+            continue
+        
+        label = f"z={z:.2f} ({iz}, n={n_used})"
+        ax.loglog(r, np.abs(xi), 'o-', color=c, label=label, ms=4, lw=2)
+        
+        # Add uncertainty band if available
+        if xi_std is not None and n_used > 1:
+            xi_sem = xi_std / np.sqrt(n_used)
+            ax.fill_between(r, np.abs(xi - xi_sem), np.abs(xi + xi_sem), 
+                           color=c, alpha=0.25, linewidth=0)
+    
+    ax.set_xlabel(r'$r$ [Mpc/$h$]', fontsize=12)
+    ax.set_ylabel(r'$|\xi(r)|$', fontsize=12)
+    mass_label = f", M>{mhalo_min:.1e} Msun" if mhalo_min else ""
+    ax.set_title(f"2PCF: averaged over {len(ivols)} subvolumes{mass_label}", fontsize=13)
+    ax.legend(fontsize=10)
+    plt.tight_layout()
+    
+    if show_plot:
+        plt.show()
+    
+    return results

@@ -17,6 +17,9 @@ from .smf import (
 from .plot_hmf import (
     plot_hmf_convergence_by_subvolumes,
     plot_hmf_convergence_by_redshift,
+    plot_single_hmf_given_redshift_and_subvolume,
+    plot_hmf_with_theory,
+    plot_hmf_multiple_redshifts,
 )
 from .plot_smf import (
     plot_smf_convergence_by_subvolumes,
@@ -45,6 +48,9 @@ __all__ = [
     # HMF plotting functions
     'plot_hmf_convergence_by_subvolumes',
     'plot_hmf_convergence_by_redshift',
+    'plot_single_hmf_given_redshift_and_subvolume',
+    'plot_hmf_with_theory',
+    'plot_hmf_multiple_redshifts',
     # SMF plotting functions
     'plot_smf_convergence_by_subvolumes',
     'plot_smf_convergence_by_redshift',

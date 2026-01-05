@@ -20,16 +20,16 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
         iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
         ivol: Subvolume index (integer extracted from 'ivolXXX').
         bins: log10(M) bin edges. Defaults to DEFAULT_HALO_MASS_BINS.
-        halo_mass_lower_limit: Optional lower bound (in the same mass units as
-            ``mhalo``) to exclude halos with mass below this threshold before
-            binning.
+              NOTE: GALFORM masses are in units of 10^10 h^-1 M_sun
+        halo_mass_lower_limit: Optional lower bound (in units of 10^10 h^-1 M_sun)
+            to exclude halos with mass below this threshold before binning.
 
     Returns:
         Dictionary with keys:
             - 'iz': snapshot folder name
             - 'ivol': subvolume index
             - 'z': redshift (from file)
-            - 'centers': bin centers log10(M)
+            - 'centers': bin centers log10(M / [10^10 h^-1 M_sun])
             - 'phi': number density [Mpc^-3 dex^-1]
             - 'counts': raw counts per bin
             - 'V_ivol': comoving volume (if present)

@@ -2,6 +2,18 @@
 
 This module provides utilities for computing theoretical HMF predictions using
 the hmf library while maintaining consistency with GALFORM's mass definition (Mvir).
+
+Includes the GPS+ (Generalized Press-Schechter + triaxial collapse) model from:
+Fernández-García et al. (2025), "A redshift-independent theoretical halo mass 
+function validated with the Uchuu simulations", arXiv:2512.05847
+
+IMPORTANT UNITS NOTE:
+- GALFORM stores masses in units of 10^10 h^-1 M_sun (standard N-body convention)
+- Theoretical models (hmf library) use M_sun
+- When using bins from GALFORM: bins represent log10(M / [10^10 h^-1 M_sun])
+- This module applies h^3 correction to dN/dlogM to match GALFORM units
+- For comparison: convert GALFORM masses by: M_true = M_galform * 10^10 / h
+- GPS+ uses M200m definition; conversion to Mvir may reduce accuracy
 """
 
 import numpy as np
@@ -239,7 +251,8 @@ def interpolate_hmf_to_bins(theory_hmf: Dict[str, Any],
 
 def compute_theoretical_hmfs(z: float,
                                bins: np.ndarray,
-                               use_mvir: bool = True) -> Dict[str, np.ndarray]:
+                               use_mvir: bool = True,
+                               include_ps_plus: bool = True) -> Dict[str, np.ndarray]:
     """
     Compute multiple theoretical HMF models at a given redshift.
     
@@ -247,18 +260,23 @@ def compute_theoretical_hmfs(z: float,
         z: Redshift
         bins: Mass bin edges in log10(M/M_sun)
         use_mvir: If True, convert all to Mvir definition (GALFORM-compatible)
+        include_ps_plus: If True, include GPS+ (Fernández-García et al. 2025)
         
     Returns:
         Dictionary with keys for each model:
             - 'PS' (Press-Schechter)
-            - 'SMT' (Sheth-Tormen)
+            - 'SMT' (Sheth-Mo-Tormen)
             - 'Tinker08'
+            - 'GPS+' (Generalized PS + triaxial collapse, if include_ps_plus=True)
             
         Each value is an array of dN/dlog10m at bin centers
     """
     models = {}
     
-    for model_name in ['PS', 'SMT', 'Tinker08']:
+    # Standard models
+    model_names = ['PS', 'SMT', 'Tinker08']
+    
+    for model_name in model_names:
         try:
             theory_hmf = create_theoretical_hmf(
                 z=z,
@@ -271,7 +289,189 @@ def compute_theoretical_hmfs(z: float,
             print(f"Warning: Failed to compute {model_name} at z={z}: {e}")
             models[model_name] = np.full(len(bins)-1, np.nan)
     
+    # Press-Schechter+ from Watson et al. 2025
+    if include_ps_plus:
+        try:
+            ps_plus_hmf = create_press_schechter_plus(z=z, use_mvir=use_mvir)
+            dndlog10m = interpolate_hmf_to_bins(ps_plus_hmf, bins, apply_hubble_correction=True)
+            models['GPS+'] = dndlog10m
+        except Exception as e:
+            print(f"Warning: Failed to compute GPS+ at z={z}: {e}")
+            models['GPS+'] = np.full(len(bins)-1, np.nan)
+    
     return models
+
+
+def create_press_schechter_plus(z: float,
+                                 mmin: float = 9.0,
+                                 mmax: float = 15.0,
+                                 dlog10m: float = 0.01,
+                                 use_mvir: bool = True) -> Dict[str, Any]:
+    """
+    Create GPS+ (Generalized Press-Schechter + triaxial collapse) HMF.
+    
+    Implements the theoretical framework from Fernández-García et al. (2025):
+    "A redshift-independent theoretical halo mass function validated with the Uchuu simulations"
+    arXiv:2512.05847
+    
+    This model uses triaxial collapse physics and achieves 10-20% accuracy across
+    log(M) = 6.5-16 and z = 0-20. It has no explicit redshift dependence - evolution
+    enters solely through σ(M,z).
+    
+    Key features:
+    - Uses M200m mass definition (200 × mean matter density) for universality
+    - Fitted parameters A=1.089, B=0.652 from Uchuu simulations
+    - Mass-dependent functions b(M) and c(M) encode power spectrum shape
+    - Outperforms Sheth-Tormen at z > 2 (ST deviates 70-80%, GPS+ ~20%)
+    
+    Args:
+        z: Redshift
+        mmin: Minimum log10(M/M_sun) for theory grid
+        mmax: Maximum log10(M/M_sun) for theory grid
+        dlog10m: Spacing in log10(M) for theory grid
+        use_mvir: If True, convert from M200m to Mvir definition
+        
+    Returns:
+        Dictionary with same format as create_theoretical_hmf
+        
+    Notes:
+        The paper uses M200m, not Mvir. If use_mvir=True, we convert at the end.
+        This may introduce small discrepancies since GPS+ was calibrated on M200m.
+    """
+    from scipy.special import erfc
+    from scipy.integrate import quad
+    
+    # Get cosmology and power spectrum from hmf library
+    try:
+        hmf_calc = MassFunction(z=z, Mmin=mmin, Mmax=mmax, dlog10m=dlog10m)
+    except Exception as e:
+        raise ValueError(f"Failed to create MassFunction at z={z}: {e}")
+    
+    # Extract mass grid and variance σ(M,z)
+    M = hmf_calc.m  # Mass in M_sun
+    log10M = np.log10(M)
+    sigma = hmf_calc.sigma  # RMS density fluctuation
+    
+    # Cosmological parameters
+    # Use hmf library's mean density (already in correct units: M_sun/Mpc^3 comoving)
+    rho_m = hmf_calc.mean_density0  # M_sun/Mpc^3
+    h_hubble = hmf_calc.cosmo.h
+    
+    # Physical constants from paper
+    delta_c = 1.686  # Critical overdensity for spherical collapse
+    A = 1.089  # Fitted parameter (Equation 7)
+    B = 0.652  # Fitted parameter (Equation 7)
+    D = 1.0    # Theoretical value confirmed by simulations
+    
+    # Equation 8: Mass-dependent function b(M)
+    x_b = log10M
+    log10_b = (-1.28 + 0.05781 * x_b - 0.005622 * x_b**2 
+               - 0.0005884 * x_b**3 - 1.365e-5 * x_b**4)
+    b_M = 10**log10_b
+    
+    # Equation 9: Mass-dependent function c(M)
+    x_c = log10M
+    log10_c = (-1.124 + 0.01756 * x_c + 0.002539 * x_c**2 
+               - 6.438e-5 * x_c**3 + 4.726e-6 * x_c**4)
+    c_M = 10**log10_c
+    
+    # Equation 6: Variance correction U(σ/δc)
+    x_U = sigma / delta_c
+    U = -0.01507 + 0.17810 * x_U + 0.03835 * x_U**2 - 0.00221 * x_U**3
+    
+    # Equation 5: Corrected variance Σ(M,z)
+    Sigma = np.sqrt(sigma**2 + U**2)
+    
+    # Equation 7: Modified critical overdensity <δc>(σ,M)
+    x_delta = sigma / delta_c
+    delta_c_mod = (delta_c * (1.0 + 0.845 * x_delta - 0.04 * x_delta**2 + 0.0025 * x_delta**3)**B
+                   * A * (1.0 + 0.17 * b_M - 0.087 * b_M**2)**D)
+    
+    # Equation 4: Volume factor V(Σ,M) - requires numerical integration
+    def compute_V(Sigma_val, c_val, delta_c_val):
+        """Compute V factor from Equation 4 using numerical integration."""
+        def integrand(xi):
+            exp_term = np.exp(-c_val * xi**2)
+            factor = (1.0 - exp_term) / (1.0 + exp_term)
+            arg = (delta_c_val / (2.0 * Sigma_val)) * factor
+            return erfc(arg) * xi**2
+        
+        try:
+            result, _ = quad(integrand, 0, 1, limit=50)
+            return 3.0 * result
+        except:
+            # Fallback to trapezoidal rule if quad fails
+            xi_grid = np.linspace(0, 1, 100)
+            exp_term = np.exp(-c_val * xi_grid**2)
+            factor = (1.0 - exp_term) / (1.0 + exp_term)
+            arg = (delta_c_val / (2.0 * Sigma_val)) * factor
+            integrand_vals = erfc(arg) * xi_grid**2
+            return 3.0 * np.trapz(integrand_vals, xi_grid)
+    
+    # Vectorized computation of V for all masses
+    V_factors = np.array([compute_V(Sigma[i], c_M[i], delta_c_mod[i]) 
+                          for i in range(len(M))])
+    
+    # Equation 3: Mass fraction F(M,z)
+    F = erfc(delta_c_mod / (np.sqrt(2.0) * sigma)) / V_factors
+    
+    # Standard relation: dn/dlnM = -(ρ_m/M) * dF/dlnM
+    # Compute dF/dlnM using central differences
+    lnM = np.log(M)
+    dF_dlnM = np.gradient(F, lnM)
+    
+    # HMF: dn/dlnM (take absolute value to ensure positive)
+    dn_dlnM = np.abs((rho_m / M) * dF_dlnM)
+    
+    # Convert to dn/dlog10M
+    dndlog10m = dn_dlnM / np.log(10.0)
+    
+    # Handle negative or invalid values (should be positive for a valid HMF)
+    dndlog10m = np.maximum(dndlog10m, 1e-100)
+    
+    result = {
+        'z': z,
+        'log10M': log10M,
+        'dndlog10m': dndlog10m,
+        'model': 'GPS+',
+        'mass_definition': 'M200m',
+        'h_hubble': h_hubble,
+    }
+    
+    # Convert from M200m to Mvir if requested
+    if use_mvir:
+        # This conversion may introduce errors since GPS+ was calibrated on M200m
+        # The paper shows that using Mvir worsens agreement at low-z, high-mass
+        M_m200m = M
+        
+        # Approximate M200m to Mvir conversion
+        # At z=0: Mvir/M200m ~ 1.5-2.0 depending on mass
+        # This is different from M200c conversion!
+        cosmo = Cosmology()
+        Omega_m0 = cosmo.OMEGA_M
+        Omega_lambda0 = cosmo.OMEGA_L
+        Ez2 = Omega_m0 * (1.0 + z)**3 + Omega_lambda0
+        Omega_z = Omega_m0 * (1.0 + z)**3 / Ez2
+        x_vir = Omega_z - 1.0
+        Delta_vir = 18.0 * np.pi**2 + 82.0 * x_vir - 39.0 * x_vir**2
+        
+        # Approximate ratio Mvir/M200m ≈ Delta_vir/200 (rough estimate)
+        ratio_mvir_to_m200m = Delta_vir / 200.0
+        
+        log10M_mvir = np.log10(M_m200m * ratio_mvir_to_m200m)
+        
+        # Jacobian correction
+        jacobian = 1.0  # Simplified - could improve with mass-dependent ratio
+        dndlog10m_mvir = dndlog10m / jacobian
+        
+        result.update({
+            'log10M': log10M_mvir,
+            'dndlog10m': dndlog10m_mvir,
+            'mass_definition': 'Mvir',
+            'ratio_mvir_to_m200m': ratio_mvir_to_m200m,
+        })
+    
+    return result
 
 
 def get_mass_definition_info() -> Dict[str, str]:

@@ -20,7 +20,7 @@ def plot_smf_convergence_by_subvolumes(
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
     outdir: str = '_plots/convergence',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
@@ -235,7 +235,7 @@ def plot_smf_convergence_by_redshift(
     n_iterations: int = 1,
     bins: Optional[np.ndarray] = None,
     outdir: str = '_plots/convergence',
-    do_save: bool = True,
+    do_save: bool = False,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     panel_size: tuple = (7, 5)
