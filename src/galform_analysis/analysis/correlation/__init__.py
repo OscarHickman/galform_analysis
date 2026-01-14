@@ -14,6 +14,14 @@ from .plot_correlation import (
     plot_correlation_multi_redshift,
     plot_avg_correlation_over_redshifts,
 )
+from .dm_correlation import (
+    dm_correlation_from_tree_file,
+    avg_dm_correlation_from_tree_files,
+)
+from .galaxy_bias import (
+    compute_galaxy_bias,
+    avg_galaxy_bias_over_subvolumes,
+)
 
 __all__ = [
     'compute_xi_corrfunc',
@@ -26,4 +34,8 @@ __all__ = [
     'plot_single_correlation',
     'plot_correlation_multi_redshift',
     'plot_avg_correlation_over_redshifts',
+    'dm_correlation_from_tree_file',
+    'avg_dm_correlation_from_tree_files',
+    'compute_galaxy_bias',
+    'avg_galaxy_bias_over_subvolumes',
 ]
