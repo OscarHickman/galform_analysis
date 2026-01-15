@@ -14,17 +14,6 @@ from .smf import (
     avg_smf_given_redshifts_and_subvolume,
     compute_smf_from_aggregated,
 )
-from .plot_hmf import (
-    plot_hmf_convergence_by_subvolumes,
-    plot_hmf_convergence_by_redshift,
-    plot_single_hmf_given_redshift_and_subvolume,
-    plot_hmf_with_theory,
-    plot_hmf_multiple_redshifts,
-)
-from .plot_smf import (
-    plot_smf_convergence_by_subvolumes,
-    plot_smf_convergence_by_redshift,
-)
 from .theoretical_hmf import (
     compute_theoretical_hmfs,
     get_mvir_to_m200c_ratio,
@@ -45,15 +34,6 @@ __all__ = [
     'avg_smf_given_redshift_and_subvolumes',
     'avg_smf_given_redshifts_and_subvolume',
     'compute_smf_from_aggregated',
-    # HMF plotting functions
-    'plot_hmf_convergence_by_subvolumes',
-    'plot_hmf_convergence_by_redshift',
-    'plot_single_hmf_given_redshift_and_subvolume',
-    'plot_hmf_with_theory',
-    'plot_hmf_multiple_redshifts',
-    # SMF plotting functions
-    'plot_smf_convergence_by_subvolumes',
-    'plot_smf_convergence_by_redshift',
     # Theoretical HMF functions
     'compute_theoretical_hmfs',
     'get_mvir_to_m200c_ratio',

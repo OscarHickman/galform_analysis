@@ -4,8 +4,11 @@ from typing import Dict, Optional, Tuple, List, Any
 import numpy as np
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
+import pandas as pd
+
 from ...config import DEFAULT_RBINS, get_base_dir
-from ...io.loaders import open_galaxies_hdf5, get_output_group, read_snapshot_data
+from ...io.loaders import read_snapshot_data
+from ...utils.read_galaxies import read_galaxy_positions
 
 
 def _load_positions_from_hdf5(
@@ -26,64 +29,12 @@ def _load_positions_from_hdf5(
         positions: (N,3) array in the native units of the file (assumed Mpc or Mpc/h)
         z: best-effort redshift if available
     """
-    f = open_galaxies_hdf5(iz_path, ivol=ivol)
-    if f is None:
-        raise FileNotFoundError(f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}")
-    try:
-        g = get_output_group(f)
-        if g is None:
-            raise RuntimeError("No OutputNNN group found in HDF5 file")
-
-        # Load position arrays (GALFORM uses xgal, ygal, zgal)
-        if 'xgal' not in g or 'ygal' not in g or 'zgal' not in g:
-            raise KeyError("Could not find xgal/ygal/zgal position arrays in Output group")
-        
-        x = np.asarray(g['xgal'])
-        y = np.asarray(g['ygal'])
-        z_arr = np.asarray(g['zgal'])
-
-        # Ensure 1D arrays and consistent length
-        x = np.ravel(x)
-        y = np.ravel(y)
-        z_arr = np.ravel(z_arr)
-        n = min(x.size, y.size, z_arr.size)
-        
-        # Apply filtering if requested
-        mask = np.ones(n, dtype=bool)
-        
-        if centrals_only:
-            if 'is_central' not in g:
-                raise KeyError("is_central field not found - cannot filter for centrals")
-            is_central = np.ravel(g['is_central'][:n])
-            mask &= (is_central == 1)
-        
-        if mhalo_min is not None:
-            if 'mhalo' not in g:
-                raise KeyError("mhalo field not found - cannot apply halo mass cut")
-            mhalo = np.ravel(g['mhalo'][:n])
-            mask &= (mhalo >= mhalo_min)
-        
-        # Apply mask to positions
-        x = x[:n][mask]
-        y = y[:n][mask]
-        z_arr = z_arr[:n][mask]
-        
-        pos = np.vstack([x, y, z_arr]).T.astype(np.float64, copy=False)
-
-        # Redshift (best-effort)
-        z_val = None
-        try:
-            if 'Redshifts' in f and isinstance(f['Redshifts'], np.ndarray):
-                z_val = float(np.ravel(f['Redshifts'])[0])
-        except Exception:
-            z_val = None
-
-        return pos, z_val
-    finally:
-        try:
-            f.close()
-        except Exception:
-            pass
+    return read_galaxy_positions(
+        iz_path=iz_path,
+        ivol=ivol,
+        centrals_only=centrals_only,
+        mhalo_min=mhalo_min,
+    )
 
 
 def compute_xi_corrfunc(
@@ -91,7 +42,7 @@ def compute_xi_corrfunc(
     boxsize: float,
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
-) -> Dict[str, np.ndarray]:
+) -> pd.DataFrame:
     """Compute the real-space two-point correlation xi(r) using Corrfunc.
 
     For periodic subvolumes, uses Corrfunc.theory.DD to count pairs
@@ -105,7 +56,7 @@ def compute_xi_corrfunc(
         nthreads: Number of OpenMP threads for parallel execution
 
     Returns:
-        dict with keys: 'rbins', 'r', 'xi', 'ngal'
+        DataFrame with columns ['r', 'xi'] and metadata in df.attrs
     """
     if rbins is None:
         rbins = DEFAULT_RBINS
@@ -122,12 +73,12 @@ def compute_xi_corrfunc(
     if ngal < 2:
         # Not enough galaxies for correlation
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-        return {
-            'rbins': rbins,
+        df = pd.DataFrame({
             'r': r_centers,
-            'xi': np.full_like(r_centers, np.nan) - 1.0, # xi 0 = uncorrelated
-            'ngal': ngal,
-        }
+            'xi': np.full_like(r_centers, np.nan) - 1.0,  # xi 0 = uncorrelated
+        })
+        df.attrs.update({'rbins': rbins, 'ngal': ngal})
+        return df
 
     # Use DD with periodic boundary conditions since subvolumes have periodic geometry
     # autocorr=1 means this is an auto-correlation (same catalog for both sets)
@@ -181,14 +132,11 @@ def compute_xi_corrfunc(
     RR_norm = V_shell / volume
     
     # Avoid division by zero
-    xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan) - 1.0 # xi 0 = uncorrelated
-    
-    return {
-        'rbins': rbins,
-        'r': r,
-        'xi': xi_vals,
-        'ngal': ngal,
-    }
+    xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan)
+
+    df = pd.DataFrame({'r': r, 'xi': xi_vals})
+    df.attrs.update({'rbins': rbins, 'ngal': ngal})
+    return df
 
 
 def correlation_given_redshift_and_subvolume(
@@ -198,7 +146,7 @@ def correlation_given_redshift_and_subvolume(
     nthreads: int = 4,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
-) -> Optional[Dict[str, np.ndarray]]:
+) -> Optional[pd.DataFrame]:
     """High-level helper mirroring the HMF API: xi(r) for (snapshot, ivol).
 
     Attempts to read positions from the HDF5 subvolume, estimate boxsize from
@@ -213,7 +161,8 @@ def correlation_given_redshift_and_subvolume(
         mhalo_min: Minimum halo mass (mhalo) in Msun. None = no cut.
 
     Returns:
-        dict with 'r', 'xi', 'z', 'ivol', 'V_ivol', 'boxsize', 'ngal'; or None if unavailable
+        DataFrame with columns ['r', 'xi'] and metadata in df.attrs.
+        Returns None if unavailable.
     """
     try:
         # Load positions and redshift
@@ -243,24 +192,25 @@ def correlation_given_redshift_and_subvolume(
             raise RuntimeError(f"Invalid subvolume box size for {iz_path}/ivol{ivol}: L={L}")
 
         res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
-        out = {
-            'r': res['r'],
-            'xi': res['xi'],
-            'rbins': res['rbins'],
-            'ngal': res['ngal'],
+        
+        # Metadata
+        metadata = {
             'z': z_val if z_val is not None else meta.get('z'),
             'ivol': ivol,
             'V_ivol': V_ivol,
             'boxsize': L,
+            'ngal': res.attrs.get('ngal'),
+            'rbins': res.attrs.get('rbins'),
         }
-        return out
+        res.attrs.update(metadata)
+        return res
+
     except (FileNotFoundError, RuntimeError, KeyError) as e:
         # Graceful failure to mirror other analysis helpers
         import traceback
         print(f"Warning: correlation could not be computed for {iz_path}/ivol{ivol}: {type(e).__name__}: {e}")
         traceback.print_exc()
         return None
-
 
 def avg_correlation_given_redshift_and_subvolumes(
     iz_num: int,
@@ -270,7 +220,7 @@ def avg_correlation_given_redshift_and_subvolumes(
     base_dir: Optional[str] = None,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[pd.DataFrame]:
     """Average correlation function over a provided list of subvolumes for a snapshot.
 
     Mirrors the HMF API: compute xi(r) for each requested ivol and average.
@@ -283,16 +233,8 @@ def avg_correlation_given_redshift_and_subvolumes(
         base_dir: Optional base directory; defaults to configured base dir.
         centrals_only: If True, only include central galaxies (is_central=1)
         mhalo_min: Minimum halo mass (mhalo) in Msun. None = no cut.
-
     Returns:
-        Dictionary with keys:
-            - 'iz': snapshot name (e.g. 'iz207')
-            - 'z': redshift (from first successful subvolume)
-            - 'r': radial bin centers
-            - 'xi': mean correlation function across provided subvolumes
-            - 'xi_std': standard deviation across provided subvolumes
-            - 'n_used': number of successful subvolumes
-            - 'n_requested': length of ivols list
+        DataFrame with columns ['r', 'xi', 'xi_std'] and metadata in df.attrs.
         Returns None if no subvolume produced valid data.
     """
     if rbins is None:
@@ -316,26 +258,29 @@ def avg_correlation_given_redshift_and_subvolumes(
         if res is None:
             continue
         if r_ref is None:
-            r_ref = res['r']
+            r_ref = res['r'].to_numpy()
         if z is None:
-            z = res['z']
-        per_xi.append(res['xi'])
+            z = res.attrs.get('z')
+        per_xi.append(res['xi'].to_numpy())
 
     if not per_xi:
         return None
 
     per_xi = np.array(per_xi)
     r = r_ref if r_ref is not None else 0.5 * (rbins[1:] + rbins[:-1])
-
-    return {
+    xi_mean = per_xi.mean(axis=0)
+    xi_std = per_xi.std(axis=0)
+    
+    metadata = {
         'iz': f'iz{iz_num}',
         'z': z,
-        'r': r,
-        'xi': per_xi.mean(axis=0),
-        'xi_std': per_xi.std(axis=0),
         'n_used': per_xi.shape[0],
         'n_requested': len(ivols),
+        'rbins': rbins,
     }
+    df = pd.DataFrame({'r': r, 'xi': xi_mean, 'xi_std': xi_std})
+    df.attrs.update(metadata)
+    return df
 
 
 def correlations_given_redshifts_and_subvolume(
@@ -346,7 +291,7 @@ def correlations_given_redshifts_and_subvolume(
     base_dir: Optional[str] = None,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
-) -> List[Dict[str, Any]]:
+) -> List[pd.DataFrame]:
     """Compute correlation function for one subvolume across multiple snapshots.
 
     Args:
@@ -384,7 +329,7 @@ def correlations_given_redshifts_and_subvolume(
             centrals_only=centrals_only, mhalo_min=mhalo_min
         )
         if res is not None:
-            res['iz'] = f'iz{iz_num}'
+            res.attrs['iz'] = f'iz{iz_num}'
             results.append(res)
     
     return results
@@ -398,7 +343,7 @@ def avg_correlation_given_subvolume_and_redshifts(
     base_dir: Optional[str] = None,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[pd.DataFrame]:
     """Average xi(r) across multiple redshifts for a single subvolume.
 
     Args:
@@ -409,9 +354,8 @@ def avg_correlation_given_subvolume_and_redshifts(
         base_dir: Optional base directory for snapshots; defaults to configured base dir.
         centrals_only: If True, only include central galaxies (is_central==1).
         mhalo_min: Minimum halo mass threshold in Msun; None applies no cut.
-
     Returns:
-        dict with keys: 'r', 'xi', 'xi_std', 'ivol', 'n_used', 'used_iz', 'used_z'
+        DataFrame with columns ['r', 'xi', 'xi_std'] and metadata in df.attrs.
         Returns None if no snapshots produced valid data.
     """
     if rbins is None:
@@ -430,34 +374,33 @@ def avg_correlation_given_subvolume_and_redshifts(
             continue
 
         res = correlation_given_redshift_and_subvolume(
-            iz_path,
-            ivol,
-            rbins=rbins,
-            nthreads=nthreads,
-            centrals_only=centrals_only,
-            mhalo_min=mhalo_min,
+            iz_path, ivol, rbins=rbins, nthreads=nthreads,
+            centrals_only=centrals_only, mhalo_min=mhalo_min
         )
 
         if res is None:
             continue
         if r_ref is None:
-            r_ref = res['r']
-        per_xi.append(res['xi'])
+            r_ref = res['r'].to_numpy()
+        per_xi.append(res['xi'].to_numpy())
         used_iz.append(f'iz{iz_num}')
-        used_z.append(res.get('z'))
+        used_z.append(res.attrs.get('z'))
 
     if not per_xi:
         return None
 
     per_xi_arr = np.vstack(per_xi)
     r = r_ref if r_ref is not None else 0.5 * (rbins[1:] + rbins[:-1])
+    xi_mean = per_xi_arr.mean(axis=0)
+    xi_std = per_xi_arr.std(axis=0)
 
-    return {
+    metadata = {
         'ivol': ivol,
-        'r': r,
-        'xi': per_xi_arr.mean(axis=0),
-        'xi_std': per_xi_arr.std(axis=0),
         'n_used': per_xi_arr.shape[0],
         'used_iz': used_iz,
         'used_z': used_z,
+        'rbins': rbins,
     }
+    df = pd.DataFrame({'r': r, 'xi': xi_mean, 'xi_std': xi_std})
+    df.attrs.update(metadata)
+    return df

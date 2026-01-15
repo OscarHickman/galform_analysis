@@ -16,11 +16,64 @@ from Corrfunc.theory.DD import DD as corrfunc_DD
 from ...config import DEFAULT_RBINS, get_base_dir
 
 
+def _normalize_positions_units(
+    positions: np.ndarray,
+    boxsize: Optional[float],
+    unit_hint: Optional[str] = None,
+) -> Tuple[np.ndarray, Optional[float]]:
+    """Normalize halo positions to Mpc/h when tree files are in kpc/h.
+
+    Heuristic: if boxsize is very large (e.g., > 10,000), assume kpc/h and
+    convert to Mpc/h by dividing by 1000. This matches P-Millennium trees
+    that often store positions in kpc/h with Lbox ~ 800000.
+    """
+    if boxsize is None:
+        return positions, boxsize
+
+    # Explicit unit hint if provided by file attributes
+    if unit_hint is not None:
+        hint = unit_hint.lower()
+        if 'kpc' in hint:
+            return positions / 1000.0, boxsize / 1000.0
+        if 'mpc' in hint:
+            return positions, boxsize
+
+    # Heuristic based on boxsize magnitude
+    if boxsize > 1.0e4:
+        warnings.warn(
+            f"Large boxsize detected ({boxsize:.1f}); assuming kpc/h and converting to Mpc/h.")
+        return positions / 1000.0, boxsize / 1000.0
+
+    return positions, boxsize
+
+
+def _extract_length_unit_hint(f: h5py.File) -> Optional[str]:
+    """Attempt to extract a length unit hint from common HDF5 locations."""
+    # Check units group attributes or datasets
+    if 'units' in f:
+        units_group = f['units']
+        for key in ('LengthUnit', 'lengthUnit', 'length', 'Length', 'posUnit', 'PositionUnit'):
+            if key in units_group.attrs:
+                return str(units_group.attrs[key])
+            if key in units_group:
+                try:
+                    return str(np.asarray(units_group[key]).ravel()[0])
+                except Exception:
+                    continue
+
+    # Check file-level attributes
+    for key in ('LengthUnit', 'lengthUnit', 'length', 'Length', 'posUnit', 'PositionUnit'):
+        if key in f.attrs:
+            return str(f.attrs[key])
+
+    return None
+
+
 def _load_aquarius_format(
     f: h5py.File,
     snapshot_idx: Optional[int] = None,
     mhalo_min: Optional[float] = None,
-) -> Tuple[np.ndarray, Optional[float], Optional[float]]:
+) -> Tuple[np.ndarray, Optional[float], Optional[float], Optional[str]]:
     """Load halos from AQUARIUS-style P-Millennium tree format.
     
     Args:
@@ -66,6 +119,10 @@ def _load_aquarius_format(
         boxsize = float(f['simulation'].attrs['boxSize'])
     elif 'simulation' in f and 'Lbox' in f['simulation'].attrs:
         boxsize = float(f['simulation'].attrs['Lbox'])
+    elif 'simulation' in f and 'boxSize' in f['simulation']:
+        boxsize = float(np.asarray(f['simulation']['boxSize']).ravel()[0])
+    elif 'simulation' in f and 'Lbox' in f['simulation']:
+        boxsize = float(np.asarray(f['simulation']['Lbox']).ravel()[0])
     else:
         # Estimate from position extent
         extent = np.ptp(positions, axis=0)
@@ -82,14 +139,15 @@ def _load_aquarius_format(
         if len(idx) > 0:
             redshift = float(redshifts[idx[0]])
     
-    return positions.astype(np.float64), boxsize, redshift
+    unit_hint = _extract_length_unit_hint(f)
+    return positions.astype(np.float64), boxsize, redshift, unit_hint
 
 
 def _load_halo_positions_from_hdf5(
     tree_file: str,
     snapshot_idx: Optional[int] = None,
     mhalo_min: Optional[float] = None,
-) -> Tuple[np.ndarray, Optional[float], Optional[float]]:
+) -> Tuple[np.ndarray, Optional[float], Optional[float], Optional[str]]:
     """Load dark matter halo positions from HDF5 merger tree file.
     
     Supports AQUARIUS-style P-Millennium trees and generic HDF5 formats.
@@ -204,7 +262,8 @@ def _load_halo_positions_from_hdf5(
                         redshift = float(z_data.ravel()[0])
                         break
             
-            return pos.astype(np.float64, copy=False), boxsize, redshift
+            unit_hint = _extract_length_unit_hint(f)
+            return pos.astype(np.float64, copy=False), boxsize, redshift, unit_hint
             
     except Exception as e:
         raise RuntimeError(f"Error loading halo positions from {tree_file}: {e}") from e
@@ -214,7 +273,7 @@ def _load_halo_positions_from_binary(
     tree_file: str,
     snapshot_idx: Optional[int] = None,
     mhalo_min: Optional[float] = None,
-) -> Tuple[np.ndarray, Optional[float], Optional[float]]:
+) -> Tuple[np.ndarray, Optional[float], Optional[float], Optional[str]]:
     """Load dark matter halo positions from binary merger tree files (Millennium format).
     
     This is a placeholder for binary tree formats. Implementation depends on
@@ -340,6 +399,7 @@ def dm_correlation_from_tree_file(
     snapshot_idx: Optional[int] = None,
     mhalo_min: Optional[float] = None,
     file_format: str = 'auto',
+    boxsize_override: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     """Compute DM halo 2PCF from a merger tree file.
     
@@ -352,6 +412,7 @@ def dm_correlation_from_tree_file(
         snapshot_idx: Snapshot index (if needed for multi-snapshot files)
         mhalo_min: Minimum halo mass in Msun. None = no cut.
         file_format: 'hdf5', 'binary', or 'auto' (auto-detect from extension)
+        boxsize_override: If set, use this boxsize (Mpc/h) instead of the tree file boxsize
     
     Returns:
         dict with 'r', 'xi', 'z', 'boxsize', 'nhalo'; or None if unavailable
@@ -366,16 +427,41 @@ def dm_correlation_from_tree_file(
         
         # Load halo positions
         if file_format == 'hdf5':
-            pos, boxsize, redshift = _load_halo_positions_from_hdf5(
+            pos, boxsize, redshift, unit_hint = _load_halo_positions_from_hdf5(
                 tree_file, snapshot_idx, mhalo_min
             )
         elif file_format == 'binary':
-            pos, boxsize, redshift = _load_halo_positions_from_binary(
+            pos, boxsize, redshift, unit_hint = _load_halo_positions_from_binary(
                 tree_file, snapshot_idx, mhalo_min
             )
         else:
             raise ValueError(f"Unknown file_format: {file_format}")
         
+        # Normalize units if necessary (kpc/h -> Mpc/h)
+        pos, boxsize = _normalize_positions_units(pos, boxsize, unit_hint)
+
+        # Override boxsize if provided (e.g., use subvolume size)
+        if boxsize_override is not None and boxsize_override > 0:
+            extent = np.ptp(pos, axis=0)
+            extent_max = float(np.max(extent))
+            if extent_max > boxsize_override * 1.2:
+                warnings.warn(
+                    f"Positions span ~{extent_max:.1f} which exceeds override boxsize "
+                    f"{boxsize_override:.1f}. Check tree file/subvolume mapping."
+                )
+            boxsize = float(boxsize_override)
+
+        # If positions occupy a much smaller region than boxsize, assume subvolume tree
+        if boxsize is not None and boxsize > 0:
+            extent = np.ptp(pos, axis=0)
+            extent_max = float(np.max(extent))
+            if extent_max > 0 and boxsize / extent_max > 1.5:
+                warnings.warn(
+                    f"Positions span only ~{extent_max:.1f} of boxsize {boxsize:.1f}; "
+                    "using extent as boxsize for subvolume tree."
+                )
+                boxsize = extent_max
+
         if boxsize is None or boxsize <= 0:
             raise RuntimeError(f"Invalid box size: {boxsize}")
         
