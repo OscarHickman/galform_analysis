@@ -489,3 +489,5 @@ def get_mass_definition_info() -> Dict[str, str]:
         'Ratio_z0': 'Mvir/M200c ≈ 2.5',
         'Ratio_z05': 'Mvir/M200c ≈ 1.6',
     }
+
+
