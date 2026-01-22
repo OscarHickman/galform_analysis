@@ -1,0 +1,17 @@
+# Core dependencies
+numpy>=1.23.0
+scipy>=1.7.0
+matplotlib>=3.3.0
+pandas>=1.3.0
+h5py>=3.0.0
+seaborn>=0.11.0
+
+# Development dependencies
+pytest>=8.0.0
+ruff>=0.1.0
+
+# Optional dependencies
+astropy>=4.0
+hmf>=3.0
+packaging>=20.0
+deprecation>=2.0
