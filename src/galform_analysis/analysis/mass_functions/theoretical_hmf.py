@@ -409,8 +409,8 @@ def create_press_schechter_plus(z: float,
             c_m_mat = c_m[:, np.newaxis]
             cte_mat = cte[:, np.newaxis]
             integrand = erfc(cte_mat * np.sqrt((1 - np.exp(-c_m_mat * xi_mat**2)) / (1 + np.exp(-c_m_mat * xi_mat**2)))) * xi2
-            I = np.trapz(integrand, xi, axis=1)
-            V = 3 * I
+            integral_result = np.trapz(integrand, xi, axis=1)
+            V = 3 * integral_result
 
             F_val = erfc(0.98 * cte) / V
             return F_val if F_val.size > 1 else F_val[0]

@@ -7,9 +7,8 @@ different redshifts.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import pandas as pd
 import os
 

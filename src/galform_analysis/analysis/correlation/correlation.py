@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional, Tuple, List, Any
+from typing import Optional, Tuple, List
 
 import numpy as np
 from Corrfunc.theory.DD import DD as corrfunc_DD
@@ -122,7 +122,7 @@ def compute_xi_corrfunc(
     
     # Expected number of random pairs (normalized by total volume)
     # For autocorrelation with periodic BC: RR = n * (n-1) / 2 * V_shell / V_box
-    RR = n_rand * (n_rand - 1.0) / 2.0 * V_shell / volume
+    # RR = n_rand * (n_rand - 1.0) / 2.0 * V_shell / volume
     
     # Landy-Szalay estimator: xi = (DD - 2*DR + RR) / RR
     # For auto-correlation with analytic RR: DD/RR - 1

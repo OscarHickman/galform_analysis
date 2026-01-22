@@ -13,7 +13,7 @@ import numpy as np
 import h5py
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
-from ...config import DEFAULT_RBINS, get_base_dir
+from ...config import DEFAULT_RBINS
 
 
 def _normalize_positions_units(
@@ -230,9 +230,7 @@ def _load_halo_positions_from_hdf5(
                     mask = mass[:len(pos)] >= mhalo_min
                     pos = pos[mask]
                 else:
-                    warnings.warn(f"Could not find mass field for mass cut. Proceeding without cut.")
-            
-            # Try to get box size
+                warnings.warn("Could not find mass field for mass cut. Proceeding without cut.")
             boxsize = None
             boxsize_fields = ['BoxSize', 'boxsize', 'Lbox', 'L']
             for field in boxsize_fields:
@@ -370,7 +368,7 @@ def compute_xi_corrfunc(
     
     # Compute RR analytically for periodic cubic volume
     volume = boxsize ** 3
-    n_rand = nhalo
+    # n_rand = nhalo  # Not used - RR computed analytically
     
     r1 = rbins[:-1]
     r2 = rbins[1:]
