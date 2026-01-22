@@ -191,6 +191,11 @@ class GalformSubmitter:
 #SBATCH -t {self.walltime}
 #
 
+# Load required modules for Intel Fortran compiler
+module purge
+module load intel_comp/2024.2.0
+module load compiler-rt tbb compiler mpi
+
 # Set parameters
 set model     = {self.model}
 set Nbody_sim = {self.nbody_sim}

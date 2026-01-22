@@ -112,7 +112,7 @@ def compute_xi_corrfunc(
     # RR(r) = n * (n-1) / 2 * V_shell / V_box for r <= boxsize/2
     # where V_shell = 4/3 * pi * (r2^3 - r1^3)
     volume = boxsize ** 3
-    n_rand = ngal  # Use same number density as data
+    # n_rand = ngal  # Use same number density as data - not needed for analytical RR
     
     r1 = rbins[:-1]
     r2 = rbins[1:]

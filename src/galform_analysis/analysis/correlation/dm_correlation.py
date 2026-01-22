@@ -230,7 +230,7 @@ def _load_halo_positions_from_hdf5(
                     mask = mass[:len(pos)] >= mhalo_min
                     pos = pos[mask]
                 else:
-                warnings.warn("Could not find mass field for mass cut. Proceeding without cut.")
+                    warnings.warn("Could not find mass field for mass cut. Proceeding without cut.")
             boxsize = None
             boxsize_fields = ['BoxSize', 'boxsize', 'Lbox', 'L']
             for field in boxsize_fields:
