@@ -17,7 +17,7 @@ IMPORTANT UNITS NOTE:
 """
 
 import numpy as np
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from hmf import MassFunction
 from ...config import Cosmology
 
@@ -207,15 +207,13 @@ def create_theoretical_hmf(z: float,
 
 
 def interpolate_hmf_to_bins(theory_hmf: Dict[str, Any], 
-                            bins: np.ndarray,
-                            apply_hubble_correction: bool = True) -> np.ndarray:
+                            bins: np.ndarray) -> np.ndarray:
     """
     Interpolate theoretical HMF to specified mass bins in log-space.
     
     Args:
         theory_hmf: Dictionary from create_theoretical_hmf()
         bins: Mass bin edges in log10(M/M_sun)
-        apply_hubble_correction: If True, multiply by h^3 to match code units
         
     Returns:
         Array of dN/dlog10m values at bin centers
@@ -240,11 +238,6 @@ def interpolate_hmf_to_bins(theory_hmf: Dict[str, Any],
         np.log10(dndlog10m_theory[mask])
     )
     result = 10**log_interp
-    
-    # Apply Hubble parameter correction if requested
-    if apply_hubble_correction:
-        h_hubble = theory_hmf.get('h_hubble', 1.0)
-        result = result * (h_hubble ** 3)
     
     return result
 
@@ -283,7 +276,7 @@ def compute_theoretical_hmfs(z: float,
                 use_mvir=use_mvir,
                 model=model_name
             )
-            dndlog10m = interpolate_hmf_to_bins(theory_hmf, bins, apply_hubble_correction=True)
+            dndlog10m = interpolate_hmf_to_bins(theory_hmf, bins)
             models[model_name] = dndlog10m
         except Exception as e:
             print(f"Warning: Failed to compute {model_name} at z={z}: {e}")
@@ -293,7 +286,7 @@ def compute_theoretical_hmfs(z: float,
     if include_ps_plus:
         try:
             ps_plus_hmf = create_press_schechter_plus(z=z, use_mvir=use_mvir)
-            dndlog10m = interpolate_hmf_to_bins(ps_plus_hmf, bins, apply_hubble_correction=True)
+            dndlog10m = interpolate_hmf_to_bins(ps_plus_hmf, bins)
             models['GPS+'] = dndlog10m
         except Exception as e:
             print(f"Warning: Failed to compute GPS+ at z={z}: {e}")
@@ -306,7 +299,8 @@ def create_press_schechter_plus(z: float,
                                  mmin: float = 9.0,
                                  mmax: float = 15.0,
                                  dlog10m: float = 0.01,
-                                 use_mvir: bool = True) -> Dict[str, Any]:
+                                 use_mvir: bool = True,
+                                 mdef: str = 'm200b') -> Dict[str, Any]:
     """
     Create GPS+ (Generalized Press-Schechter + triaxial collapse) HMF.
     
@@ -314,161 +308,165 @@ def create_press_schechter_plus(z: float,
     "A redshift-independent theoretical halo mass function validated with the Uchuu simulations"
     arXiv:2512.05847
     
-    This model uses triaxial collapse physics and achieves 10-20% accuracy across
+    This implementation matches the exact GitHub code from https://github.com/uchuuproject/HMF_GPSplus
+    
+    This model uses triaxial collapse physics and achieves ~5-10% accuracy across
     log(M) = 6.5-16 and z = 0-20. It has no explicit redshift dependence - evolution
     enters solely through σ(M,z).
     
     Key features:
-    - Uses M200m mass definition (200 × mean matter density) for universality
-    - Fitted parameters A=1.089, B=0.652 from Uchuu simulations
+    - Uses m200b mass definition (200 × background density) by default
+    - Fitted parameters A=1.089, B=0.652, D=1.0, E=0.17, F=0.087 from Uchuu simulations
     - Mass-dependent functions b(M) and c(M) encode power spectrum shape
-    - Outperforms Sheth-Tormen at z > 2 (ST deviates 70-80%, GPS+ ~20%)
+    - Modified variance σ_mod includes correction term U(σ) for improved accuracy
+    - Outperforms Sheth-Tormen at z > 2 (ST deviates 70-80%, GPS+ ~5-10%)
     
     Args:
         z: Redshift
         mmin: Minimum log10(M/M_sun) for theory grid
         mmax: Maximum log10(M/M_sun) for theory grid
         dlog10m: Spacing in log10(M) for theory grid
-        use_mvir: If True, convert from M200m to Mvir definition
+        use_mvir: If True, convert from m200b to Mvir definition (NOT RECOMMENDED)
+        mdef: Mass definition ('m200b' or 'mvir')
         
     Returns:
         Dictionary with same format as create_theoretical_hmf
         
     Notes:
-        The paper uses M200m, not Mvir. If use_mvir=True, we convert at the end.
-        This may introduce small discrepancies since GPS+ was calibrated on M200m.
+        The paper uses m200b (background density). Using Mvir may reduce accuracy.
+        Implementation uses the exact HaloMassFunction class from GitHub.
     """
     from scipy.special import erfc
     from scipy.integrate import quad
+    from colossus.cosmology import cosmology
     
-    # Get cosmology and power spectrum from hmf library
-    try:
-        hmf_calc = MassFunction(z=z, Mmin=mmin, Mmax=mmax, dlog10m=dlog10m)
-    except Exception as e:
-        raise ValueError(f"Failed to create MassFunction at z={z}: {e}")
-    
-    # Extract mass grid and variance σ(M,z)
-    M = hmf_calc.m  # Mass in M_sun
-    log10M = np.log10(M)
-    sigma = hmf_calc.sigma  # RMS density fluctuation
-    
-    # Cosmological parameters
-    # Use hmf library's mean density (already in correct units: M_sun/Mpc^3 comoving)
-    rho_m = hmf_calc.mean_density0  # M_sun/Mpc^3
-    h_hubble = hmf_calc.cosmo.h
-    
-    # Physical constants from paper
-    delta_c = 1.686  # Critical overdensity for spherical collapse
-    A = 1.089  # Fitted parameter (Equation 7)
-    B = 0.652  # Fitted parameter (Equation 7)
-    D = 1.0    # Theoretical value confirmed by simulations
-    
-    # Equation 8: Mass-dependent function b(M)
-    x_b = log10M
-    log10_b = (-1.28 + 0.05781 * x_b - 0.005622 * x_b**2 
-               - 0.0005884 * x_b**3 - 1.365e-5 * x_b**4)
-    b_M = 10**log10_b
-    
-    # Equation 9: Mass-dependent function c(M)
-    x_c = log10M
-    log10_c = (-1.124 + 0.01756 * x_c + 0.002539 * x_c**2 
-               - 6.438e-5 * x_c**3 + 4.726e-6 * x_c**4)
-    c_M = 10**log10_c
-    
-    # Equation 6: Variance correction U(σ/δc)
-    x_U = sigma / delta_c
-    U = -0.01507 + 0.17810 * x_U + 0.03835 * x_U**2 - 0.00221 * x_U**3
-    
-    # Equation 5: Corrected variance Σ(M,z)
-    Sigma = np.sqrt(sigma**2 + U**2)
-    
-    # Equation 7: Modified critical overdensity <δc>(σ,M)
-    x_delta = sigma / delta_c
-    delta_c_mod = (delta_c * (1.0 + 0.845 * x_delta - 0.04 * x_delta**2 + 0.0025 * x_delta**3)**B
-                   * A * (1.0 + 0.17 * b_M - 0.087 * b_M**2)**D)
-    
-    # Equation 4: Volume factor V(Σ,M) - requires numerical integration
-    def compute_V(Sigma_val, c_val, delta_c_val):
-        """Compute V factor from Equation 4 using numerical integration."""
-        def integrand(xi):
-            exp_term = np.exp(-c_val * xi**2)
-            factor = (1.0 - exp_term) / (1.0 + exp_term)
-            arg = (delta_c_val / (2.0 * Sigma_val)) * factor
-            return erfc(arg) * xi**2
+    # HaloMassFunction class - exact implementation from GitHub
+    class HaloMassFunction:
+        def __init__(self, omega_m=0.3089, z=0, mdef='m200b'):
+            self.omega_m = omega_m
+            self.z = z
+            self.rho_crit = 277536627245.708  # M_sun / (h Mpc)^3
+            self.rho_m = omega_m * self.rho_crit
+            self.cosmo = cosmology.setCosmology('planck15')
+            self.D0 = self.D_unnormalized(0.0)
+            self.pk_table_path = None
+            self.ps_args = dict(model='uchuu_table', path=self.pk_table_path) if self.pk_table_path else dict(model='camb')
+            self.mdef = mdef
+            
+            if self.mdef == 'm200b':
+                self.aa, self.bb, self.DD, self.EE, self.FF = 1.089, 0.652, 1.0, 0.17, 0.087
+            else:
+                raise ValueError(f"mdef '{self.mdef}' no válido. Usa 'm200b' o 'mvir'.")
         
-        try:
-            result, _ = quad(integrand, 0, 1, limit=50)
-            return 3.0 * result
-        except:
-            # Fallback to trapezoidal rule if quad fails
-            xi_grid = np.linspace(0, 1, 100)
-            exp_term = np.exp(-c_val * xi_grid**2)
-            factor = (1.0 - exp_term) / (1.0 + exp_term)
-            arg = (delta_c_val / (2.0 * Sigma_val)) * factor
-            integrand_vals = erfc(arg) * xi_grid**2
-            return 3.0 * np.trapz(integrand_vals, xi_grid)
+        def RtoM(self, M):
+            return (3 * M / (4 * np.pi * self.omega_m * self.rho_crit))**(1/3)
+
+        def E(self, z):
+            return np.sqrt(self.omega_m * (1 + z)**3 + (1 - self.omega_m))
+
+        def D_unnormalized(self, z):
+            integral, _ = quad(lambda zp: (1 + zp) / (self.E(zp)**3), z, np.inf)
+            return (5 * self.omega_m * self.E(z) / 2) * integral
+
+        def sigma(self, M):
+            M = np.atleast_1d(M)
+            R = self.RtoM(M)
+            sigma_std = self.cosmo.sigma(R, self.z, ps_args=self.ps_args)
+            x = sigma_std / 1.676
+            U2 = (-0.00221 * x**3 + 0.03835 * x**2 + 0.17810 * x - 0.01507)**2
+            sigma_mod = np.sqrt(sigma_std**2 + U2)
+            return sigma_mod[0] if np.isscalar(M) else sigma_mod
+
+        def b(self, m_val):
+            m = np.array([1e16, 1e15, 1e14, 6.5e10, 1e10, 1e9, 1e8, 1e7, 1e6])
+            b = np.array([0.5259, 0.415, 0.328, 0.1764, 0.1552, 0.1308, 0.1179, 0.1045, 0.094])
+            coeffs = np.polyfit(np.log10(m), np.log10(b), 4)
+            return 10**np.polyval(coeffs, np.log10(m_val))
+
+        def c(self, m_val):
+            m = np.array([3e15, 3e14, 3e13, 3e12, 3e11, 3e10, 3e9, 3e8, 3e7, 3e6, 1e10, 1e9, 1e8, 1e7, 1e6])
+            b = np.array([0.613, 0.474, 0.373, 0.301, 0.249, 0.209, 0.1794, 0.1560, 0.1355, 0.1223, 0.1942, 0.168, 0.1466, 0.1298, 0.1161])
+            coeffs = np.polyfit(np.log10(m), np.log10(b), 4)
+            return 10**np.polyval(coeffs, np.log10(m_val))
+
+        def F(self, m_array):
+            m_array = np.atleast_1d(m_array)
+            R = self.RtoM(m_array)
+            b_val = self.b(m_array)
+            sig = self.sigma(m_array)
+            x = self.cosmo.sigma(R, self.z, ps_args=self.ps_args) / 1.676
+
+            term1 = (1 + 0.845*x - 0.04*x**2 + 0.0025*x**3)**self.bb
+            term2 = self.aa * 1.365 * (1 + self.EE * b_val - self.FF * b_val**2)**self.DD
+            delta_c = term1 * term2
+
+            c_m = self.c(m_array)
+            cte = delta_c / (np.sqrt(2) * sig)
+
+            xi = np.linspace(0, 1, 1000)
+            xi2 = xi**2
+            xi_mat = xi[np.newaxis, :]
+            c_m_mat = c_m[:, np.newaxis]
+            cte_mat = cte[:, np.newaxis]
+            integrand = erfc(cte_mat * np.sqrt((1 - np.exp(-c_m_mat * xi_mat**2)) / (1 + np.exp(-c_m_mat * xi_mat**2)))) * xi2
+            I = np.trapz(integrand, xi, axis=1)
+            V = 3 * I
+
+            F_val = erfc(0.98 * cte) / V
+            return F_val if F_val.size > 1 else F_val[0]
+
+        def n0(self, m):  # returns dn/dlnM
+            s = 0.01
+            Fm = self.F(m)
+            Fm_s = self.F((1 + s) * m)
+            der = (Fm - Fm_s) / s
+            return der * self.rho_m / (m * (1 + s/2))
     
-    # Vectorized computation of V for all masses
-    V_factors = np.array([compute_V(Sigma[i], c_M[i], delta_c_mod[i]) 
-                          for i in range(len(M))])
+    # Create GPS+ model
+    log10M = np.arange(mmin, mmax + dlog10m/2.0, dlog10m)
+    M = 10**log10M
     
-    # Equation 3: Mass fraction F(M,z)
-    F = erfc(delta_c_mod / (np.sqrt(2.0) * sigma)) / V_factors
+    # Get cosmology from Cosmology class for consistency
+    cosmo_config = Cosmology()
+    omega_m = cosmo_config.OMEGA_M
     
-    # Standard relation: dn/dlnM = -(ρ_m/M) * dF/dlnM
-    # Compute dF/dlnM using central differences
-    lnM = np.log(M)
-    dF_dlnM = np.gradient(F, lnM)
-    
-    # HMF: dn/dlnM (take absolute value to ensure positive)
-    dn_dlnM = np.abs((rho_m / M) * dF_dlnM)
-    
-    # Convert to dn/dlog10M
-    dndlog10m = dn_dlnM / np.log(10.0)
-    
-    # Handle negative or invalid values (should be positive for a valid HMF)
-    dndlog10m = np.maximum(dndlog10m, 1e-100)
+    hmf_model = HaloMassFunction(omega_m=omega_m, z=z, mdef=mdef)
+    dn_dlnM = hmf_model.n0(M)  # dn/dlnM
+    dndlog10m = dn_dlnM * np.log(10.0)  # Convert to dn/dlog10M
     
     result = {
         'z': z,
         'log10M': log10M,
         'dndlog10m': dndlog10m,
         'model': 'GPS+',
-        'mass_definition': 'M200m',
-        'h_hubble': h_hubble,
+        'mass_definition': mdef,
+        'h_hubble': hmf_model.cosmo.h,
     }
     
-    # Convert from M200m to Mvir if requested
-    if use_mvir:
-        # This conversion may introduce errors since GPS+ was calibrated on M200m
-        # The paper shows that using Mvir worsens agreement at low-z, high-mass
-        M_m200m = M
-        
-        # Approximate M200m to Mvir conversion
-        # At z=0: Mvir/M200m ~ 1.5-2.0 depending on mass
-        # This is different from M200c conversion!
-        cosmo = Cosmology()
-        Omega_m0 = cosmo.OMEGA_M
-        Omega_lambda0 = cosmo.OMEGA_L
-        Ez2 = Omega_m0 * (1.0 + z)**3 + Omega_lambda0
-        Omega_z = Omega_m0 * (1.0 + z)**3 / Ez2
+    # Convert from m200b to Mvir if requested (NOT RECOMMENDED)
+    if use_mvir and mdef == 'm200b':
+        # Approximate m200b to Mvir conversion
+        # At z=0: Mvir/m200b ~ 1.5-2.0 depending on mass
+        # This conversion may reduce GPS+ accuracy since it was calibrated on m200b
+        Ez2 = omega_m * (1.0 + z)**3 + (1.0 - omega_m)
+        Omega_z = omega_m * (1.0 + z)**3 / Ez2
         x_vir = Omega_z - 1.0
         Delta_vir = 18.0 * np.pi**2 + 82.0 * x_vir - 39.0 * x_vir**2
         
-        # Approximate ratio Mvir/M200m ≈ Delta_vir/200 (rough estimate)
-        ratio_mvir_to_m200m = Delta_vir / 200.0
+        # Ratio: Mvir/m200b ≈ Delta_vir/200 (simplified)
+        ratio_mvir_to_m200b = Delta_vir / 200.0
         
-        log10M_mvir = np.log10(M_m200m * ratio_mvir_to_m200m)
+        log10M_mvir = np.log10(M * ratio_mvir_to_m200b)
         
-        # Jacobian correction
-        jacobian = 1.0  # Simplified - could improve with mass-dependent ratio
+        # Jacobian correction (simplified)
+        jacobian = 1.0
         dndlog10m_mvir = dndlog10m / jacobian
         
         result.update({
             'log10M': log10M_mvir,
             'dndlog10m': dndlog10m_mvir,
             'mass_definition': 'Mvir',
-            'ratio_mvir_to_m200m': ratio_mvir_to_m200m,
+            'ratio_mvir_to_m200b': ratio_mvir_to_m200b,
         })
     
     return result

@@ -212,6 +212,72 @@ def correlation_given_redshift_and_subvolume(
         traceback.print_exc()
         return None
 
+
+def halo_correlation_given_redshift_and_subvolume(
+    iz_path: str,
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    mhalo_min: Optional[float] = None,
+) -> Optional[pd.DataFrame]:
+    """Compute dark matter halo correlation function directly from GALFORM halo positions.
+
+    Instead of using merger tree files, this function computes the 2-point correlation
+    function of halos by reading their positions (and masses) directly from the
+    galaxies.hdf5 file. Each galaxy represents a halo in GALFORM.
+
+    Args:
+        iz_path: Path to snapshot directory
+        ivol: Subvolume number
+        rbins: Radial bin edges (Mpc/h). Defaults to DEFAULT_RBINS
+        nthreads: Number of OpenMP threads for Corrfunc
+        mhalo_min: Optional minimum halo mass cut in Msun
+
+    Returns:
+        DataFrame with columns ['r', 'xi'] and metadata in df.attrs.
+        Returns None if computation fails.
+    """
+    try:
+        # Load halo positions and masses directly from GALFORM
+        pos, z_val = _load_positions_from_hdf5(iz_path, ivol, centrals_only=False, mhalo_min=mhalo_min)
+
+        # Get subvolume metadata
+        meta = read_snapshot_data(iz_path, ivol)
+        V_ivol = meta.get('V_ivol', None)
+        
+        if V_ivol is not None and np.isfinite(V_ivol) and V_ivol > 0:
+            L = float(V_ivol) ** (1.0 / 3.0)
+        else:
+            extent = np.ptp(pos, axis=0)
+            L = float(np.max(extent))
+        
+        # Shift positions into [0, L) for Corrfunc
+        pos = np.fmod(pos, L)
+        pos = np.where(pos < 0, pos + L, pos)
+
+        if not np.isfinite(L) or L <= 0:
+            raise RuntimeError(f"Invalid subvolume box size for {iz_path}/ivol{ivol}: L={L}")
+
+        res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
+        
+        # Metadata
+        metadata = {
+            'z': z_val if z_val is not None else meta.get('z'),
+            'ivol': ivol,
+            'V_ivol': V_ivol,
+            'boxsize': L,
+            'nhalo': res.attrs.get('ngal'),  # Use ngal as count of halos
+            'rbins': res.attrs.get('rbins'),
+        }
+        res.attrs.update(metadata)
+        return res
+
+    except (FileNotFoundError, RuntimeError, KeyError) as e:
+        import traceback
+        print(f"Warning: Halo correlation could not be computed from {iz_path}/ivol{ivol}: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return None
+
 def avg_correlation_given_redshift_and_subvolumes(
     iz_num: int,
     ivols: List[int],
