@@ -19,9 +19,9 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
     Args:
         iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
         ivol: Subvolume index (integer extracted from 'ivolXXX').
-        bins: log10(M) bin edges. Defaults to DEFAULT_HALO_MASS_BINS.
-              NOTE: GALFORM masses are in units of 10^10 h^-1 M_sun
-        halo_mass_lower_limit: Optional lower bound (in units of 10^10 h^-1 M_sun)
+        bins: log10(M) bin edges in log10(M_sun/h). Defaults to DEFAULT_HALO_MASS_BINS.
+              NOTE: Stored mhalo values are in M_sun/h.
+        halo_mass_lower_limit: Optional lower bound in M_sun/h
             to exclude halos with mass below this threshold before binning.
 
     Returns:
@@ -29,7 +29,7 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
             - 'iz': snapshot folder name
             - 'ivol': subvolume index
             - 'z': redshift (from file)
-            - 'centers': bin centers log10(M / [10^10 h^-1 M_sun])
+            - 'centers': bin centers log10(M_sun/h)
             - 'phi': number density [Mpc^-3 dex^-1]
             - 'counts': raw counts per bin
             - 'V_ivol': comoving volume (if present)
@@ -129,15 +129,15 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
                                 bins: np.ndarray = None,
                                 base_dir: Optional[str] = None,
                                 halo_mass_lower_limit: Optional[float] = None) -> Optional[Dict[str, Any]]:
-    """Average HMF over a provided list of subvolumes for a snapshot.
+    """Compute HMF by combining halos from multiple subvolumes as one larger volume.
 
-    This replaces the previous path/sampling interface. It simply calls
-    ``hmf_given_redshift_and_subvolume`` for each requested ``ivol`` and averages the
-    resulting ``phi`` arrays.
+    This treats multiple subvolumes as a single larger volume, combining all halos
+    before computing the HMF. This is the correct approach for subvolume convergence
+    analysis, as opposed to computing separate HMFs and averaging them.
 
     Args:
         iz_num: Numeric snapshot identifier (e.g. 207 for 'iz207').
-        ivols: List of subvolume indices to include in the average.
+        ivols: List of subvolume indices to include.
         bins: Optional log10(M) bin edges (defaults to DEFAULT_HALO_MASS_BINS).
         base_dir: Optional base directory; defaults to configured base dir.
         halo_mass_lower_limit: Optional lower mass cut applied before binning.
@@ -147,8 +147,9 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
             - 'iz': snapshot name (e.g. 'iz207')
             - 'z': redshift (from first successful subvolume)
             - 'centers': bin centers
-            - 'phi': mean number density across provided subvolumes
-            - 'phi_std': standard deviation across provided subvolumes
+            - 'phi': number density [Mpc^-3 dex^-1] from combined volume
+            - 'counts': total counts across all subvolumes
+            - 'V_total': total comoving volume (sum of all subvolumes)
             - 'n_used': number of successful subvolumes
             - 'n_requested': length of ivols list
         Returns None if no subvolume produced valid data.
@@ -162,34 +163,69 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
     if not os.path.isdir(iz_path):
         return None
 
-    per_phi = []
+    # Collect all halos from all subvolumes
+    # CRITICAL: Subvolumes are overlapping realizations, not separate spatial tiles.
+    # We combine objects into the SAME volume to increase sample size.
+    all_logM = []
+    V_ivol = None  # Will use single V_ivol (same for all subvolumes)
     z = None
-    centers_ref = None
+    n_used = 0
 
     for iv in ivols:
-        res = hmf_given_redshift_and_subvolume(
-            iz_path, iv, bins=bins, halo_mass_lower_limit=halo_mass_lower_limit)
-        if res is None:
+        try:
+            d = read_snapshot_data(iz_path, ivol=iv)
+        except Exception:
             continue
-        if centers_ref is None:
-            centers_ref = res['centers']
-        if z is None:
-            z = res['z']
-        per_phi.append(res['phi'])
 
-    if not per_phi:
+        V_current = d.get('V_ivol')
+        mhalo = d.get('mhalo')
+        if z is None:
+            z = d.get('z')
+        if V_ivol is None:
+            V_ivol = V_current  # Store first valid V_ivol
+        close_snapshot(d)
+
+        if V_current is None or V_current <= 0 or mhalo is None:
+            continue
+
+        # Apply mass cut and filtering
+        mask = (mhalo > 0) & np.isfinite(mhalo)
+        if halo_mass_lower_limit is not None:
+            mask &= mhalo >= halo_mass_lower_limit
+
+        mhalo_filtered = mhalo[mask]
+        if mhalo_filtered.size == 0:
+            continue
+
+        # Add to combined dataset (same volume, more objects)
+        all_logM.append(np.log10(mhalo_filtered))
+        n_used += 1
+
+    if n_used == 0 or V_ivol is None or V_ivol <= 0:
         return None
 
-    per_phi = np.array(per_phi)
-    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
+    # Combine all log masses
+    all_logM = np.concatenate(all_logM)
+
+    # Compute HMF on the combined dataset
+    # CRITICAL: Subvolumes are overlapping realizations of the SAME volume.
+    # Each subvolume samples 1/1024 of the population in the same spatial box.
+    # When combining N subvolumes, we get N/1024 of the full population.
+    # V_ivol already accounts for the statistical volume, so we use it directly
+    # (NOT total_volume = N * V_ivol).
+    counts, edges = np.histogram(all_logM, bins=bins)
+    dlogM = np.diff(edges)
+    phi = counts / (dlogM * V_ivol)  # Use V_ivol from first subvolume, not sum!
+    centers = 0.5 * (edges[1:] + edges[:-1])
 
     return {
         'iz': f'iz{iz_num}',
         'z': z,
         'centers': centers,
-        'phi': per_phi.mean(axis=0),
-        'phi_std': per_phi.std(axis=0),
-        'n_used': per_phi.shape[0],
+        'phi': phi,
+        'counts': counts,
+        'V_ivol': V_ivol,  # Single V_ivol, not summed
+        'n_used': n_used,
         'n_requested': len(ivols),
     }
 

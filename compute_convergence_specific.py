@@ -26,7 +26,7 @@ from galform_analysis.analysis import (
 )
 
 
-def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_results"):
+def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_results", mhalo_min=None):
     """Compute HMF and 2PCF for a snapshot using specific subvolume counts."""
     base_dir = Path(get_base_dir())
     output_path = Path(output_dir)
@@ -36,6 +36,8 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
     print("\n" + "=" * 60)
     print(f"Computing convergence for {iz_key}")
     print(f"Subvolume counts: {subvol_counts}")
+    if mhalo_min is not None:
+        print(f"Halo mass cut: {mhalo_min:.2e}")
     print("=" * 60)
 
     df_completed = completed_galaxies(str(base_dir), [str(iz_num)])
@@ -74,6 +76,7 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
                 ivols=ivols_use,
                 bins=hmf_bins,
                 base_dir=str(base_dir),
+                halo_mass_lower_limit=mhalo_min,
             )
             if h:
                 for j, (center, phi) in enumerate(zip(hmf_centers, h["phi"])):
@@ -92,7 +95,6 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
                 print("HMF_none ", end="", flush=True)
         except Exception as e:
             print(f"HMF_error({e}) ", end="", flush=True)
-            continue
 
         try:
             corr = avg_correlation_given_redshift_and_subvolumes(
@@ -101,6 +103,7 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
                 rbins=corr_rbins,
                 nthreads=4,
                 base_dir=str(base_dir),
+                mhalo_min=mhalo_min,
             )
             if corr is not None:
                 for i, (r_val, xi_val) in enumerate(zip(corr["r"], corr["xi"])):
@@ -123,6 +126,8 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
     hmf_df = pd.DataFrame(hmf_results) if hmf_results else pd.DataFrame()
     corr_df = pd.DataFrame(corr_results) if corr_results else pd.DataFrame()
 
+    # Save results (always save even if partial)
+    output_path.mkdir(parents=True, exist_ok=True)
     hmf_csv = output_path / f"hmf_convergence_iz{iz_num}.csv"
     corr_csv = output_path / f"corr_convergence_iz{iz_num}.csv"
 
@@ -154,10 +159,12 @@ def main():
     parser.add_argument(
         "--subvols",
         type=str,
-        default="1,2,4,8,20,50,100,300,600,1000",
+        default="1,2,4,8,10,15,20,30,50,100,200,300,600,1024",
         help="Comma-separated subvolume counts",
     )
     parser.add_argument("--output-dir", type=str, default="convergence_results", help="Output directory")
+    parser.add_argument("--iteration", type=int, default=1, help="Iteration number (for averaging multiple runs)")
+    parser.add_argument("--mhalo-min", type=float, default=None, help="Minimum halo mass (Msun) for filtering (e.g., 1e11)")
 
     args = parser.parse_args()
     subvol_counts = [int(x.strip()) for x in args.subvols.split(",") if x.strip()]
@@ -165,7 +172,10 @@ def main():
 
     print("\nStarting convergence computation:")
     print(f"  snapshot: iz{args.iz}")
+    print(f"  iteration: {args.iteration}")
     print(f"  subvol_counts: {subvol_counts}")
+    if args.mhalo_min is not None:
+        print(f"  mhalo_min: {args.mhalo_min:.2e}")
     print(f"  output_dir: {args.output_dir}")
     print()
 
@@ -173,6 +183,7 @@ def main():
         iz_num=args.iz,
         subvol_counts=subvol_counts,
         output_dir=args.output_dir,
+        mhalo_min=args.mhalo_min,
     )
 
 

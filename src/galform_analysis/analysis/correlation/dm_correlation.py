@@ -13,7 +13,108 @@ import numpy as np
 import h5py
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
-from ...config import DEFAULT_RBINS
+from ...config import DEFAULT_RBINS, get_base_dir
+from .correlation import (
+    halo_correlation_given_redshift_and_subvolume,
+    compute_xi_corrfunc as compute_xi_corrfunc_gal,
+)
+
+
+def dm_correlation_given_redshift_and_subvolume(
+    iz_path: str,
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    mhhalo_min: Optional[float] = None,
+):
+    """Dark matter halo 2PCF using the galaxies.hdf5 subvolume.
+
+    This computes the correlation function of dark matter halos (represented by
+    central galaxies of main halos: is_central=1, ihhalo=1) from galaxies.hdf5.
+    Uses host halo mass (mhhalo) for filtering.
+
+    Args:
+        iz_path: Path to snapshot directory
+        ivol: Subvolume number
+        rbins: Radial bin edges (Mpc/h)
+        nthreads: Number of OpenMP threads
+        mhhalo_min: Minimum host halo mass cut in Msun
+
+    Returns:
+        DataFrame with ['r', 'xi'] and metadata in attrs
+    """
+
+    return halo_correlation_given_redshift_and_subvolume(
+        iz_path=iz_path,
+        ivol=ivol,
+        rbins=rbins,
+        nthreads=nthreads,
+        mhhalo_min=mhhalo_min,
+    )
+
+
+def dm_correlations_given_redshifts_and_subvolume(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    mhhalo_min: Optional[float] = None,
+) -> List[Optional[Dict[str, Any]]]:
+    """Compute DM 2PCF for a list of snapshots in one subvolume."""
+
+    results: List[Optional[Dict[str, Any]]] = []
+    for iz_num in iz_nums:
+        iz_path = os.path.join(str(get_base_dir()), f"iz{iz_num}")
+        res = dm_correlation_given_redshift_and_subvolume(
+            iz_path=iz_path,
+            ivol=ivol,
+            rbins=rbins,
+            nthreads=nthreads,
+            mhhalo_min=mhhalo_min,
+        )
+        if res is not None:
+            res.attrs['iz'] = f'iz{iz_num}'
+        results.append(res)
+    return results
+
+
+def avg_dm_correlation_given_subvolume_and_redshifts(
+    iz_nums: List[int],
+    ivol: int,
+    rbins: Optional[np.ndarray] = None,
+    nthreads: int = 4,
+    mhhalo_min: Optional[float] = None,
+) -> Optional[Dict[str, Any]]:
+    """Average DM 2PCF across multiple redshifts for one subvolume.
+
+    Assumes identical rbins across snapshots (as produced by Corrfunc).
+    """
+
+    results = dm_correlations_given_redshifts_and_subvolume(
+        iz_nums=iz_nums,
+        ivol=ivol,
+        rbins=rbins,
+        nthreads=nthreads,
+        mhhalo_min=mhhalo_min,
+    )
+    valid = [res for res in results if res is not None]
+    if len(valid) == 0:
+        return None
+
+    r = valid[0]['r']
+    xi_stack = np.vstack([res['xi'] for res in valid])
+    xi_mean = np.nanmean(xi_stack, axis=0)
+    xi_std = np.nanstd(xi_stack, axis=0)
+
+    return {
+        'r': r,
+        'xi_mean': xi_mean,
+        'xi_std': xi_std,
+        'rbins': valid[0].attrs.get('rbins'),
+        'ngal_list': [res.attrs.get('ngal') for res in valid],
+        'z_list': [res.attrs.get('z') for res in valid],
+        'iz_list': [res.attrs.get('iz') for res in valid],
+    }
 
 
 def _normalize_positions_units(

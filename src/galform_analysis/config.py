@@ -148,10 +148,10 @@ DEFAULT_RBINS = np.logspace(-1, 1.5, 21)  # Mpc
 SFR_CONVERSION = 1.0  # Msun/yr per code unit
 
 # Default mass bins for mass functions
-# NOTE: GALFORM masses are in units of 10^10 h^-1 M_sun (standard N-body convention)
-# So log10(M) bins here are log10(M / [10^10 h^-1 M_sun])
-DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)  # log10(M_star / [10^10 h^-1 M_sun])
-DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)    # log10(M_halo / [10^10 h^-1 M_sun])
+# NOTE: GALFORM stores halo/stellar masses in M_sun/h
+# So log10(M) bins here are log10(M_sun/h)
+DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)  # log10(M_star [M_sun/h])
+DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)    # log10(M_halo [M_sun/h])
 
 # Default sSFR bins (log10 yr^-1)
 DEFAULT_SSFR_BINS = np.arange(-10.0, 5.0, 0.1)
