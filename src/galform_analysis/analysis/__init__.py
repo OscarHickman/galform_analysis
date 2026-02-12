@@ -10,6 +10,10 @@ from .mass_functions import (
     smfs_given_redshifts_and_subvolume,
     avg_smf_given_redshift_and_subvolumes,
     avg_smf_given_redshifts_and_subvolume,
+    hod_given_redshift_and_subvolume,
+    hods_given_redshifts_and_subvolume,
+    avg_hod_given_redshift_and_subvolumes,
+    avg_hod_given_redshifts_and_subvolume,
 )
 from .galaxy_efficiency import (
     compute_efficiency_vs_mass,
@@ -37,6 +41,11 @@ __all__ = [
     'smfs_given_redshifts_and_subvolume',
     'avg_smf_given_redshift_and_subvolumes',
     'avg_smf_given_redshifts_and_subvolume',
+    # HOD functions
+    'hod_given_redshift_and_subvolume',
+    'hods_given_redshifts_and_subvolume',
+    'avg_hod_given_redshift_and_subvolumes',
+    'avg_hod_given_redshifts_and_subvolume',
     # Galaxy efficiency functions
     'compute_efficiency_vs_mass',
     'process_efficiency_redshifts',

@@ -60,6 +60,7 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
 
     hmf_results = []
     corr_results = []
+    processed_n_ivols = []
 
     for n_ivols in subvol_counts:
         if n_ivols < 1:
@@ -69,6 +70,8 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
         ivols_use = available_ivols[: min(n_ivols, len(available_ivols))]
 
         print(f"\n  n_ivols={n_ivols}: ", end="", flush=True)
+
+        processed_n_ivols.append(n_ivols)
 
         try:
             h = avg_hmf_given_redshift_and_subvolumes(
@@ -130,6 +133,32 @@ def compute_convergence_specific(iz_num, subvol_counts, output_dir="convergence_
     output_path.mkdir(parents=True, exist_ok=True)
     hmf_csv = output_path / f"hmf_convergence_iz{iz_num}.csv"
     corr_csv = output_path / f"corr_convergence_iz{iz_num}.csv"
+
+    # If existing results exist, append/merge (replace any n_ivols we just computed)
+    replace_n = sorted(set(processed_n_ivols))
+
+    if hmf_csv.exists():
+        try:
+            existing_hmf = pd.read_csv(hmf_csv)
+            if not existing_hmf.empty and "n_ivols" in existing_hmf.columns:
+                existing_hmf = existing_hmf[~existing_hmf["n_ivols"].isin(replace_n)]
+                hmf_df = pd.concat([existing_hmf, hmf_df], ignore_index=True)
+        except Exception as e:
+            print(f"Warning: could not read existing HMF CSV for append ({e}); overwriting.")
+
+    if corr_csv.exists():
+        try:
+            existing_corr = pd.read_csv(corr_csv)
+            if not existing_corr.empty and "n_ivols" in existing_corr.columns:
+                existing_corr = existing_corr[~existing_corr["n_ivols"].isin(replace_n)]
+                corr_df = pd.concat([existing_corr, corr_df], ignore_index=True)
+        except Exception as e:
+            print(f"Warning: could not read existing 2PCF CSV for append ({e}); overwriting.")
+
+    if not hmf_df.empty:
+        hmf_df = hmf_df.sort_values(["n_ivols", "bin_idx"]).reset_index(drop=True)
+    if not corr_df.empty:
+        corr_df = corr_df.sort_values(["n_ivols", "bin_idx"]).reset_index(drop=True)
 
     hmf_df.to_csv(hmf_csv, index=False)
     corr_df.to_csv(corr_csv, index=False)

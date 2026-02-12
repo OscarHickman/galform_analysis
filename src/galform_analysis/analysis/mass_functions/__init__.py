@@ -14,6 +14,12 @@ from .smf import (
     avg_smf_given_redshifts_and_subvolume,
     compute_smf_from_aggregated,
 )
+from .hod import (
+    hod_given_redshift_and_subvolume,
+    hods_given_redshifts_and_subvolume,
+    avg_hod_given_redshift_and_subvolumes,
+    avg_hod_given_redshifts_and_subvolume,
+)
 from .theoretical_hmf import (
     compute_theoretical_hmfs,
     get_mvir_to_m200c_ratio,
@@ -34,6 +40,11 @@ __all__ = [
     'avg_smf_given_redshift_and_subvolumes',
     'avg_smf_given_redshifts_and_subvolume',
     'compute_smf_from_aggregated',
+    # HOD functions
+    'hod_given_redshift_and_subvolume',
+    'hods_given_redshifts_and_subvolume',
+    'avg_hod_given_redshift_and_subvolumes',
+    'avg_hod_given_redshifts_and_subvolume',
     # Theoretical HMF functions
     'compute_theoretical_hmfs',
     'get_mvir_to_m200c_ratio',

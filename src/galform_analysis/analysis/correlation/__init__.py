@@ -15,6 +15,10 @@ from .galaxy_bias import (
     compute_galaxy_bias,
     avg_galaxy_bias_over_subvolumes,
 )
+from .satellite_cross_correlation import (
+    satellite_central_cross_correlation,
+    compute_xi_cross_corrfunc,
+)
 
 __all__ = [
     'compute_xi_corrfunc',
@@ -26,4 +30,6 @@ __all__ = [
     'avg_dm_correlation_from_tree_files',
     'compute_galaxy_bias',
     'avg_galaxy_bias_over_subvolumes',
+    'satellite_central_cross_correlation',
+    'compute_xi_cross_corrfunc',
 ]

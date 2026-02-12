@@ -164,10 +164,13 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
         return None
 
     # Collect all halos from all subvolumes
-    # CRITICAL: Subvolumes are overlapping realizations, not separate spatial tiles.
-    # We combine objects into the SAME volume to increase sample size.
+    # Subvolumes are independent samples of the SAME full box.
+    # Combining N subvolumes gives N× more halos (better statistics),
+    # but we normalize by the SINGLE box volume V, not N×V.
+    # When N=1024, we have maximum statistics. When N<1024, we have fewer
+    # realizations but the expectation value should be the same.
     all_logM = []
-    V_ivol = None  # Will use single V_ivol (same for all subvolumes)
+    V_ivol = None
     z = None
     n_used = 0
 
@@ -182,7 +185,7 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
         if z is None:
             z = d.get('z')
         if V_ivol is None:
-            V_ivol = V_current  # Store first valid V_ivol
+            V_ivol = V_current
         close_snapshot(d)
 
         if V_current is None or V_current <= 0 or mhalo is None:
@@ -197,25 +200,23 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
         if mhalo_filtered.size == 0:
             continue
 
-        # Add to combined dataset (same volume, more objects)
+        # Add to combined dataset
         all_logM.append(np.log10(mhalo_filtered))
         n_used += 1
 
     if n_used == 0 or V_ivol is None or V_ivol <= 0:
         return None
 
-    # Combine all log masses
+    # Combine all log masses from all realizations
     all_logM = np.concatenate(all_logM)
 
     # Compute HMF on the combined dataset
-    # CRITICAL: Subvolumes are overlapping realizations of the SAME volume.
-    # Each subvolume samples 1/1024 of the population in the same spatial box.
-    # When combining N subvolumes, we get N/1024 of the full population.
-    # V_ivol already accounts for the statistical volume, so we use it directly
-    # (NOT total_volume = N * V_ivol).
+    # CRITICAL: Each subvolume samples 1/n_total of the galaxy population (where n_total=1024)
+    # When combining n_used subvolumes, we have n_used/n_total of the full statistics.
+    # Normalize by n_used * V_ivol to get the correct HMF estimate (should be same regardless of n_used).
     counts, edges = np.histogram(all_logM, bins=bins)
     dlogM = np.diff(edges)
-    phi = counts / (dlogM * V_ivol)  # Use V_ivol from first subvolume, not sum!
+    phi = counts / (dlogM * n_used * V_ivol)
     centers = 0.5 * (edges[1:] + edges[:-1])
 
     return {
@@ -224,7 +225,8 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
         'centers': centers,
         'phi': phi,
         'counts': counts,
-        'V_ivol': V_ivol,  # Single V_ivol, not summed
+        'V_total': V_ivol,  # Single box volume (all subvolumes sample the same volume)
+        'V_ivol': V_ivol,
         'n_used': n_used,
         'n_requested': len(ivols),
     }
