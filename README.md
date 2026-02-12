@@ -24,88 +24,25 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-### 1. Configure Your Base Directory
+### Configure Your Base Directory
 
 Set the path to your GALFORM output directory:
 
 ```python
 from galform_analysis.config import set_base_dir
 
-# Option 1: Set in Python
 set_base_dir('/cosma5/data/durham/dc-hick2/Galform_Out/L800/gp14')
-
-# Option 2: Use environment variable
-# export GALFORM_BASE_DIR=/path/to/galform/output
-
-# Option 3: Edit src/galform_analysis/config.py directly
 ```
 
-### 2. Compute a Halo Mass Function (new HMF API)
-
-The HMF API was refreshed. Use the functions in `analysis/hmf.py` which take
-explicit snapshot numbers (`iz_num`) and subvolume indices (`ivol`).
-
-Average HMF over selected subvolumes at a single snapshot:
-
-```python
-from galform_analysis.config import get_base_dir
-from galform_analysis.analysis import avg_hmf_given_redshift_and_subvolumes
-
-hmf = avg_hmf_given_redshift_and_subvolumes(
-    iz_num=100,           # e.g. 'iz100'
-    ivols=[0,1,2,3,4],    # pick your subvolumes
-)
-centers, phi = hmf['centers'], hmf['phi']
-```
-
-Single subvolume HMF:
-
-```python
-from galform_analysis.analysis import hmf_given_redshift_and_subvolume
-res = hmf_given_redshift_and_subvolume(str(get_base_dir() / 'iz100'), ivol=0)
-centers, phi = res['centers'], res['phi']
-```
-
-### 3. Compute a Stellar Mass Function
-
-```python
-from galform_analysis.analysis import compute_smf_avg_by_snapshot
-import matplotlib.pyplot as plt
-
-# Compute SMF for z=0 (iz99)
-smf = compute_smf_avg_by_snapshot('iz99')
-
-# Plot
-plt.plot(smf['centers'], smf['phi'], 'o-')
-plt.yscale('log')
-plt.xlabel(r'$\\log_{10}(M_*/M_\\odot)$')
-plt.ylabel(r'$\\Phi$ [Mpc$^{-3}$ dex$^{-1}$]')
-plt.show()
-```
-
-### 4. Aggregate Data from a Snapshot
-
-```python
-from galform_analysis.analysis import aggregate_snapshot
-
-# Load all subvolumes for a snapshot
-agg = aggregate_snapshot('iz99')
-
-print(f"Redshift: {agg['z']}")
-print(f"Total volume: {agg['volume']} Mpc^3")
-print(f"Number of galaxies: {len(agg['mstar'])}")
-```
 
 ## Examples
 
 See the `examples/` directory for complete working Jupyter notebooks:
 
-- **`compute_smf.ipynb`** - Basic stellar mass function computation
 - **`compare_mass_functions.ipynb`** - HMF comparison to Press–Schechter, Sheth–Tormen, and Tinker08 (via `hmf`)
 - **`galaxy_efficiency.ipynb`** - Galaxy formation efficiency analysis
-- **`subvolume_convergence.ipynb`** - HMF convergence with varying subvolume counts (updated API)
-- **`imf_replication.ipynb`** - Initial mass function analysis and replication studies
-- **`test_memory_loading.ipynb`** - Memory optimization and data loading performance tests
+- **`subvolume_convergence.ipynb`** - HMF convergence with varying subvolume counts
+- many more examples
 
 Open a notebook:
 ```bash
@@ -113,37 +50,6 @@ cd examples
 jupyter notebook compute_smf.ipynb
 # or
 jupyter lab
-```
-
-## Library Structure
-
-```
-galform_analysis/
-├── src/galform_analysis/
-│   ├── config.py              # Configuration (BASE_DIR, cosmology, constants)
-│   ├── redshift_list.txt      # Snapshot-to-redshift mapping
-│   ├── io/                    # Data loading
-│   │   ├── loaders.py        # HDF5 snapshot readers with robust error handling
-│   │   └── readers.py        # Luminosity function file readers
-│   ├── analysis/              # Analysis subpackages
-│   │   ├── aggregation.py    # Data aggregation across subvolumes
-│   │   ├── hmf/              # Halo Mass Function (HMF) subpackage
-│   │   │   ├── hmf.py        # HMF computation functions
-│   │   │   ├── plot_hmf.py   # HMF convergence plotting
-│   │   │   └── __init__.py   # Subpackage exports
-│   │   ├── smf/              # Stellar Mass Function (SMF) subpackage
-│   │   │   ├── smf.py        # SMF computation functions
-│   │   │   ├── plot_smf.py   # SMF convergence plotting
-│   │   │   └── __init__.py   # Subpackage exports
-│   │   └── correlation.py    # Galaxy correlation function computation
-│   └── utils/                 # Utilities
-│       ├── statistics.py     # Statistical helper functions
-│       └── plotting.py       # Plotting utilities and layout helpers
-├── src/galform_execution/
-│   └── submit_galform_slurm.py  # Python script for submitting GALFORM jobs to SLURM
-├── examples/                  # Example notebooks and plots
-├── tests/                     # Unit tests
-└── README.md
 ```
 
 ## GALFORM Job Submission
@@ -170,24 +76,6 @@ python src/galform_execution/submit_galform_slurm.py --help
 - `get_completed_subvolumes(iz_path)` - Find all completed subvolumes
 - `open_galaxies_hdf5(iz_path, ivol)` - Open HDF5 file handle
 - `get_output_group(f)` - Get Output group from HDF5 file
-
-### HMF Analysis (`galform_analysis.analysis.hmf`)
-- `hmf_given_redshift_and_subvolume(iz_path, ivol, bins)` - HMF for single subvolume
-- `hmfs_given_redshifts_and_subvolume(ivol, iz_nums, base_dir)` - HMF across redshifts
-- `avg_hmf_given_redshift_and_subvolumes(iz_num, ivols, bins, base_dir)` - Average HMF over subvolumes
-- `avg_hmf_given_redshifts_and_subvolume(ivol, iz_nums, bins, base_dir)` - Average HMF over redshifts
-- `compute_hmf_from_aggregated(agg_data, bins)` - HMF from pre-aggregated data
-- `plot_hmf_convergence_by_subvolumes(...)` - Plot HMF convergence vs sample size
-- `plot_hmf_convergence_by_redshift(...)` - Plot HMF convergence organized by redshift
-
-### SMF Analysis (`galform_analysis.analysis.smf`)
-- `smf_given_redshift_and_subvolume(iz_path, ivol, bins)` - SMF for single subvolume
-- `smfs_given_redshifts_and_subvolume(ivol, iz_nums, base_dir)` - SMF across redshifts
-- `avg_smf_given_redshift_and_subvolumes(iz_num, ivols, bins, base_dir)` - Average SMF over subvolumes
-- `avg_smf_given_redshifts_and_subvolume(ivol, iz_nums, bins, base_dir)` - Average SMF over redshifts
-- `compute_smf_from_aggregated(agg_data, bins)` - SMF from pre-aggregated data
-- `plot_smf_convergence_by_subvolumes(...)` - Plot SMF convergence vs sample size
-- `plot_smf_convergence_by_redshift(...)` - Plot SMF convergence organized by redshift
 
 ### Import Examples
 
@@ -246,34 +134,9 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 - Runs ruff linting on both source packages
 - Executes pytest test suite
 
-### Code Organization
-
-The library follows a clean, modular structure:
-- All source code in `src/galform_analysis/` and `src/galform_execution/`
-- Examples and plots in `examples/`
-- Tests in `tests/` mirroring source structure
-- Configuration centralized in `config.py`
-- Package metadata in `setup.py`
-
 ## Requirements
+See requirements.txt
 
-### Core Dependencies
-- Python >= 3.8
-- numpy >= 1.23.0
-- scipy >= 1.7.0
-- matplotlib >= 3.3.0
-- pandas >= 1.3.0
-- h5py >= 3.0.0
-- seaborn >= 0.11.0
-
-### Development Dependencies
-- pytest >= 8.0.0
-- ruff >= 0.1.0
-
-### Optional Dependencies
-- astropy >= 4.0
-- hmf >= 3.0 (for theoretical halo mass functions)
-- jupyter (for running example notebooks)
 
 ## Contributing
 
