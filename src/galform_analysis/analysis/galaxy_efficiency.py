@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 import os
 
-from ..config import get_base_dir, get_snapshot_redshift
+from ..config import get_base_dir
 from .aggregation import aggregate_snapshot
 
 
@@ -78,7 +78,6 @@ def process_efficiency_redshifts(
     redshifts: List[str],
     mass_bins: np.ndarray,
     base_dir: Optional[Path] = None,
-    verbose: bool = True
 ) -> List[Dict]:
     """
     Process multiple redshifts and compute efficiency for each.
@@ -91,8 +90,6 @@ def process_efficiency_redshifts(
         Bin edges for log10(halo mass)
     base_dir : Path, optional
         Base directory containing redshift data. If None, uses get_base_dir()
-    verbose : bool, default True
-        Whether to print progress messages
         
     Returns
     -------
@@ -108,40 +105,19 @@ def process_efficiency_redshifts(
         iz_path = base_dir / redshift
         
         if not iz_path.exists():
-            if verbose:
-                print(f"Skipping {redshift} - path not found")
             continue
-        
-        z = get_snapshot_redshift(redshift)
-        label = f"z={z:.2f}" if z is not None else redshift
-        
-        if verbose:
-            print(f"\n Processing {redshift} ({label})...")
         
         # Aggregate data from all subvolumes
         agg = aggregate_snapshot(str(iz_path))
         if agg is None:
-            if verbose:
-                print("No data found")
             continue
-        
-        if verbose:
-            print(f"Loaded {len(agg['mstar'])} galaxies at z≈{agg.get('z', '?'):.2f}")
         
         # Compute efficiency
         eff = compute_efficiency_vs_mass(agg, mass_bins)
         if eff is None:
-            if verbose:
-                print("Could not compute efficiency")
             continue
         
         results.append(eff)
-        
-        if verbose:
-            print(f"Efficiency computed for {np.sum(np.isfinite(eff['eta_med']))} mass bins")
-    
-    if verbose:
-        print(f"\n Successfully processed {len(results)} redshifts")
     
     return results
 
@@ -163,8 +139,7 @@ def save_efficiency_data(
         Directory to save CSV files
     """
     os.makedirs(output_dir, exist_ok=True)
-    
-    saved_count = 0
+
     for redshift, result in zip(redshifts, results):
         if result is not None:
             df_out = pd.DataFrame({
@@ -175,9 +150,6 @@ def save_efficiency_data(
             })
             output_path = os.path.join(output_dir, f'galaxy_efficiency_{redshift}.csv')
             df_out.to_csv(output_path, index=False)
-            saved_count += 1
-    
-    print(f"✓ Saved efficiency data for {saved_count} redshifts to {output_dir}")
 
 
 def find_peak_efficiency(results: List[Dict], redshifts: List[str]) -> pd.DataFrame:

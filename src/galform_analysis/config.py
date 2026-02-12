@@ -52,8 +52,7 @@ def load_redshift_mapping():
     z_map = {}
     
     if not redshift_file.exists():
-        print(f"Warning: {redshift_file} not found. Redshift mapping unavailable.")
-        return z_map
+        raise FileNotFoundError(f"Redshift mapping file not found: {redshift_file}")
     
     with open(redshift_file, 'r') as f:
         for line in f:
@@ -148,21 +147,11 @@ DEFAULT_RBINS = np.logspace(-1, 1.5, 21)  # Mpc
 SFR_CONVERSION = 1.0  # Msun/yr per code unit
 
 # Default mass bins for mass functions
-# NOTE: GALFORM stores halo/stellar masses in M_sun/h
-# So log10(M) bins here are log10(M_sun/h)
+# GALFORM stores halo/stellar masses in M_sun/h.
+# log10(M) bins here are log10(M_sun/h).
 DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)  # log10(M_star [M_sun/h])
 DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)    # log10(M_halo [M_sun/h])
 
 # Default sSFR bins (log10 yr^-1)
 DEFAULT_SSFR_BINS = np.arange(-10.0, 5.0, 0.1)
 
-
-if __name__ == "__main__":
-    # Example usage
-    print("Base Directory:", get_base_dir())
-    z_map = load_redshift_mapping()
-    print("Redshift for iz99:", get_snapshot_redshift('iz99'))
-    print("Snapshot at z=1.0:", find_snapshot_at_redshift(1.0))
-    print("Cosmological Parameters:")
-    print("  Omega_m:", Cosmology.OMEGA_M)
-    print("  H0:", Cosmology.H0)

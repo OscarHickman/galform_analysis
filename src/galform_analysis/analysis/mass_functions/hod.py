@@ -366,7 +366,6 @@ def hods_given_redshifts_and_subvolume(
             })
 
     if not results_by_z:
-        print("No valid data found for this subvolume across requested redshifts.")
         return None
 
     # Build DataFrame (one row per mass bin per redshift)

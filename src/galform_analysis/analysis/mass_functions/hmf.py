@@ -19,8 +19,8 @@ def hmf_given_redshift_and_subvolume(iz_path: str,
     Args:
         iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
         ivol: Subvolume index (integer extracted from 'ivolXXX').
-        bins: log10(M) bin edges in log10(M_sun/h). Defaults to DEFAULT_HALO_MASS_BINS.
-              NOTE: Stored mhalo values are in M_sun/h.
+          bins: log10(M) bin edges in log10(M_sun/h). Defaults to DEFAULT_HALO_MASS_BINS.
+              Stored mhalo values are in M_sun/h.
         halo_mass_lower_limit: Optional lower bound in M_sun/h
             to exclude halos with mass below this threshold before binning.
 
@@ -104,24 +104,22 @@ def hmfs_given_redshifts_and_subvolume(ivol: int,
             })
 
     if not results_by_z:
-        print("No valid data found for this subvolume across requested redshifts.")
-    else:
-        print(f"Successfully loaded {len(results_by_z)} snapshots")
-        
-        # Build DataFrame (one row per mass bin per redshift)
-        df_rows = []
-        for res in results_by_z:
-            for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
-                df_rows.append({
-                    'iz': res['iz'],
-                    'iz_num': res['iz_num'],
-                    'z': res['z'],
-                    'log_M': center,
-                    'phi': phi_val,
-                    'counts': res['counts'][i]
-                })
-        
-        return pd.DataFrame(df_rows), results_by_z
+        return None
+
+    # Build DataFrame (one row per mass bin per redshift)
+    df_rows = []
+    for res in results_by_z:
+        for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
+            df_rows.append({
+                'iz': res['iz'],
+                'iz_num': res['iz_num'],
+                'z': res['z'],
+                'log_M': center,
+                'phi': phi_val,
+                'counts': res['counts'][i]
+            })
+    
+    return pd.DataFrame(df_rows), results_by_z
 
 
 def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
@@ -211,7 +209,7 @@ def avg_hmf_given_redshift_and_subvolumes(iz_num: int,
     all_logM = np.concatenate(all_logM)
 
     # Compute HMF on the combined dataset
-    # CRITICAL: Each subvolume samples 1/n_total of the galaxy population (where n_total=1024)
+    # Each subvolume samples 1/n_total of the galaxy population (where n_total=1024)
     # When combining n_used subvolumes, we have n_used/n_total of the full statistics.
     # Normalize by n_used * V_ivol to get the correct HMF estimate (should be same regardless of n_used).
     counts, edges = np.histogram(all_logM, bins=bins)

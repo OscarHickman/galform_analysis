@@ -87,24 +87,22 @@ def smfs_given_redshifts_and_subvolume(ivol: int,
             })
 
     if not results_by_z:
-        print("No valid data found for this subvolume across requested redshifts.")
-    else:
-        print(f"Successfully loaded {len(results_by_z)} snapshots")
+        return None
+
+    # Build DataFrame (one row per mass bin per redshift)
+    df_rows = []
+    for res in results_by_z:
+        for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
+            df_rows.append({
+                'iz': res['iz'],
+                'iz_num': res['iz_num'],
+                'z': res['z'],
+                'log_M': center,
+                'phi': phi_val,
+                'counts': res['counts'][i]
+            })
         
-        # Build DataFrame (one row per mass bin per redshift)
-        df_rows = []
-        for res in results_by_z:
-            for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
-                df_rows.append({
-                    'iz': res['iz'],
-                    'iz_num': res['iz_num'],
-                    'z': res['z'],
-                    'log_M': center,
-                    'phi': phi_val,
-                    'counts': res['counts'][i]
-                })
-        
-        return pd.DataFrame(df_rows), results_by_z
+    return pd.DataFrame(df_rows), results_by_z
 
 
 def avg_smf_given_redshift_and_subvolumes(iz_num: int,

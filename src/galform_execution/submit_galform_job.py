@@ -210,7 +210,7 @@ set iz        = {iz}
         
         return full_script
     
-    def submit_job(self, iz: int, dry_run: bool = False) -> Optional[str]:
+    def submit_job(self, iz: int) -> Optional[str]:
         """
         Submit a SLURM job for a given snapshot.
         
@@ -222,14 +222,6 @@ set iz        = {iz}
             Job ID if submitted, None if dry_run
         """
         script_content = self.create_slurm_script(iz)
-        
-        if dry_run:
-            print(f"\n{'='*70}")
-            print(f"DRY RUN: Would submit job for iz={iz}, nvol_range={self.nvol_range}")
-            print(f"{'='*70}")
-            print(script_content)
-            print(f"{'='*70}\n")
-            return None
         
         # Submit via sbatch
         cmd = ['sbatch', f'--array={self.nvol_range}']
@@ -244,7 +236,6 @@ set iz        = {iz}
             
             # Parse job ID from output
             output = result.stdout.decode().strip()
-            print(output)
             
             # Extract job ID (format: "Submitted batch job 12345")
             if "Submitted batch job" in output:
@@ -254,10 +245,11 @@ set iz        = {iz}
             return None
             
         except subprocess.CalledProcessError as e:
-            print(f"Error submitting job for iz={iz}: {e}", file=sys.stderr)
-            print(f"STDOUT: {e.stdout.decode()}", file=sys.stderr)
-            print(f"STDERR: {e.stderr.decode()}", file=sys.stderr)
-            return None
+            stdout = e.stdout.decode() if e.stdout else ""
+            stderr = e.stderr.decode() if e.stderr else ""
+            raise RuntimeError(
+                f"Failed to submit job for iz={iz}: {e}\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+            ) from e
     
     def submit_all_jobs(self, dry_run: bool = False) -> List[str]:
         """
@@ -269,25 +261,11 @@ set iz        = {iz}
         Returns:
             List of job IDs
         """
-        print("Submitting GALFORM jobs:")
-        print(f"  N-body simulation: {self.nbody_sim}")
-        print(f"  Model: {self.model}")
-        print(f"  Snapshots (iz): {self.iz_list}")
-        print(f"  Subvolume range: {self.nvol_range}")
-        print(f"  GALFORM executable: {self.galform_exe}")
-        print(f"  Run script: {self.run_script}")
-        print(f"  Log path: {self.log_path}")
-        print()
-        
         job_ids = []
         for iz in self.iz_list:
             job_id = self.submit_job(iz, dry_run=dry_run)
             if job_id:
                 job_ids.append(job_id)
-                print(f"Submitted job for iz={iz}: Job ID {job_id}")
-        
-        if not dry_run and job_ids:
-            print(f"\nSuccessfully submitted {len(job_ids)} jobs")
         
         return job_ids
 
@@ -418,8 +396,7 @@ Examples:
         
         return 0
         
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+    except Exception:
         return 1
 
 

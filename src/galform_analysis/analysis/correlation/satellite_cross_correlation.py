@@ -238,11 +238,5 @@ def satellite_central_cross_correlation(
         })
         return df
 
-    except (FileNotFoundError, RuntimeError, KeyError) as e:
-        import traceback
-        print(
-            f"Warning: satellite-central cross-correlation failed for {iz_path}/ivol{ivol}: "
-            f"{type(e).__name__}: {e}"
-        )
-        traceback.print_exc()
+    except (FileNotFoundError, RuntimeError, KeyError):
         return None

@@ -118,16 +118,6 @@ def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[Lis
             }
             records.append(record)
             iz_records.append(record)
-        completed_count = sum(r['completed'] for r in iz_records)
-        checked_count = len(iz_records)
-        total_ivol_dirs = len(ivol_dirs)
-        skipped_missing = total_ivol_dirs - checked_count
-        print(
-            f"{iz_name}: found {total_ivol_dirs} ivol dirs; "
-            f"checked {checked_count} galaxies.hdf5; "
-            f"completed {completed_count}/{checked_count}; "
-            f"skipped {skipped_missing} without galaxies.hdf5"
-        )    
     
     df = pd.DataFrame(records)
     
@@ -250,15 +240,6 @@ def incomplete_subvolumes(basedir: str = get_base_dir(), iz_snapshots: Optional[
                 }
                 records.append(record)
                 iz_incomplete.append(record)
-        
-        # Print summary for this redshift
-        if iz_incomplete:
-            print(
-                f"{iz_name}: {len(iz_incomplete)} incomplete subvolumes "
-                f"({sum(r['reason']=='missing' for r in iz_incomplete)} missing, "
-                f"{sum(r['reason']=='incomplete' for r in iz_incomplete)} incomplete, "
-                f"{sum(r['reason']=='corrupted' for r in iz_incomplete)} corrupted)"
-            )
     
     df = pd.DataFrame(records)
     

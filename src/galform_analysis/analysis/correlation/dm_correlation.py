@@ -578,11 +578,7 @@ def dm_correlation_from_tree_file(
         }
         return out
         
-    except (FileNotFoundError, RuntimeError, KeyError, NotImplementedError) as e:
-        import traceback
-        print(f"Warning: DM correlation could not be computed from {tree_file}: "
-              f"{type(e).__name__}: {e}")
-        traceback.print_exc()
+    except (FileNotFoundError, RuntimeError, KeyError, NotImplementedError):
         return None
 
 
@@ -637,7 +633,6 @@ def avg_dm_correlation_from_tree_files(
                 redshift = res['z']
     
     if not results:
-        print("Warning: No successful DM correlation calculations.")
         return None
     
     # Stack xi values and compute mean/std

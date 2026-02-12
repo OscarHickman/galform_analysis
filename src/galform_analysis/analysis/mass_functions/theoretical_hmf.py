@@ -7,7 +7,7 @@ Includes the GPS+ (Generalized Press-Schechter + triaxial collapse) model from:
 Fernández-García et al. (2025), "A redshift-independent theoretical halo mass 
 function validated with the Uchuu simulations", arXiv:2512.05847
 
-IMPORTANT UNITS NOTE:
+Units:
 - GALFORM stores masses in units of 10^10 h^-1 M_sun (standard N-body convention)
 - Theoretical models (hmf library) use M_sun
 - When using bins from GALFORM: bins represent log10(M / [10^10 h^-1 M_sun])
@@ -278,8 +278,7 @@ def compute_theoretical_hmfs(z: float,
             )
             dndlog10m = interpolate_hmf_to_bins(theory_hmf, bins)
             models[model_name] = dndlog10m
-        except Exception as e:
-            print(f"Warning: Failed to compute {model_name} at z={z}: {e}")
+        except Exception:
             models[model_name] = np.full(len(bins)-1, np.nan)
     
     # Press-Schechter+ from Watson et al. 2025
@@ -288,8 +287,7 @@ def compute_theoretical_hmfs(z: float,
             ps_plus_hmf = create_press_schechter_plus(z=z, use_mvir=use_mvir)
             dndlog10m = interpolate_hmf_to_bins(ps_plus_hmf, bins)
             models['GPS+'] = dndlog10m
-        except Exception as e:
-            print(f"Warning: Failed to compute GPS+ at z={z}: {e}")
+        except Exception:
             models['GPS+'] = np.full(len(bins)-1, np.nan)
     
     return models

@@ -184,11 +184,8 @@ def correlation_given_redshift_and_subvolume(
         res.attrs.update(metadata)
         return res
 
-    except (FileNotFoundError, RuntimeError, KeyError) as e:
+    except (FileNotFoundError, RuntimeError, KeyError):
         # Graceful failure to mirror other analysis helpers
-        import traceback
-        print(f"Warning: correlation could not be computed for {iz_path}/ivol{ivol}: {type(e).__name__}: {e}")
-        traceback.print_exc()
         return None
 
 
@@ -253,10 +250,7 @@ def halo_correlation_given_redshift_and_subvolume(
         res.attrs.update(metadata)
         return res
 
-    except (FileNotFoundError, RuntimeError, KeyError) as e:
-        import traceback
-        print(f"Warning: Halo correlation could not be computed from {iz_path}/ivol{ivol}: {type(e).__name__}: {e}")
-        traceback.print_exc()
+    except (FileNotFoundError, RuntimeError, KeyError):
         return None
 
 def avg_correlation_given_redshift_and_subvolumes(
