@@ -210,7 +210,7 @@ set iz        = {iz}
         
         return full_script
     
-    def submit_job(self, iz: int) -> Optional[str]:
+    def submit_job(self, iz: int, dry_run: bool = False) -> Optional[str]:
         """
         Submit a SLURM job for a given snapshot.
         
@@ -222,6 +222,11 @@ set iz        = {iz}
             Job ID if submitted, None if dry_run
         """
         script_content = self.create_slurm_script(iz)
+
+        if dry_run:
+            print(f"DRY RUN: iz={iz}, nvol_range={self.nvol_range}")
+            print(script_content)
+            return None
         
         # Submit via sbatch
         cmd = ['sbatch', f'--array={self.nvol_range}']
