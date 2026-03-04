@@ -35,6 +35,7 @@ def compute_convergence_specific(
     mhalo_min=None,
     mode="both",
     corr_centrals_only=True,
+    n_groups=4,
 ):
     """Compute HMF and/or 2PCF for a snapshot using specific subvolume counts."""
     if mode not in {"hmf", "corr", "both"}:
@@ -64,64 +65,77 @@ def compute_convergence_specific(
     hmf_results = []
     corr_results = []
     processed_n_ivols = []
+    rng = random.Random(42)
 
     for n_ivols in subvol_counts:
         if n_ivols < 1:
             raise ValueError(f"Invalid n_ivols={n_ivols}")
 
-        ivols_use = random.sample(range(1, 1024), n_ivols) #available_ivols[: min(n_ivols, len(available_ivols))]
-
         processed_n_ivols.append(n_ivols)
 
-        if do_hmf:
-            try:
-                h = avg_hmf_given_redshift_and_subvolumes(
-                    iz_num=iz_num,
-                    ivols=ivols_use,
-                    bins=hmf_bins,
-                    base_dir=str(base_dir),
-                    halo_mass_lower_limit=mhalo_min,
-                )
-                if h:
-                    for j, (center, phi) in enumerate(zip(hmf_centers, h["phi"])):
-                        hmf_results.append(
-                            {
-                                "iz": iz_key,
-                                "z": z,
-                                "n_ivols": n_ivols,
-                                "log_Mhalo": float(center),
-                                "phi": float(phi),
-                                "bin_idx": j,
-                            }
-                        )
-            except Exception as e:
-                raise RuntimeError(f"HMF computation failed for n_ivols={n_ivols}: {e}") from e
+        groups = n_groups if n_ivols >= 4 else 1
+        for group_id in range(groups):
+            ivols_use = rng.sample(
+                available_ivols,
+                k=min(n_ivols, len(available_ivols)),
+            )
+            ivols_use.sort()
 
-        if do_corr:
-            try:
-                corr = avg_correlation_given_redshift_and_subvolumes(
-                    iz_num=iz_num,
-                    ivols=ivols_use,
-                    rbins=corr_rbins,
-                    nthreads=16,
-                    base_dir=str(base_dir),
-                    mhalo_min=mhalo_min,
-                    centrals_only=corr_centrals_only,
-                )
-                if corr is not None:
-                    for i, (r_val, xi_val) in enumerate(zip(corr["r"], corr["xi"])):
-                        corr_results.append(
-                            {
-                                "iz": iz_key,
-                                "z": z,
-                                "n_ivols": n_ivols,
-                                "r": float(r_val),
-                                "xi": float(xi_val),
-                                "bin_idx": i,
-                            }
-                        )
-            except Exception as e:
-                raise RuntimeError(f"2PCF computation failed for n_ivols={n_ivols}: {e}") from e
+            if do_hmf:
+                try:
+                    h = avg_hmf_given_redshift_and_subvolumes(
+                        iz_num=iz_num,
+                        ivols=ivols_use,
+                        bins=hmf_bins,
+                        base_dir=str(base_dir),
+                        halo_mass_lower_limit=mhalo_min,
+                    )
+                    if h:
+                        for j, (center, phi) in enumerate(zip(hmf_centers, h["phi"])):
+                            hmf_results.append(
+                                {
+                                    "iz": iz_key,
+                                    "z": z,
+                                    "n_ivols": n_ivols,
+                                    "group_id": group_id,
+                                    "log_Mhalo": float(center),
+                                    "phi": float(phi),
+                                    "bin_idx": j,
+                                }
+                            )
+                except Exception as e:
+                    raise RuntimeError(
+                        f"HMF computation failed for n_ivols={n_ivols}, group={group_id}: {e}"
+                    ) from e
+
+            if do_corr:
+                try:
+                    corr = avg_correlation_given_redshift_and_subvolumes(
+                        iz_num=iz_num,
+                        ivols=ivols_use,
+                        rbins=corr_rbins,
+                        nthreads=16,
+                        base_dir=str(base_dir),
+                        mhalo_min=mhalo_min,
+                        centrals_only=corr_centrals_only,
+                    )
+                    if corr is not None:
+                        for i, (r_val, xi_val) in enumerate(zip(corr["r"], corr["xi"])):
+                            corr_results.append(
+                                {
+                                    "iz": iz_key,
+                                    "z": z,
+                                    "n_ivols": n_ivols,
+                                    "group_id": group_id,
+                                    "r": float(r_val),
+                                    "xi": float(xi_val),
+                                    "bin_idx": i,
+                                }
+                            )
+                except Exception as e:
+                    raise RuntimeError(
+                        f"2PCF computation failed for n_ivols={n_ivols}, group={group_id}: {e}"
+                    ) from e
 
     hmf_df = pd.DataFrame(hmf_results) if hmf_results else pd.DataFrame()
     corr_df = pd.DataFrame(corr_results) if corr_results else pd.DataFrame()

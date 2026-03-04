@@ -16,7 +16,6 @@ from Corrfunc.theory.DD import DD as corrfunc_DD
 from ...config import DEFAULT_RBINS, get_base_dir
 from .correlation import (
     halo_correlation_given_redshift_and_subvolume,
-    compute_xi_corrfunc as compute_xi_corrfunc_gal,
 )
 
 

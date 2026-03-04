@@ -7,7 +7,7 @@ two-point correlation functions of galaxies and dark matter halos.
 Returns data as pandas DataFrames with metadata in df.attrs
 """
 
-from typing import Dict, Optional, Sequence, Union
+from typing import Optional, Sequence
 import numpy as np
 
 try:
@@ -57,9 +57,6 @@ def compute_galaxy_bias(
     """
     if not HAS_PANDAS:
         raise ImportError("pandas is required for compute_galaxy_bias. Install with: pip install pandas")
-
-    # Always enforce central galaxies only
-    centrals_only = True
 
     # Backward compatibility: if mhhalo_min not specified, use mhalo_min for both
     if mhhalo_min is None:
@@ -141,9 +138,6 @@ def avg_galaxy_bias_over_subvolumes(
     """
     if not HAS_PANDAS:
         raise ImportError("pandas is required for avg_galaxy_bias_over_subvolumes. Install with: pip install pandas")
-
-    # Always enforce central galaxies only
-    centrals_only = True
 
     results = []
 

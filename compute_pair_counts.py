@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Compute pair counts (DD) for multiple subvolume combinations.
 
@@ -48,9 +49,8 @@ def compute_pair_counts_for_n(iz_num, n_ivols, base_dir_path, boxsize=542.158):
         try:
             pos, _ = _load_positions_from_hdf5(iz_path, ivol, centrals_only=True)
             all_pos.append(pos)
-        except (FileNotFoundError, KeyError):
-            print(f"Warning: Could not load iz{iz_num} ivol={ivol}")
-            break
+        except (FileNotFoundError, KeyError) as e:
+            raise FileNotFoundError(f"Missing data for iz{iz_num} ivol={ivol}") from e
     
     if not all_pos:
         return None
@@ -73,8 +73,7 @@ def compute_pair_counts_for_n(iz_num, n_ivols, base_dir_path, boxsize=542.158):
             output_ravg=True,
         )
     except Exception as e:
-        print(f"Error calling Corrfunc for iz{iz_num} n={n_ivols}: {e}")
-        return None
+        raise RuntimeError(f"Corrfunc failed for iz{iz_num} n={n_ivols}: {e}") from e
     
     # Extract results
     r_centers = np.array([res['ravg'] for res in results])
@@ -111,15 +110,10 @@ def compute_all_pair_counts(output_dir=None, iz_nums=None):
     
     # Compute for each redshift
     for iz_num in iz_nums:
-        print(f"\n{'='*70}")
-        print(f"Computing pair counts for iz{iz_num}")
-        print(f"{'='*70}")
-        
         all_results = []
         
         # Radial bins (computed once)
         rbins = np.logspace(np.log10(0.5), np.log10(100), 35)
-        r_centers = 0.5 * (rbins[:-1] + rbins[1:])
         
         # Compute for each n
         for n in tqdm(n_ivols_list, desc=f"iz{iz_num}"):
@@ -143,11 +137,8 @@ def compute_all_pair_counts(output_dir=None, iz_nums=None):
             df = pd.DataFrame(all_results)
             output_path = output_dir / f'pair_counts_iz{iz_num}.csv'
             df.to_csv(output_path, index=False)
-            print(f"\nSaved {len(df)} records to {output_path}")
-            print(f"  Unique n_ivols: {sorted(df['n_ivols'].unique())}")
-            print(f"  Radial bins: {len(df) // len(df['n_ivols'].unique())}")
         else:
-            print(f"ERROR: No results computed for iz{iz_num}")
+            raise RuntimeError(f"No results computed for iz{iz_num}")
 
 
 if __name__ == '__main__':
@@ -176,7 +167,3 @@ Examples:
     args = parser.parse_args()
     
     compute_all_pair_counts(output_dir=args.output_dir, iz_nums=args.iz)
-    
-    print(f"\n{'='*70}")
-    print("Pair count computation complete!")
-    print(f"{'='*70}")

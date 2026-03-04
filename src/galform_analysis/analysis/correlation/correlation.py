@@ -334,7 +334,7 @@ def avg_correlation_given_redshift_and_subvolumes(
             
             all_positions.append(pos)
             
-        except (FileNotFoundError, RuntimeError, KeyError) as e:
+        except (FileNotFoundError, RuntimeError, KeyError):
             continue
     
     if not all_positions:

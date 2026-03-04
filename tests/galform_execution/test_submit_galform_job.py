@@ -282,7 +282,7 @@ def test_log_path_creation():
             )
             
             # Create script should create log directory
-            script_content = submitter.create_slurm_script(iz=100)
+            submitter.create_slurm_script(iz=100)
             
             assert log_path.exists()
             assert (log_path / 'L800').exists()

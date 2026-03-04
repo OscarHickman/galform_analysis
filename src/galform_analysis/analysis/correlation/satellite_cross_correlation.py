@@ -6,7 +6,6 @@ central galaxies (or host halos) using GALFORM galaxies.hdf5 outputs.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Optional, Tuple
 
