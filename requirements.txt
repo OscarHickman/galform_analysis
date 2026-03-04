@@ -16,3 +16,4 @@ astropy>=4.0
 hmf>=3.0
 packaging>=20.0
 deprecation>=2.0
+halotools>=0.7.0

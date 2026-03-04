@@ -19,13 +19,13 @@ def _load_positions_from_hdf5(
 ) -> Tuple[np.ndarray, Optional[float]]:
     """Load galaxy positions (x,y,z) and redshift from an HDF5 subvolume.
 
-    Always uses central galaxies only (is_central=1).
-    The centrals_only parameter is kept for API compatibility but is always enforced as True.
+    When centrals_only=True, uses only central galaxies (is_central=1).
+    When centrals_only=False, uses all galaxies (centrals + satellites).
 
     Args:
         iz_path: Path to snapshot directory
         ivol: Subvolume number
-        centrals_only: Kept for API compatibility, always enforced as True
+        centrals_only: If True, keep only central galaxies (is_central==1)
         mhalo_min: Minimum halo mass (mhalo) threshold in Msun. None = no cut.
 
     Returns:
@@ -35,7 +35,7 @@ def _load_positions_from_hdf5(
     return read_galaxy_positions(
         iz_path=iz_path,
         ivol=ivol,
-        centrals_only=True,  # Always True
+        centrals_only=centrals_only,
         mhalo_min=mhalo_min,
     )
 
@@ -121,15 +121,15 @@ def correlation_given_redshift_and_subvolume(
 ) -> Optional[pd.DataFrame]:
     """High-level helper mirroring the HMF API: xi(r) for (snapshot, ivol).
 
-    Always uses central galaxies only (is_central=1).
-    The centrals_only parameter is kept for API compatibility but is always enforced as True.
+    When centrals_only=True, uses only central galaxies (is_central=1).
+    When centrals_only=False, uses all galaxies (centrals + satellites).
 
     Args:
         iz_path: Path to snapshot directory (e.g., str(get_base_dir()/"iz207"))
         ivol: Subvolume number
         rbins: Radial bin edges (Mpc). Defaults to config.DEFAULT_RBINS
         nthreads: Number of OpenMP threads for Corrfunc
-        centrals_only: Kept for API compatibility, always enforced as True
+        centrals_only: If True, keep only central galaxies (is_central==1)
         mhalo_min: Minimum halo mass (mhalo) in Msun. None = no cut.
 
     Returns:
@@ -137,8 +137,10 @@ def correlation_given_redshift_and_subvolume(
         Returns None if unavailable.
     """
     try:
-        # Load positions and redshift (always central galaxies only)
-        pos, z_val = _load_positions_from_hdf5(iz_path, ivol, centrals_only=True, mhalo_min=mhalo_min)
+        # Load positions and redshift
+        pos, z_val = _load_positions_from_hdf5(
+            iz_path, ivol, centrals_only=centrals_only, mhalo_min=mhalo_min
+        )
 
         # Get subvolume metadata
         meta = read_snapshot_data(iz_path, ivol)
@@ -257,9 +259,9 @@ def avg_correlation_given_redshift_and_subvolumes(
     iz_num: int,
     ivols: List[int],
     rbins: Optional[np.ndarray] = None,
-    nthreads: int = 4,
+    nthreads: int = 16,
     base_dir: Optional[str] = None,
-    centrals_only: bool = False,
+    centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
 ) -> Optional[pd.DataFrame]:
     """Compute 2PCF by combining galaxies from multiple subvolumes into one box.
@@ -302,7 +304,9 @@ def avg_correlation_given_redshift_and_subvolumes(
     for iv in ivols:
         try:
             # Load positions and metadata for this subvolume
-            pos, z_val = _load_positions_from_hdf5(iz_path, iv, centrals_only=True, mhalo_min=mhalo_min)
+            pos, z_val = _load_positions_from_hdf5(
+                iz_path, iv, centrals_only=centrals_only, mhalo_min=mhalo_min
+            )
             meta = read_snapshot_data(iz_path, iv)
             
             if z is None:
@@ -366,7 +370,7 @@ def correlations_given_redshifts_and_subvolume(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
     base_dir: Optional[str] = None,
-    centrals_only: bool = False,
+    centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
 ) -> List[pd.DataFrame]:
     """Compute correlation function for one subvolume across multiple snapshots.
@@ -418,7 +422,7 @@ def avg_correlation_given_subvolume_and_redshifts(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
     base_dir: Optional[str] = None,
-    centrals_only: bool = False,
+    centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
 ) -> Optional[pd.DataFrame]:
     """Average xi(r) across multiple redshifts for a single subvolume.

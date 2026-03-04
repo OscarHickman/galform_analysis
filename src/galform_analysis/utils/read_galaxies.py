@@ -48,10 +48,10 @@ def read_galaxy_arrays(
 	centrals_only: bool = True,
 	mhalo_min: Optional[float] = None,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-	"""Read central galaxy data arrays from galaxies.hdf5 for one subvolume.
+	"""Read galaxy data arrays from galaxies.hdf5 for one subvolume.
 
-	Galaxies are always central galaxies only (is_central == 1).
-	The centrals_only parameter is kept for API compatibility but is always enforced as True.
+	When centrals_only=True, filters to central galaxies (is_central == 1).
+	When centrals_only=False, returns all galaxies (centrals + satellites).
 	For dark matter halos, use read_halo_arrays() instead.
 
 	Args:
@@ -60,7 +60,7 @@ def read_galaxy_arrays(
 		fields: Optional iterable of dataset names to pull directly from the output group.
 		include_positions: Include x,y,z positions (xgal/ygal/zgal)
 		include_derived: Include derived fields (mstar, mhalo, sfr, is_central)
-		centrals_only: Kept for API compatibility, always enforced as True
+		centrals_only: If True, keep only central galaxies (is_central==1)
 		mhalo_min: Minimum subhalo mass (mhalo) threshold; None = no cut
 
 	Returns:
@@ -106,11 +106,11 @@ def read_galaxy_arrays(
 
 		arrays, n = _normalize_arrays(arrays)
 
-		# Always filter to central galaxies only
 		mask = np.ones(n, dtype=bool)
-		if 'is_central' not in arrays:
-			raise KeyError("is_central field not found - cannot filter for central galaxies")
-		mask &= arrays['is_central'] == 1
+		if centrals_only:
+			if 'is_central' not in arrays:
+				raise KeyError("is_central field not found - cannot filter for central galaxies")
+			mask &= arrays['is_central'] == 1
 
 		if mhalo_min is not None:
 			if 'mhalo' not in arrays:
@@ -146,7 +146,7 @@ def read_galaxies_dataframe(
 	fields: Optional[Iterable[str]] = None,
 	include_positions: bool = True,
 	include_derived: bool = True,
-	centrals_only: bool = False,
+	centrals_only: bool = True,
 	mhalo_min: Optional[float] = None,
 	return_metadata: bool = False,
 ):
@@ -300,10 +300,10 @@ def read_galaxy_positions(
 	centrals_only: bool = True,
 	mhalo_min: Optional[float] = None,
 ) -> Tuple[np.ndarray, Optional[float]]:
-	"""Load central galaxy positions and redshift for a subvolume.
+	"""Load galaxy positions and redshift for a subvolume.
 
-	Central galaxies only (is_central == 1).
-	The centrals_only parameter is kept for API compatibility but is always enforced as True.
+	When centrals_only=True, returns only central galaxies (is_central == 1).
+	When centrals_only=False, returns all galaxies (centrals + satellites).
 
 	Returns:
 		positions: (N,3) array
@@ -315,7 +315,7 @@ def read_galaxy_positions(
 		fields=None,
 		include_positions=True,
 		include_derived=True,
-		centrals_only=True,  # Always True
+		centrals_only=centrals_only,
 		mhalo_min=mhalo_min,
 	)
 
