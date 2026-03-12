@@ -75,3 +75,12 @@ dmypy.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Data and output directories
+data/
+logs/
+convergence_results*/
+
+# Personal/scratch notebooks
+kai/
+scripts/

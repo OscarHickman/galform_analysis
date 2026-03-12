@@ -19,7 +19,7 @@ import pandas as pd
 from tqdm import tqdm
 
 # Add src to path
-project_root = Path(__file__).parent
+project_root = Path(__file__).resolve().parent.parent
 if str(project_root / 'src') not in sys.path:
     sys.path.insert(0, str(project_root / 'src'))
 
@@ -93,10 +93,10 @@ def compute_all_pair_counts(output_dir=None, iz_nums=None):
     Compute pair counts for all redshifts and subvolume combinations.
     
     Args:
-        output_dir: Output directory for CSV files (default: convergence_results)
+        output_dir: Output directory for CSV files (default: data/convergence/convergence_results)
     """
     if output_dir is None:
-        output_dir = Path('convergence_results')
+        output_dir = Path('data/convergence/convergence_results')
     
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -153,8 +153,8 @@ Examples:
     )
     parser.add_argument(
         '--output-dir',
-        default='convergence_results',
-        help='Output directory for CSV files (default: convergence_results)'
+        default='data/convergence/convergence_results',
+        help='Output directory for CSV files (default: data/convergence/convergence_results)'
     )
     parser.add_argument(
         '--iz',

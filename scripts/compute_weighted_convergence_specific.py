@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 # Ensure src on path
-project_root = Path(__file__).parent
+project_root = Path(__file__).resolve().parent.parent
 src_path = project_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
@@ -33,7 +33,7 @@ from galform_analysis.analysis.correlation.mass_weighted_correlation import (
 def compute_weighted_convergence_specific(
     iz_num,
     subvol_counts,
-    output_dir="convergence_results_weighted",
+    output_dir="data/convergence/convergence_results_weighted",
     mhalo_min=None,
     centrals_only=True,
     sampling_fraction=None,
@@ -155,7 +155,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="convergence_results_weighted",
+        default="data/convergence/convergence_results_weighted",
         help="Output directory for CSV files",
     )
     parser.add_argument(

@@ -13,7 +13,7 @@
 cd /cosma/home/durham/dc-hick2/galform_analysis
 
 # Create directories
-mkdir -p logs convergence_results
+mkdir -p logs data/convergence/convergence_results
 
 # Load Python module
 module load python/3.9.19
@@ -24,7 +24,7 @@ export PYTHONPATH=$(pwd)/.venv/lib/python3.9/site-packages:$PYTHONPATH
 # Define redshifts and subvolume counts
 redshifts=(271 207)
 subvols="1,2,4,8,20,50,100,300,600,1000"
-output_dir="convergence_results"
+output_dir="data/convergence/convergence_results"
 
 # Get the redshift for this array job
 iz=${redshifts[$SLURM_ARRAY_TASK_ID]}
@@ -32,7 +32,7 @@ iz=${redshifts[$SLURM_ARRAY_TASK_ID]}
 # Run the convergence computation
 echo "Starting convergence computation for iz${iz} on $(date)"
 
-python compute_convergence_specific.py \
+python scripts/compute_convergence_specific.py \
     --iz "${iz}" \
     --subvols "${subvols}" \
     --output-dir "${output_dir}"

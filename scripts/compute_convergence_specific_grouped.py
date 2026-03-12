@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 # Ensure src on path
-project_root = Path(__file__).parent
+project_root = Path(__file__).resolve().parent.parent
 src_path = project_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
@@ -31,7 +31,7 @@ from galform_analysis.analysis import (
 def compute_convergence_specific(
     iz_num,
     subvol_counts,
-    output_dir="convergence_results",
+    output_dir="data/convergence/convergence_results",
     mhalo_min=None,
     mode="both",
     corr_centrals_only=True,
@@ -187,7 +187,7 @@ def main():
         default="1,2,4,8,10,15,20,30,50,100,200,300,600,1024",
         help="Comma-separated subvolume counts",
     )
-    parser.add_argument("--output-dir", type=str, default="convergence_results", help="Output directory")
+    parser.add_argument("--output-dir", type=str, default="data/convergence/convergence_results", help="Output directory")
     parser.add_argument("--iteration", type=int, default=1, help="Iteration number (for averaging multiple runs)")
     parser.add_argument("--mhalo-min", type=float, default=None, help="Minimum halo mass (Msun) for filtering (e.g., 1e11)")
     parser.add_argument(
