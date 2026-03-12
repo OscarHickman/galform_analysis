@@ -73,8 +73,8 @@ def get_mvir_to_m200c_ratio(z: float, mass: Optional[np.ndarray] = None) -> np.n
     varies with both redshift and mass. This avoids artificial spreads at high masses.
     
     The conversion is derived from the virial overdensity criterion:
-        M_vir = (4π/3) * ρ_m * Δ_vir(z) * r_vir^3
-        M_200c = (4π/3) * ρ_c * 200 * r_200c^3
+        M_vir = (4π/3) * sigma_m * Δ_vir(z) * r_vir^3
+        M_200c = (4π/3) * rho_c * 200 * r_200c^3
     
     Combined with the concentration relation c = r_200c / r_s, this gives:
         M_vir / M_200c = Δ_vir(z) / 200 * (c_vir / (c_vir - ln(1 + c_vir)))
@@ -310,13 +310,13 @@ def create_press_schechter_plus(z: float,
     
     This model uses triaxial collapse physics and achieves ~5-10% accuracy across
     log(M) = 6.5-16 and z = 0-20. It has no explicit redshift dependence - evolution
-    enters solely through σ(M,z).
+    enters solely through sigma(M,z).
     
     Key features:
-    - Uses m200b mass definition (200 × background density) by default
+    - Uses m200b mass definition (200 times background density) by default
     - Fitted parameters A=1.089, B=0.652, D=1.0, E=0.17, F=0.087 from Uchuu simulations
     - Mass-dependent functions b(M) and c(M) encode power spectrum shape
-    - Modified variance σ_mod includes correction term U(σ) for improved accuracy
+    - Modified variance sigma_mod includes correction term U(sigma) for improved accuracy
     - Outperforms Sheth-Tormen at z > 2 (ST deviates 70-80%, GPS+ ~5-10%)
     
     Args:
@@ -479,7 +479,7 @@ def get_mass_definition_info() -> Dict[str, str]:
     """
     return {
         'GALFORM': 'Mvir (virial mass, Δ ≈ 178.65)',
-        'Theory_Default': 'M200c (200× critical density)',
+        'Theory_Default': 'M200c (200 x critical density)',
         'This_Module': 'Mvir (converted from M200c)',
         'Conversion_Method': 'Empirical redshift-dependent ratio',
         'Ratio_z0': 'Mvir/M200c ≈ 2.5',

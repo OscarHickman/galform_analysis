@@ -1,9 +1,20 @@
 """Halo Occupation Distribution (HOD) computation utilities.
 
-HOD is computed as \langle N_gal | M_halo \rangle using host-halo IDs and masses
-stored in GALFORM galaxies.hdf5 outputs. The halo IDs (e.g. ``ihhalo``) are
-indices into the merger trees, so this provides an HOD based on the merger tree
-hierarchy rather than spatial tiling.
+HOD is computed as ⟨N_gal | M_halo⟩ using a two-histogram approach:
+  - **Numerator**: galaxy counts per host-halo mass bin (using ``mhhalo``).
+  - **Denominator**: halo counts per mass bin from the merger-tree catalog
+    (``Trees/mphalo``), which provides one mass per FOF group at the current
+    snapshot, including empty halos with no qualifying galaxies.
+
+This avoids the need for a per-galaxy tree index (which GALFORM does not
+store directly) and correctly counts halos that contain zero galaxies above
+the stellar-mass threshold.
+
+Central/satellite decomposition:
+  - A galaxy is flagged as **FOF central** if it is the central
+    (``is_central==1``) of the main (most massive) subhalo within its FOF
+    group, identified by ``mhalo / mhhalo > FOF_CENTRAL_RATIO_THRETSHOLD``.
+  - Satellites = total - centrals.
 """
 
 from __future__ import annotations
@@ -24,117 +35,113 @@ from ...io.loaders import (
     _get_redshift_from_zsnap,
 )
 
-
-def _normalize_arrays(arrays: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.ndarray], int]:
-    """Ensure arrays are 1D and trimmed to a common length."""
-    arrays = {k: np.ravel(v) for k, v in arrays.items() if v is not None}
-    if not arrays:
-        return {}, 0
-    lengths = [len(v) for v in arrays.values()]
-    n = min(lengths)
-    arrays = {k: v[:n] for k, v in arrays.items()}
-    return arrays, n
+# A galaxy with mhalo/mhhalo above this threshold is considered the
+# central of the main subhalo (i.e. the FOF-group central).
+FOF_CENTRAL_RATIO_THRESHOLD = 0.5
 
 
-def _load_hod_galaxy_arrays(
+def _load_hod_data(
     iz_path: str,
     ivol: int,
     galaxy_stellar_mass_min: Optional[float] = None,
-    halo_id_field: Optional[str] = None,
-    halo_mass_field: Optional[str] = None,
-) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-    """Load galaxy arrays required for HOD calculations.
-
-    Args:
-        iz_path: Snapshot directory path (e.g. /.../iz207)
-        ivol: Subvolume index
-        galaxy_stellar_mass_min: Optional stellar mass cut (Msun/h) for galaxy selection
-        halo_id_field: Optional override for halo ID field (default searches ihhalo, SubhaloID, index)
-        halo_mass_field: Optional override for halo mass field (default searches mhhalo, mhalo, mchalo)
+) -> Tuple[Dict[str, np.ndarray], np.ndarray, Dict[str, Any]]:
+    """Load galaxy arrays and the tree halo-mass catalog for HOD.
 
     Returns:
-        (arrays, metadata) where arrays include:
-            - 'halo_id'
-            - 'halo_mass'
-            - 'is_central' (if present)
-            - 'mstar' (if present)
+        (galaxy_arrays, tree_halo_masses, metadata)
+
+        *galaxy_arrays* contains per-galaxy 1-D arrays:
+            mhhalo, mhalo, is_central, mstar, galaxy_selection_mask
+
+        *tree_halo_masses* is a 1-D array with one entry per merger tree
+        (= one per FOF group) giving the tree's halo mass at this snapshot.
+
+        *metadata* has 'iz', 'ivol', 'z'.
     """
     f = open_galaxies_hdf5(iz_path, ivol=ivol)
     if f is None:
-        raise FileNotFoundError(f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}")
+        raise FileNotFoundError(
+            f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}"
+        )
 
     try:
         g = get_output_group(f)
         if g is None:
             raise RuntimeError("No OutputNNN group found in HDF5 file")
 
-        arrays: Dict[str, np.ndarray] = {}
+        # ---- Tree halo masses (one per FOF group) ----
+        if "Trees" in f and "mphalo" in f["Trees"]:
+            tree_mphalo = np.asarray(f["Trees"]["mphalo"], dtype=np.float64)
+        else:
+            raise KeyError("Trees/mphalo not found — cannot build halo catalog")
 
-        # Halo ID field (merger tree index)
-        id_candidates = [halo_id_field] if halo_id_field else []
-        id_candidates += ["ihhalo", "SubhaloID", "SubhaloIndex", "index"]
-        halo_id = None
-        used_id_field = None
-        for key in id_candidates:
-            if key and key in g:
-                halo_id = np.asarray(g[key])
-                used_id_field = key
-                break
-        if halo_id is None:
-            raise KeyError("Could not find a halo ID field (ihhalo/SubhaloID/SubhaloIndex/index)")
-        arrays["halo_id"] = halo_id
+        # ---- Per-galaxy arrays ----
+        # Host-halo mass (mass of the FOF group this galaxy lives in)
+        mhhalo = _get_first_array(g, ["mhhalo", "mhalo", "mchalo"])
+        if mhhalo.size == 0:
+            raise KeyError("No host-halo mass field found (mhhalo/mhalo/mchalo)")
 
-        # Halo mass field
-        mass_candidates = [halo_mass_field] if halo_mass_field else []
-        mass_candidates += ["mhhalo", "mhalo", "mchalo", "Mhalo", "M_Halo"]
-        halo_mass = _get_first_array(g, [k for k in mass_candidates if k])
-        if halo_mass.size == 0:
-            raise KeyError("Could not find a halo mass field (mhhalo/mhalo/mchalo)")
-        arrays["halo_mass"] = halo_mass
-        used_mass_field = None
-        for k in mass_candidates:
-            if k and k in g:
-                used_mass_field = k
-                break
+        # Own subhalo mass (used for FOF-central identification)
+        mhalo = _get_first_array(g, ["mhalo", "mchalo"])
 
-        # Central flag (optional)
-        if "is_central" in g:
-            arrays["is_central"] = np.asarray(g["is_central"])
+        # Central flag
+        is_central = (
+            np.asarray(g["is_central"]) if "is_central" in g else None
+        )
 
-        # Stellar mass for galaxy selection (optional)
+        # Stellar mass
         m_disk = _get_first_array(g, ["mstars_disk"])
         m_bulge = _get_first_array(g, ["mstars_bulge"])
         if m_disk.size and m_bulge.size:
-            arrays["mstar"] = m_disk + m_bulge
+            mstar = m_disk + m_bulge
         else:
-            arrays["mstar"] = _get_first_array(
+            mstar = _get_first_array(
                 g, ["mstars", "StellarMass", "Mstar", "mstars_allburst"]
             )
 
-        arrays, n = _normalize_arrays(arrays)
+        # ---- Align lengths & flatten ----
+        all_arrs: Dict[str, np.ndarray] = {
+            "mhhalo": mhhalo,
+            "mhalo": mhalo,
+        }
+        if is_central is not None:
+            all_arrs["is_central"] = is_central
+        if mstar.size:
+            all_arrs["mstar"] = mstar
+
+        all_arrs = {
+            k: np.ravel(v) for k, v in all_arrs.items() if v is not None
+        }
+        n = min(len(v) for v in all_arrs.values()) if all_arrs else 0
         if n == 0:
             raise RuntimeError("No galaxy data found for HOD calculation")
+        all_arrs = {k: v[:n] for k, v in all_arrs.items()}
 
-        # Apply mask
-        mask = np.isfinite(arrays["halo_mass"]) & (arrays["halo_mass"] > 0)
-        mask &= np.isfinite(arrays["halo_id"])
+        # Physical validity
+        valid = np.isfinite(all_arrs["mhhalo"]) & (all_arrs["mhhalo"] > 0)
+        all_arrs = {k: v[valid] for k, v in all_arrs.items()}
 
+        # Galaxy selection mask (stellar-mass cut)
+        galaxy_selection_mask = None
         if galaxy_stellar_mass_min is not None:
-            if "mstar" not in arrays or arrays["mstar"].size == 0:
-                raise KeyError("mstar field not found - cannot apply stellar mass cut")
-            mask &= arrays["mstar"] >= galaxy_stellar_mass_min
-
-        arrays = {k: v[mask] for k, v in arrays.items()}
+            if "mstar" not in all_arrs or all_arrs["mstar"].size == 0:
+                raise KeyError(
+                    "mstar not found — cannot apply stellar mass cut"
+                )
+            galaxy_selection_mask = all_arrs["mstar"] >= galaxy_stellar_mass_min
+        all_arrs["galaxy_selection_mask"] = galaxy_selection_mask
 
         meta: Dict[str, Any] = {
             "iz": Path(iz_path).name,
             "ivol": ivol,
-            "z": _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol),
-            "halo_id_field": used_id_field,
-            "halo_mass_field": used_mass_field,
+            "z": (
+                _get_redshift_from_file(f)
+                or _get_redshift_from_zsnap(iz_path, ivol)
+            ),
         }
 
-        return arrays, meta
+        return all_arrs, tree_mphalo, meta
+
     finally:
         try:
             f.close()
@@ -142,94 +149,107 @@ def _load_hod_galaxy_arrays(
             pass
 
 
-def _compute_per_halo_occupation(
-    halo_id: np.ndarray,
-    halo_mass: np.ndarray,
-    is_central: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
-    """Aggregate per-halo occupation statistics.
-
-    Returns:
-        halo_mass_per_halo, n_gal_per_halo, n_cen_per_halo (or None)
-    """
-    # Ensure arrays are 1D
-    halo_id = np.ravel(halo_id)
-    halo_mass = np.ravel(halo_mass)
-    if is_central is not None:
-        is_central = np.ravel(is_central).astype(int, copy=False)
-
-    unique_ids, inv = np.unique(halo_id, return_inverse=True)
-    n_halos = unique_ids.size
-    if n_halos == 0:
-        return np.array([]), np.array([]), None
-
-    # Count galaxies per halo
-    n_gal_per_halo = np.bincount(inv, minlength=n_halos).astype(np.int64, copy=False)
-
-    # Count centrals per halo (optional)
-    n_cen_per_halo = None
-    if is_central is not None:
-        n_cen_per_halo = np.bincount(inv, weights=is_central, minlength=n_halos)
-
-    # Determine halo mass per halo (use max mass for robustness)
-    order = np.argsort(inv)
-    inv_sorted = inv[order]
-    mass_sorted = halo_mass[order]
-    start_idx = np.r_[0, np.flatnonzero(np.diff(inv_sorted)) + 1]
-    halo_mass_per_halo = np.maximum.reduceat(mass_sorted, start_idx)
-
-    return halo_mass_per_halo, n_gal_per_halo, n_cen_per_halo
-
-
-def _compute_hod_from_per_halo(
-    halo_mass: np.ndarray,
-    n_gal: np.ndarray,
-    n_cen: Optional[np.ndarray],
+def _compute_hod_two_histogram(
+    galaxy_mhhalo: np.ndarray,
+    tree_mphalo: np.ndarray,
     bins: np.ndarray,
+    is_central: Optional[np.ndarray] = None,
+    galaxy_mhalo: Optional[np.ndarray] = None,
+    galaxy_selection_mask: Optional[np.ndarray] = None,
     halo_mass_lower_limit: Optional[float] = None,
-) -> Dict[str, np.ndarray]:
-    """Compute binned HOD statistics from per-halo arrays."""
-    if halo_mass_lower_limit is not None:
-        mask = halo_mass >= halo_mass_lower_limit
-        halo_mass = halo_mass[mask]
-        n_gal = n_gal[mask]
-        if n_cen is not None:
-            n_cen = n_cen[mask]
+) -> Dict[str, Any]:
+    """Compute HOD using the two-histogram method.
 
-    if halo_mass.size == 0:
+    Parameters
+    ----------
+    galaxy_mhhalo : array
+        Host-halo mass for each galaxy (Msun/h).
+    tree_mphalo : array
+        Halo mass for each merger tree / FOF group (Msun/h).
+    bins : array
+        log10(M) bin edges.
+    is_central : array, optional
+        1 for central, 0 for satellite (per galaxy).
+    galaxy_mhalo : array, optional
+        Own subhalo mass per galaxy; used with *is_central* to identify
+        FOF-group centrals (mhalo/mhhalo > FOF_CENTRAL_RATIO_THRESHOLD).
+    galaxy_selection_mask : bool array, optional
+        True for galaxies passing the stellar-mass cut.
+    halo_mass_lower_limit : float, optional
+        Exclude halos below this mass (Msun/h) from both histograms.
+    """
+    # Apply halo mass lower limit
+    if halo_mass_lower_limit is not None:
+        tree_mphalo = tree_mphalo[tree_mphalo >= halo_mass_lower_limit]
+        gal_keep = galaxy_mhhalo >= halo_mass_lower_limit
+        galaxy_mhhalo = galaxy_mhhalo[gal_keep]
+        if is_central is not None:
+            is_central = is_central[gal_keep]
+        if galaxy_mhalo is not None:
+            galaxy_mhalo = galaxy_mhalo[gal_keep]
+        if galaxy_selection_mask is not None:
+            galaxy_selection_mask = galaxy_selection_mask[gal_keep]
+
+    centers = 0.5 * (bins[1:] + bins[:-1])
+    n_bins = len(bins) - 1
+
+    if tree_mphalo.size == 0:
+        empty = np.zeros(n_bins)
         return {
-            "centers": 0.5 * (bins[1:] + bins[:-1]),
-            "mean_occupation": np.zeros(len(bins) - 1),
+            "centers": centers,
+            "mean_occupation": empty.copy(),
             "mean_central": None,
             "mean_satellite": None,
-            "counts_halos": np.zeros(len(bins) - 1, dtype=int),
-            "counts_galaxies": np.zeros(len(bins) - 1, dtype=float),
+            "counts_halos": np.zeros(n_bins, dtype=int),
+            "counts_galaxies": np.zeros(n_bins, dtype=int),
         }
 
-    logM = np.log10(halo_mass)
-    counts_halos, edges = np.histogram(logM, bins=bins)
-    counts_galaxies, _ = np.histogram(logM, bins=bins, weights=n_gal)
+    # Denominator: halo counts from tree catalog
+    log_tree = np.log10(tree_mphalo)
+    counts_halos, _ = np.histogram(log_tree, bins=bins)
+
+    # Select qualifying galaxies
+    if galaxy_selection_mask is not None:
+        sel = galaxy_selection_mask
+        gal_mhh = galaxy_mhhalo[sel]
+        gal_is_cen = is_central[sel] if is_central is not None else None
+        gal_mh = galaxy_mhalo[sel] if galaxy_mhalo is not None else None
+    else:
+        gal_mhh = galaxy_mhhalo
+        gal_is_cen = is_central
+        gal_mh = galaxy_mhalo
+
+    log_gal_mhh = np.log10(gal_mhh)
+
+    # Numerator: galaxy counts (all qualifying galaxies, binned by mhhalo)
+    counts_galaxies, _ = np.histogram(log_gal_mhh, bins=bins)
 
     mean_occupation = np.divide(
-        counts_galaxies,
+        counts_galaxies.astype(float),
         counts_halos,
-        out=np.zeros_like(counts_galaxies, dtype=float),
+        out=np.zeros(n_bins),
         where=counts_halos > 0,
     )
 
+    # Central / satellite decomposition
     mean_central = None
     mean_satellite = None
-    if n_cen is not None:
-        counts_cen, _ = np.histogram(logM, bins=bins, weights=n_cen)
+    if gal_is_cen is not None and gal_mh is not None:
+        # FOF central = is_central==1 AND mhalo/mhhalo > threshold
+        fof_cen_mask = (gal_is_cen == 1) & (
+            gal_mh / (gal_mhh + 1e-30) > FOF_CENTRAL_RATIO_THRESHOLD
+        )
+        counts_cen, _ = np.histogram(
+            log_gal_mhh[fof_cen_mask], bins=bins
+        )
         mean_central = np.divide(
-            counts_cen,
+            counts_cen.astype(float),
             counts_halos,
-            out=np.zeros_like(counts_cen, dtype=float),
+            out=np.zeros(n_bins),
             where=counts_halos > 0,
         )
         mean_satellite = mean_occupation - mean_central
 
-    centers = 0.5 * (edges[1:] + edges[:-1])
     return {
         "centers": centers,
         "mean_occupation": mean_occupation,
@@ -238,6 +258,11 @@ def _compute_hod_from_per_halo(
         "counts_halos": counts_halos,
         "counts_galaxies": counts_galaxies,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Public API
+# ──────────────────────────────────────────────────────────────────────
 
 
 def hod_given_redshift_and_subvolume(
@@ -249,60 +274,51 @@ def hod_given_redshift_and_subvolume(
     halo_id_field: Optional[str] = None,
     halo_mass_field: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Compute HOD for a single subvolume.
+    """Compute HOD for a single subvolume using the two-histogram method.
+
+    The denominator uses the tree halo catalog (``Trees/mphalo``), which
+    counts **all** FOF groups including those with zero qualifying galaxies.
+    The numerator counts qualifying galaxies binned by their host-halo mass
+    (``mhhalo``).
 
     Args:
-        iz_path: Path to snapshot directory
-        ivol: Subvolume index
-        bins: log10(M_halo) bin edges; defaults to DEFAULT_HALO_MASS_BINS
-        galaxy_stellar_mass_min: Optional stellar mass cut for galaxy selection (Msun/h)
-        halo_mass_lower_limit: Optional halo mass lower limit (Msun/h)
-        halo_id_field: Optional halo ID field override
-        halo_mass_field: Optional halo mass field override
+        iz_path: Path to snapshot directory.
+        ivol: Subvolume index.
+        bins: log10(M_halo) bin edges; defaults to DEFAULT_HALO_MASS_BINS.
+        galaxy_stellar_mass_min: Optional stellar mass cut (Msun/h).
+        halo_mass_lower_limit: Optional halo mass lower limit (Msun/h).
+        halo_id_field: Unused (kept for API compatibility).
+        halo_mass_field: Unused (kept for API compatibility).
 
     Returns:
-        Dictionary with keys:
-            - 'iz', 'ivol', 'z'
-            - 'centers'
-            - 'mean_occupation'
-            - 'mean_central' (optional)
-            - 'mean_satellite' (optional)
-            - 'counts_halos'
-            - 'counts_galaxies'
-            - 'n_halos'
-            - 'n_galaxies'
-            - 'halo_id_field', 'halo_mass_field'
-        Returns None if data invalid or missing.
+        Dictionary with HOD results, or None on failure.
     """
     if bins is None:
         bins = DEFAULT_HALO_MASS_BINS
 
     try:
-        arrays, meta = _load_hod_galaxy_arrays(
+        arrays, tree_mphalo, meta = _load_hod_data(
             iz_path,
             ivol,
             galaxy_stellar_mass_min=galaxy_stellar_mass_min,
-            halo_id_field=halo_id_field,
-            halo_mass_field=halo_mass_field,
         )
     except Exception:
         return None
 
-    halo_mass, n_gal, n_cen = _compute_per_halo_occupation(
-        arrays["halo_id"],
-        arrays["halo_mass"],
-        arrays.get("is_central"),
+    hod_stats = _compute_hod_two_histogram(
+        galaxy_mhhalo=arrays["mhhalo"],
+        tree_mphalo=tree_mphalo,
+        bins=bins,
+        is_central=arrays.get("is_central"),
+        galaxy_mhalo=arrays.get("mhalo"),
+        galaxy_selection_mask=arrays.get("galaxy_selection_mask"),
+        halo_mass_lower_limit=halo_mass_lower_limit,
     )
 
-    if halo_mass.size == 0:
-        return None
-
-    hod_stats = _compute_hod_from_per_halo(
-        halo_mass=halo_mass,
-        n_gal=n_gal,
-        n_cen=n_cen,
-        bins=bins,
-        halo_mass_lower_limit=halo_mass_lower_limit,
+    # Count qualifying galaxies for metadata
+    sel = arrays.get("galaxy_selection_mask")
+    n_galaxies = (
+        int(sel.sum()) if sel is not None else int(arrays["mhhalo"].size)
     )
 
     return {
@@ -315,10 +331,10 @@ def hod_given_redshift_and_subvolume(
         "mean_satellite": hod_stats["mean_satellite"],
         "counts_halos": hod_stats["counts_halos"],
         "counts_galaxies": hod_stats["counts_galaxies"],
-        "n_halos": int(halo_mass.size),
-        "n_galaxies": int(np.sum(n_gal)),
-        "halo_id_field": meta.get("halo_id_field"),
-        "halo_mass_field": meta.get("halo_mass_field"),
+        "n_halos": int(tree_mphalo.size),
+        "n_galaxies": n_galaxies,
+        "halo_id_field": None,
+        "halo_mass_field": "mhhalo",
         "selection": {
             "galaxy_stellar_mass_min": galaxy_stellar_mass_min,
             "halo_mass_lower_limit": halo_mass_lower_limit,
@@ -335,12 +351,12 @@ def hods_given_redshifts_and_subvolume(
 ) -> Optional[Tuple[pd.DataFrame, List[Dict[str, Any]]]]:
     """Compute HODs for a single subvolume across multiple snapshots.
 
-    Returns a DataFrame of binned HOD values per redshift.
+    Returns (DataFrame, list-of-result-dicts) or None.
     """
     if base_dir is None:
         base_dir = str(get_base_dir())
 
-    results_by_z = []
+    results_by_z: List[Dict[str, Any]] = []
     for iz_num in iz_nums:
         iz_path = os.path.join(base_dir, f"iz{iz_num}")
         if not os.path.isdir(iz_path):
@@ -397,9 +413,11 @@ def avg_hod_given_redshift_and_subvolumes(
     galaxy_stellar_mass_min: Optional[float] = None,
     halo_mass_lower_limit: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Compute HOD by combining halos from multiple subvolumes.
+    """Compute HOD by combining data from multiple subvolumes.
 
-    This concatenates halo samples across subvolumes to improve statistics.
+    Galaxy and tree-halo arrays from each subvolume are concatenated before
+    computing the two-histogram HOD, giving a single combined result with
+    improved statistics.
     """
     if bins is None:
         bins = DEFAULT_HALO_MASS_BINS
@@ -410,15 +428,17 @@ def avg_hod_given_redshift_and_subvolumes(
     if not os.path.isdir(iz_path):
         return None
 
-    all_halo_mass = []
-    all_n_gal = []
-    all_n_cen = []
+    all_mhhalo: List[np.ndarray] = []
+    all_mhalo: List[Optional[np.ndarray]] = []
+    all_is_central: List[Optional[np.ndarray]] = []
+    all_sel_mask: List[Optional[np.ndarray]] = []
+    all_tree_mphalo: List[np.ndarray] = []
     z_val = None
     n_used = 0
 
     for iv in ivols:
         try:
-            arrays, meta = _load_hod_galaxy_arrays(
+            arrays, tree_mphalo, meta = _load_hod_data(
                 iz_path,
                 iv,
                 galaxy_stellar_mass_min=galaxy_stellar_mass_min,
@@ -429,34 +449,46 @@ def avg_hod_given_redshift_and_subvolumes(
         if z_val is None:
             z_val = meta.get("z")
 
-        halo_mass, n_gal, n_cen = _compute_per_halo_occupation(
-            arrays["halo_id"],
-            arrays["halo_mass"],
-            arrays.get("is_central"),
-        )
-
-        if halo_mass.size == 0:
-            continue
-
-        all_halo_mass.append(halo_mass)
-        all_n_gal.append(n_gal)
-        if n_cen is not None:
-            all_n_cen.append(n_cen)
+        all_mhhalo.append(arrays["mhhalo"])
+        all_mhalo.append(arrays.get("mhalo"))
+        all_is_central.append(arrays.get("is_central"))
+        all_sel_mask.append(arrays.get("galaxy_selection_mask"))
+        all_tree_mphalo.append(tree_mphalo)
         n_used += 1
 
     if n_used == 0:
         return None
 
-    halo_mass = np.concatenate(all_halo_mass)
-    n_gal = np.concatenate(all_n_gal)
-    n_cen = np.concatenate(all_n_cen) if all_n_cen else None
+    mhhalo = np.concatenate(all_mhhalo)
+    mhalo = (
+        np.concatenate(all_mhalo)
+        if all(a is not None for a in all_mhalo)
+        else None
+    )
+    is_central = (
+        np.concatenate(all_is_central)
+        if all(a is not None for a in all_is_central)
+        else None
+    )
+    sel_mask = (
+        np.concatenate(all_sel_mask)
+        if all(a is not None for a in all_sel_mask)
+        else None
+    )
+    tree_mphalo = np.concatenate(all_tree_mphalo)
 
-    hod_stats = _compute_hod_from_per_halo(
-        halo_mass=halo_mass,
-        n_gal=n_gal,
-        n_cen=n_cen,
+    hod_stats = _compute_hod_two_histogram(
+        galaxy_mhhalo=mhhalo,
+        tree_mphalo=tree_mphalo,
         bins=bins,
+        is_central=is_central,
+        galaxy_mhalo=mhalo,
+        galaxy_selection_mask=sel_mask,
         halo_mass_lower_limit=halo_mass_lower_limit,
+    )
+
+    n_galaxies = (
+        int(sel_mask.sum()) if sel_mask is not None else int(mhhalo.size)
     )
 
     return {
@@ -468,8 +500,8 @@ def avg_hod_given_redshift_and_subvolumes(
         "mean_satellite": hod_stats["mean_satellite"],
         "counts_halos": hod_stats["counts_halos"],
         "counts_galaxies": hod_stats["counts_galaxies"],
-        "n_halos": int(halo_mass.size),
-        "n_galaxies": int(np.sum(n_gal)),
+        "n_halos": int(tree_mphalo.size),
+        "n_galaxies": n_galaxies,
         "n_used": n_used,
         "n_requested": len(ivols),
         "selection": {
@@ -487,17 +519,21 @@ def avg_hod_given_redshifts_and_subvolume(
     galaxy_stellar_mass_min: Optional[float] = None,
     halo_mass_lower_limit: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Average HOD for a single subvolume across multiple snapshots."""
+    """Average HOD for a single subvolume across multiple snapshots.
+
+    Each snapshot is computed independently; results are averaged
+    bin-by-bin with standard deviation.
+    """
     if bins is None:
         bins = DEFAULT_HALO_MASS_BINS
     if base_dir is None:
         base_dir = str(get_base_dir())
 
-    per_mean = []
-    per_cen = []
-    per_sat = []
-    iz_list = []
-    z_list = []
+    per_mean: List[np.ndarray] = []
+    per_cen: List[np.ndarray] = []
+    per_sat: List[np.ndarray] = []
+    iz_list: List[str] = []
+    z_list: List[float] = []
     centers_ref = None
 
     for iz_num in iz_nums:
@@ -529,21 +565,25 @@ def avg_hod_given_redshifts_and_subvolume(
     if not per_mean:
         return None
 
-    per_mean = np.array(per_mean)
+    per_mean_arr = np.array(per_mean)
     mean_central = np.array(per_cen).mean(axis=0) if per_cen else None
     mean_satellite = np.array(per_sat).mean(axis=0) if per_sat else None
 
-    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
+    centers = (
+        centers_ref
+        if centers_ref is not None
+        else 0.5 * (bins[1:] + bins[:-1])
+    )
 
     return {
         "ivol": ivol,
         "iz_list": iz_list,
         "z_list": z_list,
         "centers": centers,
-        "mean_occupation": per_mean.mean(axis=0),
-        "mean_occupation_std": per_mean.std(axis=0),
+        "mean_occupation": per_mean_arr.mean(axis=0),
+        "mean_occupation_std": per_mean_arr.std(axis=0),
         "mean_central": mean_central,
         "mean_satellite": mean_satellite,
-        "n_used": per_mean.shape[0],
+        "n_used": per_mean_arr.shape[0],
         "n_requested": len(iz_nums),
     }
