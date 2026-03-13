@@ -12,7 +12,7 @@ Note: this is a group-sampling correction, not mass weighting.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import h5py
 import numpy as np
@@ -60,6 +60,7 @@ def load_notebook_style_galaxies(
     ivols: np.ndarray,
     boxsize: float = 542.16,
     mhalo_min: float = 1e11,
+    centrals_only: bool = False,
 ) -> pd.DataFrame:
     """Load and post-process galaxies exactly as in ``kai_corrfunc.ipynb``."""
     gal_chunks: List[pd.DataFrame] = []
@@ -108,6 +109,8 @@ def load_notebook_style_galaxies(
 
     gals = gals.assign(dr=dr, rhalo=rhalo, dr_norm=dr_norm)
     gals = gals[gals['dr_norm'] < 1]
+    if centrals_only:
+        gals = gals[gals['is_central'] == 1]
     return gals
 
 
@@ -205,6 +208,7 @@ def compute_notebook_style_correlations_for_nvolumes(
     boxsize: float = 542.16,
     mstar_min_log10: float = 9.0,
     mhalo_min: float = 1e11,
+    centrals_only: bool = False,
     n_total_subvolumes: int = 1024,
     num_threads: int = 4,
 ) -> Dict[int, Dict[str, np.ndarray]]:
@@ -217,6 +221,7 @@ def compute_notebook_style_correlations_for_nvolumes(
             ivols=np.arange(nvol),
             boxsize=boxsize,
             mhalo_min=mhalo_min,
+            centrals_only=centrals_only,
         )
 
         xi_standard = compute_notebook_style_standard_xi(

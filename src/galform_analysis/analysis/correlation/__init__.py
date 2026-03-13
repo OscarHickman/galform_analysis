@@ -11,9 +11,9 @@ from .correlation import (
 
 try:
     from .group_sampling_correlation import (
-        compute_group_sampling_corrected_xi,
-        compute_notebook_style_correlations_for_nvolumes,
-        compute_notebook_style_standard_xi,
+        compute_group_sampling_corrected_xi as compute_group_sampling_corrected_xi,
+        compute_notebook_style_correlations_for_nvolumes as compute_notebook_style_correlations_for_nvolumes,
+        compute_notebook_style_standard_xi as compute_notebook_style_standard_xi,
     )
     _HAS_GROUP_SAMPLING = True
 except Exception:  # pragma: no cover - optional dependency path
