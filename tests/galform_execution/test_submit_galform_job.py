@@ -131,6 +131,9 @@ def test_create_slurm_script():
         assert '@ ivol        = ${SLURM_ARRAY_TASK_ID} - 1' in script_content
         # Check that galform dir is referenced
         assert f'cd {gdir}' in script_content
+        # Check Fortran endianness conversion defaults are present
+        assert 'setenv GFORTRAN_CONVERT_UNIT big_endian' in script_content
+        assert 'setenv F_UFMTENDIAN big' in script_content
         # Check simulation parameters are injected
         assert 'set omega0     = 0.307' in script_content
         assert 'set h0         = 0.6777' in script_content

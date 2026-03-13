@@ -12,10 +12,11 @@ Date: November 2025
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -73,7 +74,7 @@ class ModelConfig:
 class RunFlags:
     """Flags controlling which parts of the GALFORM pipeline to run."""
     compile: bool = False
-    galform: bool = False
+    galform: bool = True
     neta: bool = True
     dust_props: bool = False
     lum_fun: bool = True
@@ -89,182 +90,128 @@ class RunFlags:
 
 
 # ---------------------------------------------------------------------------
-# Predefined configurations
+# JSON-backed configurations
 # ---------------------------------------------------------------------------
 
-DUST_BAUGH05 = DustParams(
-    fcloud=0.25, tesc_disk=0.001, tesc_burst=0.001,
-    lambda_break_disk=1e4, beta2_disk=2.0,
-    lambda_break_burst=100.0, beta2_burst=1.6,
-)
+_CONFIG_DIR = Path(__file__).parent / 'config'
+_SIMULATION_CONFIG_DIR = _CONFIG_DIR / 'simulations'
+_SIMULATION_CONFIG_PATH = _CONFIG_DIR / 'simulations.json'
+_DUST_CONFIG_PATH = _CONFIG_DIR / 'dust_params.json'
+_MODEL_CONFIG_PATH = _CONFIG_DIR / 'models.json'
+_RUN_FLAGS_CONFIG_PATH = _CONFIG_DIR / 'run_flags.json'
+_LEGACY_RUN_FLAGS_CONFIG_PATH = Path(__file__).parent / 'run_flags.json'
 
-DUST_LACEY16 = DustParams(
-    fcloud=0.5, tesc_disk=0.001, tesc_burst=0.001,
-    lambda_break_disk=1e4, beta2_disk=2.0,
-    lambda_break_burst=100.0, beta2_burst=1.5,
-)
 
-SIMULATION_CONFIGS: Dict[str, SimulationConfig] = {
-    'MilliMil': SimulationConfig(
-        iz_list=[63], nvol_range='1-8',
-        nbody_trees_dir='/cosma5/data/jch/MilliMillennium/trees/',
-        snapshot_file='/cosma5/data/jch/MilliMillennium/trees/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/MilliMillennium/trees/treedir_063/tree_063',
-        aquarius_particle_file='/cosma5/data/jch/MilliMillennium/trees/particle_lists/particle_list_063',
-        volume=0, omega0=0.25, lambda0=0.75, omegab=0.045, h0=0.73,
-        sigma8=0.9, pk_file='Power_Spec/pk_Mill.dat', iz0=63,
-    ),
-    'Mill1': SimulationConfig(
-        iz_list=[33, 63], nvol_range='1-64',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/Millennium/new',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium/new/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium/new/treedir_063/tree_063',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium/new/particle_lists/particle_list_063',
-        volume=0, omega0=0.25, lambda0=0.75, omegab=0.045, h0=0.73,
-        sigma8=0.9, pk_file='Power_Spec/pk_Mill.dat', iz0=63,
-    ),
-    'Mill2': SimulationConfig(
-        iz_list=[67], nvol_range='1-10',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/Millennium2/new',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium2/new/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium2/new/treedir_067/tree_067',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/Millennium2/new/particle_lists/particle_list_067',
-        volume=15625.0, omega0=0.25, lambda0=0.75, omegab=0.045, h0=0.73,
-        sigma8=0.9, pk_file='Power_Spec/pk_Mill.dat', iz0=67,
-    ),
-    'MillGas': SimulationConfig(
-        iz_list=[61], nvol_range='1-10',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/500/new/',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/500/new/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/500/new/treedir_061/tree_061',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/500/new/particle_lists/particle_list_061',
-        volume=1953125.0, omega0=0.272, lambda0=0.728, omegab=0.0455, h0=0.704,
-        sigma8=0.810, pk_file='Power_Spec/pk_MillGas_norm.dat', iz0=61,
-    ),
-    'L800': SimulationConfig(
-        iz_list=[271, 207, 176, 155, 142, 120, 105, 100, 82],
-        nvol_range='0-161',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/P-Millennium/Updated_Trees/all_snaps',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/P-Millennium/Updated_Trees/all_snaps/redshift_list.txt',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/P-Millennium/Updated_Trees/all_snaps/treedir_269/tree_269',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/P-Millennium/Updated_Trees/all_snaps/particle_lists/particle_list_269',
-        volume=155626.1, omega0=0.307, lambda0=0.693, omegab=0.0482519, h0=0.6777,
-        sigma8=0.8288, pk_file='Power_Spec/pk_EAGLE_norm.dat', iz0=271,
-        lbox=542.16, mpart=1.061e8,
-    ),
-    'EagleDM': SimulationConfig(
-        iz_list=[200], nvol_range='1-128',
-        nbody_trees_dir='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504',
-        snapshot_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/eagle_redshift_list',
-        aquarius_tree_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees/treedir_200/tree_200',
-        aquarius_particle_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees/particle_lists/particle_list_200',
-        volume=2431.65796432, omega0=0.307, lambda0=0.693, omegab=0.0482519, h0=0.6777,
-        sigma8=0.8288, pk_file='Power_Spec/pk_EAGLE_norm.dat', iz0=200,
-    ),
-    'EagleDM67': SimulationConfig(
-        iz_list=[67], nvol_range='1-128',
-        nbody_trees_dir='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums62',
-        snapshot_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums62/redshift_list',
-        aquarius_tree_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums62/treedir_067/tree_067',
-        aquarius_particle_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums62/particle_lists/particle_list_067',
-        volume=2431.65796432, omega0=0.307, lambda0=0.693, omegab=0.0482519, h0=0.6777,
-        sigma8=0.8288, pk_file='Power_Spec/pk_EAGLE_norm.dat', iz0=67,
-    ),
-    'EagleDM101': SimulationConfig(
-        iz_list=[101], nvol_range='1-128',
-        nbody_trees_dir='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums100',
-        snapshot_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums100/redshift_list',
-        aquarius_tree_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums100/treedir_101/tree_101',
-        aquarius_particle_file='/cosma7/data/dp004/jch/Eagle/Merger_Trees/DMONLY/L0100N1504/trees_snapnums100/particle_lists/particle_list_101',
-        volume=2431.65796432, omega0=0.307, lambda0=0.693, omegab=0.0482519, h0=0.6777,
-        sigma8=0.8288, pk_file='Power_Spec/pk_EAGLE_norm.dat', iz0=101,
-    ),
-    'DoveCDM': SimulationConfig(
-        iz_list=[159], nvol_range='1-64',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/Dove/CDM/trees',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/Dove/CDM/trees/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/Dove/CDM/trees/treedir_159/tree_159',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/Dove/CDM/trees/particle_lists/particle_list_159',
-        volume=5451.776, omega0=0.272, lambda0=0.728, omegab=0.0455, h0=0.704,
-        sigma8=0.810, pk_file='Data/Power_Spec/pk_MillGas_norm.dat', iz0=159,
-        lbox=70.4, mpart=6195595.0,
-    ),
-    'DoveWDM.clean': SimulationConfig(
-        iz_list=[79], nvol_range='1-64',
-        nbody_trees_dir='/gpfs/data/dph3apc/dove/wdm/trees_cleaned',
-        snapshot_file='/gpfs/data/dph3apc/dove/wdm/trees_cleaned/dovewdmclean_redshift_list',
-        aquarius_tree_file='/gpfs/data/dph3apc/dove/wdm/trees_cleaned/treedir_079/tree_079',
-        aquarius_particle_file='/gpfs/data/dph3apc/dove/wdm/trees_cleaned/particle_lists/particle_list_079',
-        volume=5451.776, omega0=0.272, lambda0=0.728, omegab=0.0455, h0=0.704,
-        sigma8=0.810, pk_file='Power_Spec/pk_WDMDove.dat', iz0=79,
-        lbox=70.4, mpart=6195595.0,
-    ),
-    'MillGas62.5': SimulationConfig(
-        iz_list=[61], nvol_range='1-1',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/62.5/new/',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/62.5/new/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/62.5/new/treedir_061/tree_061',
-        aquarius_particle_file='/cosma5/data/jch/Galform/Merger_Trees/MillGas/dm/62.5/new/particle_lists/particle_list_061',
-        volume=1953125.0, omega0=0.272, lambda0=0.728, omegab=0.0455, h0=0.704,
-        sigma8=0.810, pk_file='Power_Spec/pk_MillGas_norm.dat', iz0=61,
-    ),
-    'nifty62.5': SimulationConfig(
-        iz_list=[61], nvol_range='1-64',
-        nbody_trees_dir='/cosma5/data/jch/Galform/Merger_Trees/nifty/62.5/',
-        snapshot_file='/cosma5/data/jch/Galform/Merger_Trees/nifty/62.5/redshift_list',
-        aquarius_tree_file='/cosma5/data/jch/Galform/Merger_Trees/nifty/62.5/treedir_061/tree_061',
-        aquarius_particle_file='',  # No particle file for nifty
-        volume=1953125.0, omega0=0.272, lambda0=0.728, omegab=0.0455, h0=0.704,
-        sigma8=0.810, pk_file='Power_Spec/pk_MillGas_norm.dat', iz0=61,
-    ),
-}
+def _load_json(path: Path) -> Dict[str, dict]:
+    with open(path) as fh:
+        return json.load(fh)
 
-MODEL_CONFIGS: Dict[str, ModelConfig] = {
-    'b06': ModelConfig(
-        base_inputs_file='Bower06_Nbody_MilliMil.input.ref',
-        dust_params=DUST_BAUGH05,
-    ),
-    'gp14': ModelConfig(
-        base_inputs_file='Gonzalez13_Nbody_MillGas.input.ref',
-        dust_params=DUST_BAUGH05,
-    ),
-    'lc16': ModelConfig(
-        base_inputs_file='Lacey16_Nbody_MillGas.input.ref',
-        dust_params=DUST_LACEY16,
-    ),
-    'lc16.newSMBH': ModelConfig(
-        base_inputs_file='Lacey16_Nbody_MillGas.input.ref',
-        dust_params=DUST_LACEY16,
-    ),
-    'lc16.newmg': ModelConfig(
-        base_inputs_file='Lacey16_newmg_Nbody_L800.input.ref',
-        dust_params=DUST_LACEY16,
-    ),
-    'lc16.newmg.kenn83.vhot': ModelConfig(
-        base_inputs_file='Lacey16_newmg_Nbody_L800.input.ref',
-        dust_params=DUST_LACEY16,
-        extra_replacements={'nmf': '1', 'vhotdisk': '290', 'vhotburst': '290'},
-    ),
-    'gp14.satf': ModelConfig(
-        base_inputs_file='Gonzalez13_Nbody_MillGas.input.ref',
-        dust_params=DUST_BAUGH05,
-        extra_replacements={'Saturate_Feedback': '.true.', 'thresholdVcirc': '65.0'},
-    ),
-    'gp18': ModelConfig(
-        base_inputs_file='Gonzalez13_Nbody_MillGas.input.ref',
-        dust_params=DUST_BAUGH05,
-    ),
-}
+
+def load_simulation_configs(config_path: Optional[str] = None) -> Dict[str, SimulationConfig]:
+    """Load simulation configs from JSON.
+
+    Supports a single JSON file or a directory containing ``*.json`` files.
+    """
+    if config_path:
+        path = Path(config_path)
+    elif _SIMULATION_CONFIG_DIR.is_dir():
+        path = _SIMULATION_CONFIG_DIR
+    else:
+        path = _SIMULATION_CONFIG_PATH
+
+    if path.is_dir():
+        merged: Dict[str, dict] = {}
+        for file_path in sorted(path.glob('*.json')):
+            merged.update(_load_json(file_path))
+        raw = merged
+    else:
+        raw = _load_json(path)
+
+    return {name: SimulationConfig(**cfg) for name, cfg in raw.items()}
+
+
+def load_dust_configs(config_path: Optional[str] = None) -> Dict[str, DustParams]:
+    """Load named dust parameter profiles from JSON."""
+    path = Path(config_path) if config_path else _DUST_CONFIG_PATH
+    raw = _load_json(path)
+    return {name: DustParams(**cfg) for name, cfg in raw.items()}
+
+
+def load_model_configs(
+    dust_configs: Optional[Dict[str, DustParams]] = None,
+    config_path: Optional[str] = None,
+) -> Dict[str, ModelConfig]:
+    """Load model configs from JSON and resolve their dust profiles."""
+    dust = dust_configs if dust_configs is not None else load_dust_configs()
+    path = Path(config_path) if config_path else _MODEL_CONFIG_PATH
+    raw = _load_json(path)
+    models: Dict[str, ModelConfig] = {}
+    for name, cfg in raw.items():
+        dust_profile = cfg.get('dust_profile')
+        dust_params_raw = cfg.get('dust_params')
+        if dust_profile:
+            if dust_profile not in dust:
+                raise ValueError(
+                    f"Model '{name}' refers to unknown dust_profile '{dust_profile}'"
+                )
+            dust_params = dust[dust_profile]
+        elif dust_params_raw is not None:
+            dust_params = DustParams(**dust_params_raw)
+        else:
+            raise ValueError(
+                f"Model '{name}' must define either dust_profile or dust_params"
+            )
+
+        models[name] = ModelConfig(
+            base_inputs_file=cfg['base_inputs_file'],
+            dust_params=dust_params,
+            extra_replacements=cfg.get('extra_replacements', {}),
+        )
+    return models
+
+
+DUST_CONFIGS = load_dust_configs()
+DUST_BAUGH05 = DUST_CONFIGS['baugh05']
+DUST_LACEY16 = DUST_CONFIGS['lacey16']
+SIMULATION_CONFIGS = load_simulation_configs()
+MODEL_CONFIGS = load_model_configs(DUST_CONFIGS)
 
 
 # ---------------------------------------------------------------------------
 # Helper: resolve log path
 # ---------------------------------------------------------------------------
 
+def load_run_flags_config(config_path: Optional[str] = None) -> RunFlags:
+    """Load RunFlags from a JSON config file.
+
+    Looks for *config_path* if given, otherwise falls back to
+    ``config/run_flags.json`` next to this module.  Returns
+    ``RunFlags()`` defaults if the file is missing or malformed.
+    """
+    if config_path:
+        path = Path(config_path)
+    elif _RUN_FLAGS_CONFIG_PATH.is_file():
+        path = _RUN_FLAGS_CONFIG_PATH
+    else:
+        path = _LEGACY_RUN_FLAGS_CONFIG_PATH
+    if not path.is_file():
+        return RunFlags()
+    with open(path) as fh:
+        data = json.load(fh)
+    valid = {f.name for f in fields(RunFlags)}
+    return RunFlags(**{k: v for k, v in data.items() if k in valid})
+
+
 def _default_cosma_user_root() -> Path:
     """Return the default COSMA user root path."""
     user = os.environ.get('USER', Path.home().name)
     return Path(f'/cosma5/data/durham/{user}')
+
+
+def _default_galform_dir() -> Path:
+    """Return the default GALFORM source directory on COSMA."""
+    user = os.environ.get('USER', Path.home().name)
+    return Path(f'/cosma/home/durham/{user}/galform')
 
 
 def _resolve_log_path(explicit: Optional[str], output_folder_name: str) -> Path:
@@ -351,7 +298,7 @@ class GalformSubmitter:
         self.account = account
         self.walltime = walltime
         self.stellar_pop_dir = stellar_pop_dir
-        self.run_flags = run_flags or RunFlags()
+        self.run_flags = run_flags if run_flags is not None else load_run_flags_config()
         self.output_folder_name = output_folder_name
 
         # Modules
@@ -721,6 +668,15 @@ exit
 # ---- environment ----
 {module_lines}
 
+# Ensure unformatted big-endian stellar population files are readable.
+# Only set defaults if not already defined by the user environment.
+if ( ! $?GFORTRAN_CONVERT_UNIT ) then
+    setenv GFORTRAN_CONVERT_UNIT big_endian
+endif
+if ( ! $?F_UFMTENDIAN ) then
+    setenv F_UFMTENDIAN big
+endif
+
 unlimit stacksize
 unlimit datasize
 
@@ -872,7 +828,9 @@ Examples:
 
     parser.add_argument(
         'galform_dir', nargs='?',
-        help='Path to the GALFORM source directory (contains build/, *.input.ref, etc.)',
+        default=str(_default_galform_dir()),
+        help='Path to the GALFORM source directory '
+             f'(default: {_default_galform_dir()}; contains build/, *.input.ref, etc.)',
     )
 
     parser.add_argument('--nbody-sim', default='L800',
@@ -899,11 +857,16 @@ Examples:
                         help='Override default snapshot list')
     parser.add_argument('--nvol-range',
                         help='Deprecated alias for --nvol')
+    parser.add_argument('--run-flags-config',
+                        help='Path to a JSON file overriding default run flags '
+                            '(defaults to config/run_flags.json next to this script)')
 
-    # Run-flag toggles
+    # Run-flag toggles — these override the defaults from run_flags.json
     flag_group = parser.add_argument_group('pipeline stages')
     flag_group.add_argument('--run-galform', action='store_true', default=False,
-                            help='Run galform2 executable (default: off)')
+                            help='Force galform2 executable on (overrides JSON default)')
+    flag_group.add_argument('--no-galform', action='store_true', default=False,
+                            help='Force galform2 executable off (overrides JSON default)')
     flag_group.add_argument('--no-neta', action='store_true',
                             help='Disable neta_ave dust calculation')
     flag_group.add_argument('--no-lum-fun', action='store_true',
@@ -946,16 +909,15 @@ Examples:
             print(f"{name:<25} {cfg.base_inputs_file:<45} {dust_label}")
         return 0
 
-    if not args.galform_dir:
-        parser.error("galform_dir is required unless using --list-simulations or --list-models")
-
+    # Load defaults from JSON, then apply any explicit CLI overrides on top.
+    _json_defaults = load_run_flags_config(args.run_flags_config)
     run_flags = RunFlags(
-        galform=args.run_galform,
-        neta=not args.no_neta,
-        lum_fun=not args.no_lum_fun,
-        study_stellar_mass_function=not args.no_study_smf,
-        dust_props=args.run_dust_props,
-        samp_z0=args.run_samp_z0,
+        galform=True if args.run_galform else (False if args.no_galform else _json_defaults.galform),
+        neta=False if args.no_neta else _json_defaults.neta,
+        lum_fun=False if args.no_lum_fun else _json_defaults.lum_fun,
+        study_stellar_mass_function=False if args.no_study_smf else _json_defaults.study_stellar_mass_function,
+        dust_props=True if args.run_dust_props else _json_defaults.dust_props,
+        samp_z0=True if args.run_samp_z0 else _json_defaults.samp_z0,
     )
 
     try:
