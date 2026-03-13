@@ -6,7 +6,18 @@ from .correlation import (
     avg_correlation_given_redshift_and_subvolumes,
     correlations_given_redshifts_and_subvolume,
     avg_correlation_given_subvolume_and_redshifts,
+    notebook_style_correlation_for_nvolumes,
 )
+
+try:
+    from .group_sampling_correlation import (
+        compute_group_sampling_corrected_xi,
+        compute_notebook_style_correlations_for_nvolumes,
+        compute_notebook_style_standard_xi,
+    )
+    _HAS_GROUP_SAMPLING = True
+except Exception:  # pragma: no cover - optional dependency path
+    _HAS_GROUP_SAMPLING = False
 from .dm_correlation import (
     dm_correlation_from_tree_file,
     avg_dm_correlation_from_tree_files,
@@ -26,6 +37,7 @@ __all__ = [
     'avg_correlation_given_redshift_and_subvolumes',
     'correlations_given_redshifts_and_subvolume',
     'avg_correlation_given_subvolume_and_redshifts',
+    'notebook_style_correlation_for_nvolumes',
     'dm_correlation_from_tree_file',
     'avg_dm_correlation_from_tree_files',
     'compute_galaxy_bias',
@@ -33,3 +45,10 @@ __all__ = [
     'satellite_central_cross_correlation',
     'compute_xi_cross_corrfunc',
 ]
+
+if _HAS_GROUP_SAMPLING:
+    __all__.extend([
+        'compute_group_sampling_corrected_xi',
+        'compute_notebook_style_correlations_for_nvolumes',
+        'compute_notebook_style_standard_xi',
+    ])
