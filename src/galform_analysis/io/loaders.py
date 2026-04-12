@@ -88,8 +88,12 @@ def get_output_group(f: Optional[h5py.File]) -> Optional[h5py.Group]:
     """
     if not f:
         return None
-    outs = sorted([k for k in f.keys() if re.match(r'^Output\d+$', k)])
-    return f[outs[0]] if outs else None
+    outs = [k for k in f.keys() if re.match(r'^Output\d+$', k)]
+    if not outs:
+        return None
+    # Extract the numeric part and find the group with the largest NNN
+    outs_sorted = sorted(outs, key=lambda x: int(re.search(r'Output(\d+)', x).group(1)), reverse=True)
+    return f[outs_sorted[0]]
 
 
 def _get_redshift_from_file(f: Optional[h5py.File]) -> Optional[float]:

@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 import sys
 import os
+from unittest.mock import patch
 
 # Add src to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
@@ -17,6 +18,7 @@ from galform_execution.submit_galform_job import (
     DustParams,
     SimulationConfig,
     ModelConfig,
+    _parse_nvol_range,
 )
 
 
@@ -74,7 +76,7 @@ def test_galform_submitter_custom_config():
             account='dp004',
             walltime='48:00:00',
             nvol_range='1-5',
-            output_folder_name='Galform_Out_No_AGN_Feedback',
+            output_folder_name='Galform_Out_Test',
         )
 
         assert submitter.nbody_sim == 'MillGas'
@@ -83,7 +85,7 @@ def test_galform_submitter_custom_config():
         assert submitter.walltime == '48:00:00'
         assert submitter.iz_list == [61]
         assert submitter.nvol_range == '1-5'
-        assert submitter.output_folder_name == 'Galform_Out_No_AGN_Feedback'
+        assert submitter.output_folder_name == 'Galform_Out_Test'
 
 
 def test_galform_submitter_accepts_nvol_range():
@@ -112,7 +114,7 @@ def test_create_slurm_script():
             galform_dir=gdir,
             nbody_sim='L800',
             model='gp14',
-            output_folder_name='Galform_Out_No_AGN_Feedback',
+            output_folder_name='Galform_Out_Test',
         )
 
         script_content = submitter.create_slurm_script(iz=100)
@@ -128,7 +130,8 @@ def test_create_slurm_script():
         assert 'set model     = gp14' in script_content
         assert 'set Nbody_sim = L800' in script_content
         assert 'set iz        = 100' in script_content
-        assert '@ ivol        = ${SLURM_ARRAY_TASK_ID} - 1' in script_content
+        assert '@ slurm_task_id = ${SLURM_ARRAY_TASK_ID}' in script_content
+        assert '@ ivol        = $slurm_task_id + 0 - 2' in script_content
         # Check that galform dir is referenced
         assert f'cd {gdir}' in script_content
         # Check Fortran endianness conversion defaults are present
@@ -150,7 +153,7 @@ def test_create_slurm_script():
         assert 'running GALFORM' in script_content
         assert 'running NETA_AVE' in script_content
         assert 'running LUM_FUN' in script_content
-        assert 'Galform_Out_No_AGN_Feedback/L800' in script_content
+        assert 'Galform_Out_Test/L800' in script_content
 def test_run_flags():
     """Test that run flags are properly injected into the script."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -323,6 +326,44 @@ def test_script_list_models():
     assert 'lc16' in result.stdout
 
 
+def test_parse_nvol_range_supports_single_and_range():
+    """nvol parser should support a single value and an explicit range."""
+    assert _parse_nvol_range('12') == (12, 12)
+    assert _parse_nvol_range('1001-1024') == (1001, 1024)
+
+
+def test_submit_job_remaps_large_nvol_array_indices():
+    """Submitting high nvol IDs should use a compact SLURM array range."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            model='gp14',
+            iz=207,
+            nvol='1001-1024',
+        )
+
+        called = {}
+
+        def _fake_run(cmd, input, capture_output, check):
+            called['cmd'] = cmd
+            called['input'] = input.decode()
+
+            class _Result:
+                stdout = b'Submitted batch job 12345\n'
+
+            return _Result()
+
+        with patch('subprocess.run', side_effect=_fake_run):
+            job_id = submitter.submit_job(iz=207, dry_run=False)
+
+        assert job_id == '12345'
+        assert '--array=1-24' in called['cmd']
+        assert '@ ivol        = $slurm_task_id + 1001 - 2' in called['input']
+
+
 def test_script_dry_run():
     """Test that the script's dry-run mode works."""
     script_path = Path(__file__).parent.parent.parent / 'src' / 'galform_execution' / 'submit_galform_job.py'
@@ -337,7 +378,7 @@ def test_script_dry_run():
                 '--nbody-sim', 'L800',
                 '--iz', '100',
                 '--nvol', '5',
-                '--output-folder-name', 'Galform_Out_No_AGN_Feedback',
+                '--output-folder-name', 'Galform_Out_Test',
                 '--dry-run',
             ],
             capture_output=True,
@@ -350,7 +391,7 @@ def test_script_dry_run():
         assert 'nvol_range=5' in result.stdout
         assert '#SBATCH' in result.stdout
         assert 'set model' in result.stdout
-        assert 'Galform_Out_No_AGN_Feedback/L800' in result.stdout
+        assert 'Galform_Out_Test/L800' in result.stdout
 
 
 def test_script_dry_run_with_nvol_range():
@@ -377,7 +418,8 @@ def test_script_dry_run_with_nvol_range():
         assert 'DRY RUN' in result.stdout
         assert 'iz=100' in result.stdout
         assert 'nvol_range=1-10' in result.stdout
-        assert '@ ivol        = ${SLURM_ARRAY_TASK_ID} - 1' in result.stdout
+        assert '@ slurm_task_id = ${SLURM_ARRAY_TASK_ID}' in result.stdout
+        assert '@ ivol        = $slurm_task_id + 1 - 2' in result.stdout
 
 
 def test_log_path_creation():
@@ -415,6 +457,114 @@ def test_output_base_dir():
         assert str(out_dir / 'CustomFolder' / 'L800') in script
 
 
+def test_submit_job_retries_transient_error_then_succeeds():
+    """Transient Slurm overload errors should be retried."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            iz=271,
+            nvol='101-150',
+            submit_retries=3,
+            submit_retry_delay_s=0.0,
+        )
+
+        transient_err = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=['sbatch', '--array=101-150'],
+            output=b'',
+            stderr=(
+                b'sbatch: error: Slurm temporarily unable to accept job, sleeping and retrying\n'
+                b'sbatch: error: Batch job submission failed: Resource temporarily unavailable\n'
+            ),
+        )
+        success = subprocess.CompletedProcess(
+            args=['sbatch', '--array=101-150'],
+            returncode=0,
+            stdout=b'Submitted batch job 12345\n',
+            stderr=b'',
+        )
+
+        with patch('galform_execution.submit_galform_job.time.sleep') as mocked_sleep:
+            with patch('galform_execution.submit_galform_job.subprocess.run', side_effect=[transient_err, success]) as mocked_run:
+                job_id = submitter.submit_job(iz=271, dry_run=False)
+
+        assert job_id == '12345'
+        assert mocked_run.call_count == 2
+        mocked_sleep.assert_called_once()
+
+
+def test_submit_job_fails_immediately_for_non_transient_error():
+    """Non-transient sbatch errors should not be retried."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            iz=271,
+            nvol='101-150',
+            submit_retries=3,
+            submit_retry_delay_s=0.0,
+        )
+
+        fatal_err = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=['sbatch', '--array=101-150'],
+            output=b'',
+            stderr=b'sbatch: error: Invalid account or account/partition combination specified\n',
+        )
+
+        with patch('galform_execution.submit_galform_job.time.sleep') as mocked_sleep:
+            with patch('galform_execution.submit_galform_job.subprocess.run', side_effect=fatal_err) as mocked_run:
+                try:
+                    submitter.submit_job(iz=271, dry_run=False)
+                    assert False, 'Expected RuntimeError for non-transient submission failure'
+                except RuntimeError as exc:
+                    assert 'Invalid account' in str(exc)
+
+        assert mocked_run.call_count == 1
+        mocked_sleep.assert_not_called()
+
+
+def test_submit_job_fails_after_retries_exhausted_for_transient_error():
+    """Transient errors should eventually fail once retries are exhausted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            iz=271,
+            nvol='101-150',
+            submit_retries=3,
+            submit_retry_delay_s=0.0,
+        )
+
+        transient_err = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=['sbatch', '--array=101-150'],
+            output=b'',
+            stderr=(
+                b'sbatch: error: Slurm temporarily unable to accept job, sleeping and retrying\n'
+                b'sbatch: error: Batch job submission failed: Resource temporarily unavailable\n'
+            ),
+        )
+
+        with patch('galform_execution.submit_galform_job.time.sleep') as mocked_sleep:
+            with patch('galform_execution.submit_galform_job.subprocess.run', side_effect=[transient_err, transient_err, transient_err]) as mocked_run:
+                try:
+                    submitter.submit_job(iz=271, dry_run=False)
+                    assert False, 'Expected RuntimeError after retry exhaustion'
+                except RuntimeError as exc:
+                    assert 'Resource temporarily unavailable' in str(exc)
+
+        assert mocked_run.call_count == 3
+        assert mocked_sleep.call_count == 2
+
+
 def test_custom_modules():
     """Test custom module loading."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -430,3 +580,46 @@ def test_custom_modules():
         assert 'modulecmd.tcl csh purge' in script
         assert 'modulecmd.tcl csh load gcc/11.0' in script
         assert 'modulecmd.tcl csh load openmpi/4.1' in script
+
+
+def test_multi_output_redshifts_set_nout_and_zout():
+    """Explicit output redshifts should set nout and zout vector."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            model='gp14',
+            iz=155,
+            nvol='1-1',
+            output_redshifts=[0.0, 0.401, 1.0],
+            input_overrides={
+                'build_galaxy_trees': '.true.',
+            },
+        )
+
+        script = submitter.create_slurm_script(iz=155)
+        assert './replace_variable.csh $galform_inputs_file nout 3' in script
+        assert './replace_vector.csh $galform_inputs_file zout 0 0.401 1' in script
+        assert './replace_variable.csh $galform_inputs_file mgalmin_output_descendants .true.' in script
+
+
+def test_multi_output_respects_explicit_mgalmin_descendant_override():
+    """User-provided mgalmin_output_descendants should not be overwritten."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gdir = _make_galform_dir(tmpdir)
+        submitter = GalformSubmitter(
+            galform_dir=gdir,
+            nbody_sim='L800',
+            model='gp14',
+            iz=155,
+            nvol='1-1',
+            output_redshifts=[0.0, 0.401],
+            input_overrides={
+                'build_galaxy_trees': '.true.',
+                'mgalmin_output_descendants': '.false.',
+            },
+        )
+
+        script = submitter.create_slurm_script(iz=155)
+        assert './replace_variable.csh $galform_inputs_file mgalmin_output_descendants .false.' in script

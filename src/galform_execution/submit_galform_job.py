@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -100,6 +101,12 @@ _DUST_CONFIG_PATH = _CONFIG_DIR / 'dust_params.json'
 _MODEL_CONFIG_PATH = _CONFIG_DIR / 'models.json'
 _RUN_FLAGS_CONFIG_PATH = _CONFIG_DIR / 'run_flags.json'
 _LEGACY_RUN_FLAGS_CONFIG_PATH = Path(__file__).parent / 'run_flags.json'
+
+# SLURM can transiently reject submissions during scheduler pressure.
+_TRANSIENT_SUBMIT_ERROR_MARKERS = (
+    'slurm temporarily unable to accept job',
+    'resource temporarily unavailable',
+)
 
 
 def _load_json(path: Path) -> Dict[str, dict]:
@@ -229,6 +236,27 @@ def _resolve_log_path(explicit: Optional[str], output_folder_name: str) -> Path:
     return _default_cosma_user_root() / output_folder_name / 'logs'
 
 
+def _parse_nvol_range(nvol_range: str) -> tuple[int, int]:
+    """Parse a legacy nvol range string (e.g. ``'12'`` or ``'1001-1024'``)."""
+    raw = str(nvol_range).strip()
+    if not raw:
+        raise ValueError('nvol range must not be empty')
+
+    if '-' in raw:
+        parts = raw.split('-', maxsplit=1)
+        if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+            raise ValueError(f"Invalid nvol range '{nvol_range}'. Expected 'start-end'.")
+        start = int(parts[0].strip())
+        end = int(parts[1].strip())
+    else:
+        start = int(raw)
+        end = start
+
+    if end < start:
+        raise ValueError(f"Invalid nvol range '{nvol_range}'. End must be >= start.")
+    return start, end
+
+
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
@@ -261,6 +289,12 @@ class GalformSubmitter:
         run_flags: Optional[RunFlags] = None,
         stellar_pop_dir: str = '/cosma5/data/jch/Galform/Data/stellar_pop/',
         modules: Optional[List[str]] = None,
+        input_overrides: Optional[Dict[str, str]] = None,
+        output_redshifts: Optional[List[float]] = None,
+        output_iz_list: Optional[List[int]] = None,
+        submit_retries: int = 4,
+        submit_retry_delay_s: float = 15.0,
+        submit_retry_backoff: float = 2.0,
     ):
         """
         Initialise the GALFORM job submitter.
@@ -288,6 +322,18 @@ class GalformSubmitter:
             stellar_pop_dir: Location of stellar-population data files.
             modules: List of ``module load`` commands.  Defaults to the Intel
                 2024 toolchain.
+            input_overrides: Extra ``name -> value`` GALFORM input parameters
+                to inject via ``replace_variable.csh``.
+            output_redshifts: Explicit list of redshifts to write into
+                ``zout`` for a single run. Sets ``nout`` to list length.
+            output_iz_list: Explicit list of snapshots to convert to redshifts
+                via ``snapshot_file`` and write into ``zout``. Mutually
+                exclusive with ``output_redshifts``.
+            submit_retries: Number of attempts for SLURM job submission when
+                transient scheduler overload errors are detected.
+            submit_retry_delay_s: Base retry delay in seconds.
+            submit_retry_backoff: Exponential backoff factor applied between
+                retry attempts.
         """
         self.galform_dir = Path(galform_dir)
         self.nbody_sim = nbody_sim
@@ -300,6 +346,20 @@ class GalformSubmitter:
         self.stellar_pop_dir = stellar_pop_dir
         self.run_flags = run_flags if run_flags is not None else load_run_flags_config()
         self.output_folder_name = output_folder_name
+        self.input_overrides = dict(input_overrides) if input_overrides else {}
+        self.output_redshifts = list(output_redshifts) if output_redshifts is not None else None
+        self.output_iz_list = list(output_iz_list) if output_iz_list is not None else None
+        self.submit_retries = max(1, int(submit_retries))
+        self.submit_retry_delay_s = max(0.0, float(submit_retry_delay_s))
+        self.submit_retry_backoff = max(1.0, float(submit_retry_backoff))
+        self._snapshot_redshift_cache: Optional[Dict[int, float]] = None
+
+        if self.output_redshifts is not None and self.output_iz_list is not None:
+            raise ValueError('Specify only one of output_redshifts and output_iz_list')
+
+        # Multi-output tree building requires keeping descendants across outputs.
+        if self._builds_galaxy_trees() and self._uses_multi_output():
+            self.input_overrides.setdefault('mgalmin_output_descendants', '.true.')
 
         # Modules
         if modules is not None:
@@ -353,6 +413,11 @@ class GalformSubmitter:
 
         if self.iz is not None:
             self.iz_list = [self.iz]
+
+        self.nvol_start, self.nvol_end = _parse_nvol_range(self.nvol_range)
+        self.nvol_count = self.nvol_end - self.nvol_start + 1
+        # Use compact task IDs to avoid SLURM sites that reject large array indices.
+        self.slurm_array_range = f'1-{self.nvol_count}'
 
         # Validate
         if not self.galform_dir.is_dir():
@@ -450,6 +515,14 @@ class GalformSubmitter:
 
     def _generate_parameter_overrides_block(self) -> str:
         """Generate the block that injects simulation/cosmology params into the input file."""
+        output_redshifts = self._resolve_output_redshifts()
+        if output_redshifts is None:
+            nout_value = '1'
+            zout_value = '$z'
+        else:
+            nout_value = str(len(output_redshifts))
+            zout_value = ' '.join(self._format_float_for_input(zout) for zout in output_redshifts)
+
         lines = [
             '# ---- override parameters for N-body run ----',
             f'./replace_variable.csh $galform_inputs_file stellar_pop_dir {self.stellar_pop_dir}',
@@ -469,9 +542,81 @@ class GalformSubmitter:
             './replace_variable.csh $galform_inputs_file sigma8 $sigma8',
             './replace_variable.csh $galform_inputs_file itrans -1',
             './replace_variable.csh $galform_inputs_file PKfile $PKfile',
-            './replace_vector.csh $galform_inputs_file zout $z',
+            f'./replace_variable.csh $galform_inputs_file nout {nout_value}',
+            f'./replace_vector.csh $galform_inputs_file zout {zout_value}',
         ]
+
+        # Inject optional user-provided parameter overrides.
+        for name, value in self.input_overrides.items():
+            lines.append(f'./replace_variable.csh $galform_inputs_file {name} {value}')
+
         return '\n'.join(lines)
+
+    @staticmethod
+    def _format_float_for_input(value: float) -> str:
+        """Format numeric input values compactly for GALFORM parameter files."""
+        return f'{float(value):.12g}'
+
+    @staticmethod
+    def _is_truthy_fortran(value: str) -> bool:
+        v = value.strip().lower()
+        return v in {'.true.', 'true', 't'}
+
+    def _builds_galaxy_trees(self) -> bool:
+        raw = self.input_overrides.get('build_galaxy_trees')
+        return bool(raw is not None and self._is_truthy_fortran(raw))
+
+    def _uses_multi_output(self) -> bool:
+        if self.output_redshifts is not None:
+            return len(self.output_redshifts) > 1
+        if self.output_iz_list is not None:
+            return len(self.output_iz_list) > 1
+        return False
+
+    def _load_snapshot_redshifts(self) -> Dict[int, float]:
+        if self._snapshot_redshift_cache is not None:
+            return self._snapshot_redshift_cache
+        if self.sim_config is None:
+            raise ValueError('Simulation config is required to resolve output_iz_list')
+
+        snapshot_map: Dict[int, float] = {}
+        snapshot_file = Path(self.sim_config.snapshot_file)
+        if not snapshot_file.exists():
+            raise FileNotFoundError(f'Snapshot file not found: {snapshot_file}')
+
+        with open(snapshot_file) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                try:
+                    snapshot_map[int(parts[0])] = float(parts[1])
+                except ValueError:
+                    continue
+
+        self._snapshot_redshift_cache = snapshot_map
+        return snapshot_map
+
+    def _resolve_output_redshifts(self) -> Optional[List[float]]:
+        if self.output_redshifts is not None:
+            return [float(z) for z in self.output_redshifts]
+        if self.output_iz_list is None:
+            return None
+
+        snapshot_map = self._load_snapshot_redshifts()
+        resolved: List[float] = []
+        missing: List[int] = []
+        for iz in self.output_iz_list:
+            if iz not in snapshot_map:
+                missing.append(iz)
+            else:
+                resolved.append(snapshot_map[iz])
+        if missing:
+            raise ValueError(f'Could not resolve redshift(s) for output_iz_list entries: {missing}')
+        return resolved
 
     def _generate_bands_block(self) -> str:
         """Generate the photometric bands and emission lines configuration."""
@@ -684,7 +829,8 @@ unlimit datasize
 set model     = {self.model}
 set Nbody_sim = {self.nbody_sim}
 set iz        = {iz}
-@ ivol        = ${{SLURM_ARRAY_TASK_ID}} - 1
+@ slurm_task_id = ${{SLURM_ARRAY_TASK_ID}}
+@ ivol        = $slurm_task_id + {self.nvol_start} - 2
 
 # Change to GALFORM source directory (scripts use relative paths)
 cd {self.galform_dir}
@@ -756,29 +902,43 @@ set SAMPLE_GALS_EXE    = ${{build_dir}}/sample_gals
             return None
 
         cmd = ['sbatch']
-        cmd.append(f'--array={self.nvol_range}')
+        cmd.append(f'--array={self.slurm_array_range}')
 
-        try:
-            result = subprocess.run(
-                cmd,
-                input=script_content.encode(),
-                capture_output=True,
-                check=True,
-            )
+        for attempt in range(1, self.submit_retries + 1):
+            try:
+                result = subprocess.run(
+                    cmd,
+                    input=script_content.encode(),
+                    capture_output=True,
+                    check=True,
+                )
 
-            output = result.stdout.decode().strip()
-            if "Submitted batch job" in output:
-                job_id = output.split()[-1]
-                return job_id
-            return None
+                output = result.stdout.decode().strip()
+                if "Submitted batch job" in output:
+                    job_id = output.split()[-1]
+                    return job_id
+                return None
 
-        except subprocess.CalledProcessError as e:
-            stdout = e.stdout.decode() if e.stdout else ""
-            stderr = e.stderr.decode() if e.stderr else ""
-            raise RuntimeError(
-                f"Failed to submit job for iz={iz}: {e}\n"
-                f"STDOUT: {stdout}\nSTDERR: {stderr}"
-            ) from e
+            except subprocess.CalledProcessError as e:
+                stdout = e.stdout.decode() if e.stdout else ""
+                stderr = e.stderr.decode() if e.stderr else ""
+                combined = f"{stdout}\n{stderr}".lower()
+                is_transient = any(marker in combined for marker in _TRANSIENT_SUBMIT_ERROR_MARKERS)
+                is_last_attempt = attempt >= self.submit_retries
+
+                if not is_transient or is_last_attempt:
+                    raise RuntimeError(
+                        f"Failed to submit job for iz={iz}: {e}\n"
+                        f"STDOUT: {stdout}\nSTDERR: {stderr}"
+                    ) from e
+
+                delay_s = self.submit_retry_delay_s * (self.submit_retry_backoff ** (attempt - 1))
+                print(
+                    f"Transient SLURM submission error for iz={iz}. "
+                    f"Retrying in {delay_s:.1f}s "
+                    f"(attempt {attempt + 1}/{self.submit_retries})."
+                )
+                time.sleep(delay_s)
 
     def submit_all_jobs(self, dry_run: bool = False) -> List[str]:
         """
@@ -855,6 +1015,10 @@ Examples:
                         help='Job wall-time (default: 72:00:00)')
     parser.add_argument('--iz-list', type=int, nargs='+',
                         help='Override default snapshot list')
+    parser.add_argument('--output-iz-list', type=int, nargs='+',
+                        help='Output multiple snapshots in one run (sets nout/zout)')
+    parser.add_argument('--output-z-list', type=float, nargs='+',
+                        help='Output multiple redshifts in one run (sets nout/zout)')
     parser.add_argument('--nvol-range',
                         help='Deprecated alias for --nvol')
     parser.add_argument('--run-flags-config',
@@ -877,6 +1041,16 @@ Examples:
                             help='Enable dust properties output')
     flag_group.add_argument('--run-samp-z0', action='store_true',
                             help='Enable z=0 galaxy sample output')
+
+    tree_group = parser.add_argument_group('tree-output toggles')
+    tree_group.add_argument('--build-galaxy-trees', action='store_true', default=None,
+                            help='Set build_galaxy_trees = .true. in GALFORM input')
+    tree_group.add_argument('--no-build-galaxy-trees', action='store_true', default=None,
+                            help='Set build_galaxy_trees = .false. in GALFORM input')
+    tree_group.add_argument('--output-halo-trees', action='store_true', default=None,
+                            help='Set output_halo_trees = .true. in GALFORM input')
+    tree_group.add_argument('--no-output-halo-trees', action='store_true', default=None,
+                            help='Set output_halo_trees = .false. in GALFORM input')
 
     parser.add_argument('--dry-run', action='store_true',
                         help='Print job scripts without submitting')
@@ -920,6 +1094,24 @@ Examples:
         samp_z0=True if args.run_samp_z0 else _json_defaults.samp_z0,
     )
 
+    input_overrides: Dict[str, str] = {}
+    if args.build_galaxy_trees and args.no_build_galaxy_trees:
+        raise ValueError('Use only one of --build-galaxy-trees or --no-build-galaxy-trees')
+    if args.output_halo_trees and args.no_output_halo_trees:
+        raise ValueError('Use only one of --output-halo-trees or --no-output-halo-trees')
+    if args.output_iz_list and args.output_z_list:
+        raise ValueError('Use only one of --output-iz-list or --output-z-list')
+
+    if args.build_galaxy_trees:
+        input_overrides['build_galaxy_trees'] = '.true.'
+    if args.no_build_galaxy_trees:
+        input_overrides['build_galaxy_trees'] = '.false.'
+
+    if args.output_halo_trees:
+        input_overrides['output_halo_trees'] = '.true.'
+    if args.no_output_halo_trees:
+        input_overrides['output_halo_trees'] = '.false.'
+
     try:
         submitter = GalformSubmitter(
             galform_dir=args.galform_dir,
@@ -936,6 +1128,9 @@ Examples:
             iz_list=args.iz_list,
             nvol_range=args.nvol_range,
             run_flags=run_flags,
+            input_overrides=input_overrides,
+            output_redshifts=args.output_z_list,
+            output_iz_list=args.output_iz_list,
         )
         submitter.submit_all_jobs(dry_run=args.dry_run)
         return 0

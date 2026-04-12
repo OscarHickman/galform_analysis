@@ -80,8 +80,12 @@ Thumbs.db
 data/
 logs/
 convergence_results*/
+examples/.ruff_cache/
+examples/**/.ruff_cache/
+examples/_plots/
+scripts/__pycache__/
+scripts/logs/
 
 # Personal/scratch notebooks
 kai/
-scripts/
 examples/ongoing/

@@ -1,0 +1,267 @@
+#!/bin/bash
+# Submit subvolume-weighted-estimator 2PCF jobs for L800/lc16 while varying stellar-mass cut.
+# Matrix defaults:
+#   - iz:            271, 207, 155
+#   - mhalo_min:     1e11, 1e9
+#   - centrals_only: 0, 1
+#   - mstar_min:     none, 8.5, 9.0, 9.5, 10.0
+#   - n_subvol:      1,2,4,8,10,15,20,25,30,50,100,200,400,600,800,1024
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+TEMPLATE="${SCRIPT_DIR}/run_subvol_weighted_grid.slurm"
+PARTITION="${PARTITION:-cosma5}"
+
+BASE_DIR="${BASE_DIR:-/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16}"
+OUT_ROOT="${OUT_ROOT:-${REPO_ROOT}/data/halo_sampling_6_subvol_weighted_mstar_scan}"
+MODE="${MODE:-weighted}"
+PARTITION_SCHEME="${PARTITION_SCHEME:-ivol}"
+SIM_NAME="L800"
+MODEL_NAME="lc16"
+BOXSIZE="542.16"
+K_TOTAL="1024"
+
+# Slurm array indices are typically limited to [1, MaxArraySize-1].
+MAX_ARRAY_TASK_ID="${MAX_ARRAY_TASK_ID:-}"
+if [[ -z "${MAX_ARRAY_TASK_ID}" ]]; then
+    max_array_size_raw="$( (scontrol show config 2>/dev/null | awk -F= '/^MaxArraySize/{gsub(/ /, "", $2); print $2; exit}') || true )"
+    if [[ "${max_array_size_raw}" =~ ^[0-9]+$ ]] && (( max_array_size_raw > 1 )); then
+        MAX_ARRAY_TASK_ID=$((max_array_size_raw - 1))
+    else
+        MAX_ARRAY_TASK_ID=1000
+    fi
+fi
+
+IZ_LIST=(271 207 155)
+N_SUBVOL_LIST="1,2,4,8,10,15,20,25,30,50,100,200,400,600,800,1024"
+MHALO_LIST=(1e11 1e9)
+CENTRALS_LIST=(0 1)
+MSTAR_LIST=(none 8.5 9.0 9.5 10.0)
+
+if [[ ! -f "${TEMPLATE}" ]]; then
+    echo "Missing SLURM template: ${TEMPLATE}"
+    exit 1
+fi
+
+if [[ ! -d "${BASE_DIR}" ]]; then
+    echo "Base directory not found: ${BASE_DIR}"
+    exit 1
+fi
+
+mkdir -p "${REPO_ROOT}/logs" "${OUT_ROOT}"
+
+queued_names=""
+if command -v squeue >/dev/null 2>&1; then
+    queued_names="$(squeue -u "${USER}" -h -o "%j" || true)"
+fi
+
+submitted=0
+skipped_existing=0
+skipped_queued=0
+
+all_outputs_exist_for_spec() {
+    local out_dir_base="$1"
+    local iz="$2"
+    local spec="$3"
+    local out_csv
+
+    if [[ "${spec}" == *-* && "${spec}" != *,* ]]; then
+        local start end n
+        start="${spec%-*}"
+        end="${spec#*-}"
+        for n in $(seq "${start}" "${end}"); do
+            out_csv="${out_dir_base}/nsubvol_${n}/halo_sampling_convergence_${MODE}_${SIM_NAME}_iz${iz}.csv"
+            if [[ ! -f "${out_csv}" ]]; then
+                return 1
+            fi
+        done
+        return 0
+    fi
+
+    IFS=',' read -r -a __nvals <<<"${spec}"
+    local n
+    for n in "${__nvals[@]}"; do
+        out_csv="${out_dir_base}/nsubvol_${n}/halo_sampling_convergence_${MODE}_${SIM_NAME}_iz${iz}.csv"
+        if [[ ! -f "${out_csv}" ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+is_queued() {
+    local name="$1"
+    [[ -n "${queued_names}" ]] && grep -qx "${name}" <<<"${queued_names}"
+}
+
+submit_array_job() {
+    local job_name="$1"
+    local array_spec="$2"
+    local iz="$3"
+    local nmax="$4"
+    local mhalo="$5"
+    local centrals="$6"
+    local out_dir_base="$7"
+    local mstar="$8"
+
+    if is_queued "${job_name}"; then
+        echo "Skipping (already queued): ${job_name}"
+        skipped_queued=$((skipped_queued + 1))
+        return
+    fi
+
+    if all_outputs_exist_for_spec "${out_dir_base}" "${iz}" "${array_spec}"; then
+        echo "Skipping (all per-n outputs exist): ${out_dir_base} [${array_spec}]"
+        skipped_existing=$((skipped_existing + 1))
+        return
+    fi
+
+    mkdir -p "${out_dir_base}"
+    echo "Submitting ${job_name} as array ${array_spec}"
+
+    export_args="ALL,MODE=${MODE},PARTITION_SCHEME=${PARTITION_SCHEME},SIM_NAME=${SIM_NAME},MODEL_NAME=${MODEL_NAME},IZ=${iz},NMAX=${nmax},K_TOTAL=${K_TOTAL},OUTPUT_DIR_BASE=${out_dir_base},BOXSIZE=${BOXSIZE},MHALO_MIN=${mhalo},CENTRALS_ONLY=${centrals},BASE_DIR_OVERRIDE=${BASE_DIR}"
+    if [[ "${mstar}" != "none" ]]; then
+        export_args+=",MSTAR_MIN_LOG10=${mstar}"
+    fi
+
+    sbatch \
+        --partition="${PARTITION}" \
+        --job-name="${job_name}" \
+        --array="${array_spec}" \
+        --export="${export_args}" \
+        "${TEMPLATE}"
+
+    submitted=$((submitted + 1))
+}
+
+submit_single_job() {
+    local job_name="$1"
+    local n="$2"
+    local iz="$3"
+    local nmax="$4"
+    local mhalo="$5"
+    local centrals="$6"
+    local out_dir_base="$7"
+    local mstar="$8"
+
+    local out_dir="${out_dir_base}/nsubvol_${n}"
+    local out_csv="${out_dir}/halo_sampling_convergence_${MODE}_${SIM_NAME}_iz${iz}.csv"
+
+    if [[ -f "${out_csv}" ]]; then
+        echo "Skipping (output exists): ${out_csv}"
+        skipped_existing=$((skipped_existing + 1))
+        return
+    fi
+
+    if is_queued "${job_name}"; then
+        echo "Skipping (already queued): ${job_name}"
+        skipped_queued=$((skipped_queued + 1))
+        return
+    fi
+
+    mkdir -p "${out_dir}"
+    echo "Submitting ${job_name} (n_subvol=${n})"
+
+    export_args="ALL,MODE=${MODE},PARTITION_SCHEME=${PARTITION_SCHEME},SIM_NAME=${SIM_NAME},MODEL_NAME=${MODEL_NAME},IZ=${iz},NMAX=${nmax},K_TOTAL=${K_TOTAL},SUBVOLS=${n},OUTPUT_DIR=${out_dir},BOXSIZE=${BOXSIZE},MHALO_MIN=${mhalo},CENTRALS_ONLY=${centrals},BASE_DIR_OVERRIDE=${BASE_DIR}"
+    if [[ "${mstar}" != "none" ]]; then
+        export_args+=",MSTAR_MIN_LOG10=${mstar}"
+    fi
+
+    sbatch \
+        --partition="${PARTITION}" \
+        --job-name="${job_name}" \
+        --export="${export_args}" \
+        "${TEMPLATE}"
+
+    submitted=$((submitted + 1))
+}
+
+submit_spec() {
+    local iz="$1"
+    local nmax="$2"
+    local spec="$3"
+    local set_tag="$4"
+    local mhalo="$5"
+    local mhalo_tag="$6"
+    local centrals="$7"
+    local mstar="$8"
+    local mstar_tag="$9"
+    local mstar_job="${10}"
+
+    local out_dir_base="${OUT_ROOT}/${MODEL_NAME}/iz${iz}/ntotal_${nmax}/${set_tag}/mhalo_${mhalo_tag}/centrals_${centrals}/mstar_${mstar_tag}"
+    local base_job="sw6_i${iz}_N${nmax}_${mhalo_tag}_c${centrals}_${mstar_job}"
+
+    if [[ "${spec}" == *-* && "${spec}" != *,* ]]; then
+        local start end
+        start="${spec%-*}"
+        end="${spec#*-}"
+
+        if (( end <= MAX_ARRAY_TASK_ID )); then
+            submit_array_job "${base_job}_a${start}_${end}" "${spec}" "${iz}" "${nmax}" "${mhalo}" "${centrals}" "${out_dir_base}" "${mstar}"
+            return
+        fi
+
+        if (( start <= MAX_ARRAY_TASK_ID )); then
+            submit_array_job "${base_job}_a${start}_${MAX_ARRAY_TASK_ID}" "${start}-${MAX_ARRAY_TASK_ID}" "${iz}" "${nmax}" "${mhalo}" "${centrals}" "${out_dir_base}" "${mstar}"
+        fi
+
+        local n
+        for n in $(seq $((MAX_ARRAY_TASK_ID + 1)) "${end}"); do
+            submit_single_job "${base_job}_n${n}" "${n}" "${iz}" "${nmax}" "${mhalo}" "${centrals}" "${out_dir_base}" "${mstar}"
+        done
+        return
+    fi
+
+    IFS=',' read -r -a __nvals <<<"${spec}"
+    local n
+    local csv_le=""
+    for n in "${__nvals[@]}"; do
+        if (( n <= MAX_ARRAY_TASK_ID )); then
+            if [[ -z "${csv_le}" ]]; then
+                csv_le="${n}"
+            else
+                csv_le="${csv_le},${n}"
+            fi
+        else
+            submit_single_job "${base_job}_n${n}" "${n}" "${iz}" "${nmax}" "${mhalo}" "${centrals}" "${out_dir_base}" "${mstar}"
+        fi
+    done
+
+    if [[ -n "${csv_le}" ]]; then
+        submit_array_job "${base_job}_alist" "${csv_le}" "${iz}" "${nmax}" "${mhalo}" "${centrals}" "${out_dir_base}" "${mstar}"
+    fi
+}
+
+for iz in "${IZ_LIST[@]}"; do
+    for mhalo in "${MHALO_LIST[@]}"; do
+        if [[ "${mhalo}" == "1e11" ]]; then
+            mhalo_tag="1e11"
+        else
+            mhalo_tag="1e9"
+        fi
+
+        for centrals in "${CENTRALS_LIST[@]}"; do
+            for mstar in "${MSTAR_LIST[@]}"; do
+                if [[ "${mstar}" == "none" ]]; then
+                    mstar_tag="none"
+                    mstar_job="msnone"
+                else
+                    mstar_tag="${mstar//./p}"
+                    mstar_job="ms${mstar//./p}"
+                fi
+
+                submit_spec "${iz}" "1024" "${N_SUBVOL_LIST}" "custom" "${mhalo}" "${mhalo_tag}" "${centrals}" "${mstar}" "${mstar_tag}" "${mstar_job}"
+            done
+        done
+    done
+done
+
+echo "------------------------------------------------------------"
+echo "Subvol-weighted stellar-mass scan submission summary"
+echo "  submitted:        ${submitted}"
+echo "  skipped existing: ${skipped_existing}"
+echo "  skipped queued:   ${skipped_queued}"
+echo "  output root:      ${OUT_ROOT}"
+echo "------------------------------------------------------------"

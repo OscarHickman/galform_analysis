@@ -21,31 +21,104 @@ from astropy.cosmology import LambdaCDM
 from halotools.empirical_models import halo_mass_to_halo_radius
 from halotools.mock_observables import marked_tpcf, npairs_3d, tpcf
 
+from ...io.loaders import get_output_group
+
 
 _NOTEBOOK_COSMO = LambdaCDM(67.777, 0.307, 0.693)
+
+
+def _is_informative_identifier(values: np.ndarray) -> bool:
+    """Return True when an ID array can separate at least two groups."""
+    if values.size == 0:
+        return False
+
+    if values.dtype.kind in 'iu':
+        valid = values[values >= 0]
+    else:
+        valid = values[np.isfinite(values)]
+
+    if valid.size == 0:
+        return False
+    return np.unique(valid).size > 1
+
+
+def _select_group_identifier(galaxies_group: h5py.Group, mhhalo: np.ndarray) -> np.ndarray:
+    """Choose a robust group identifier for same-halo pair bookkeeping.
+
+    Preference order:
+    1) notebook-style synthetic key ``mhhalo*vhhalo`` (when available and informative),
+    2) explicit halo/tree identifiers present in GALFORM outputs.
+    """
+    if 'vhhalo' in galaxies_group:
+        synthetic_id = (mhhalo * np.asarray(galaxies_group['vhhalo'])).astype(np.int64)
+        if _is_informative_identifier(synthetic_id):
+            return synthetic_id
+
+    for key in ('ihhalo', 'ihalof', 'DHaloID', 'TreeID', 'SubhaloID'):
+        if key not in galaxies_group:
+            continue
+        values = np.asarray(galaxies_group[key])
+        if _is_informative_identifier(values):
+            return values
+
+    # Last-chance fallback to preserve behavior even for degenerate IDs.
+    if 'vhhalo' in galaxies_group:
+        return (mhhalo * np.asarray(galaxies_group['vhhalo'])).astype(np.int64)
+    for key in ('ihhalo', 'ihalof', 'DHaloID', 'TreeID', 'SubhaloID'):
+        if key in galaxies_group:
+            return np.asarray(galaxies_group[key])
+
+    raise KeyError('Expected one of vhhalo, ihhalo, ihalof, DHaloID, TreeID or SubhaloID in GALFORM output')
 
 
 def _read_single_ivol_galaxies(gal_file: Path, mhalo_min: float = 1e11) -> pd.DataFrame:
     """Read one GALFORM subvolume in the same style as the notebook helper."""
     with h5py.File(gal_file, 'r') as f:
-        g = f['Output001']
+        g = get_output_group(f)
+        if g is None:
+            raise KeyError('No OutputNNN group found in GALFORM output')
+
         logh = np.log10(0.7)
 
-        mhhalo = np.asarray(g['mhhalo'])
-        mask = mhhalo > mhalo_min
+        if 'mhhalo' in g:
+            mhhalo = np.asarray(g['mhhalo'])
+        elif 'mhalo' in g:
+            mhhalo = np.asarray(g['mhalo'])
+        else:
+            raise KeyError('Expected mhhalo or mhalo in GALFORM output')
 
-        # Match notebook behavior: synthetic group key from mhhalo*vhhalo, then compact it later.
-        igrp = (mhhalo * np.asarray(g['vhhalo'])).astype(np.int64)
+        if 'mstars_bulge' in g and 'mstars_disk' in g:
+            mstar_raw = np.asarray(g['mstars_bulge']) + np.asarray(g['mstars_disk'])
+        elif 'mstars' in g:
+            mstar_raw = np.asarray(g['mstars'])
+        else:
+            raise KeyError('Expected mstars_bulge+mstars_disk or mstars in GALFORM output')
+
+        igrp_raw = _select_group_identifier(g, mhhalo)
+        mask = mhhalo > mhalo_min
+        if igrp_raw.dtype.kind in 'iu':
+            mask &= igrp_raw >= 0
+        else:
+            mask &= np.isfinite(igrp_raw)
+
+        if np.count_nonzero(mask) == 0:
+            return pd.DataFrame(columns=['igrp', 'is_central', 'xgal', 'ygal', 'zgal', 'mstar', 'mhalo'])
+
+        igrp = np.asarray(igrp_raw)[mask]
+        if igrp.dtype.kind not in 'iu':
+            igrp = np.rint(igrp).astype(np.int64)
+        else:
+            igrp = igrp.astype(np.int64, copy=False)
 
         gal = pd.DataFrame(
             {
-                'igrp': igrp[mask],
+                'igrp': igrp,
                 'is_central': np.asarray(g['is_central'])[mask],
                 'xgal': np.asarray(g['xgal'])[mask],
                 'ygal': np.asarray(g['ygal'])[mask],
                 'zgal': np.asarray(g['zgal'])[mask],
                 'mstar': (
-                    np.log10(np.asarray(g['mstars_bulge']) + np.asarray(g['mstars_disk']) + 1e-3)
+                    np.log10(np.clip(mstar_raw, 0.0, None) + 1e-3)
                     - logh
                 )[mask],
                 'mhalo': (np.log10(mhhalo + 1e-3) - logh)[mask],
@@ -80,17 +153,27 @@ def load_notebook_style_galaxies(
     gals = pd.concat(gal_chunks, ignore_index=True)
 
     # Compact group IDs to contiguous [0, ngrp)
-    unique_ids = np.unique(gals['igrp'].values)
-    map_igrp = dict(zip(unique_ids, np.arange(len(unique_ids), dtype=np.int64)))
-    gals['igrp'] = np.array([map_igrp[i] for i in gals['igrp'].values], dtype=np.int64)
+    gals['igrp'] = pd.factorize(gals['igrp'].values, sort=False)[0].astype(np.int64)
+    ngrp = int(gals['igrp'].max()) + 1
 
     # Reproduce notebook's radial-within-halo filtering.
     cen = gals[gals['is_central'] == 1]
-    pos_cen = np.zeros((len(unique_ids), 3), dtype=np.float64)
+    pos_cen = np.zeros((ngrp, 3), dtype=np.float64)
     if not cen.empty:
         pos_cen[cen['igrp'].values, 0] = cen['xgal'].values
         pos_cen[cen['igrp'].values, 1] = cen['ygal'].values
         pos_cen[cen['igrp'].values, 2] = cen['zgal'].values
+
+    # Some filtered groups can lose their flagged central; fall back to max-mstar member.
+    missing = np.ones(ngrp, dtype=bool)
+    if not cen.empty:
+        missing[np.unique(cen['igrp'].values)] = False
+    if np.any(missing):
+        idx_max = gals.groupby('igrp')['mstar'].idxmax()
+        fallback = gals.loc[idx_max, ['igrp', 'xgal', 'ygal', 'zgal']]
+        pos_cen[fallback['igrp'].values, 0] = fallback['xgal'].values
+        pos_cen[fallback['igrp'].values, 1] = fallback['ygal'].values
+        pos_cen[fallback['igrp'].values, 2] = fallback['zgal'].values
 
     dx = gals['xgal'].values - pos_cen[gals['igrp'].values, 0]
     dy = gals['ygal'].values - pos_cen[gals['igrp'].values, 1]
@@ -108,7 +191,8 @@ def load_notebook_style_galaxies(
     dr_norm = dr / rhalo
 
     gals = gals.assign(dr=dr, rhalo=rhalo, dr_norm=dr_norm)
-    gals = gals[gals['dr_norm'] < 1]
+    valid = np.isfinite(gals['dr_norm']) & np.isfinite(gals['rhalo']) & (gals['rhalo'] > 0) & (gals['dr_norm'] >= 0)
+    gals = gals[valid & (gals['dr_norm'] < 1)]
     if centrals_only:
         gals = gals[gals['is_central'] == 1]
     return gals
