@@ -1,6 +1,7 @@
 #!/bin/bash
-# Submit random-subvolume weighted-estimator 2PCF jobs for L800/lc16 over
-# requested redshifts, halo-mass cuts, centrals-only settings, and n_subvol values.
+# Submit random-subvolume weighted-estimator 2PCF jobs for a chosen model
+# over requested redshifts, halo-mass cuts, centrals-only settings, and
+# n_subvol values.
 
 set -euo pipefail
 
@@ -9,13 +10,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE="${SCRIPT_DIR}/run_subvol_weighted_grid_random.slurm"
 PARTITION="cosma5"
 
-BASE_DIR="${BASE_DIR:-/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16}"
+SIM_NAME="${SIM_NAME:-L800}"
+MODEL_NAME="${MODEL_NAME:-lc16}"
+BASE_DIR="${BASE_DIR:-/cosma5/data/durham/dc-hick2/Galform_Out/${SIM_NAME}/${MODEL_NAME}}"
 OUT_ROOT="${OUT_ROOT:-${REPO_ROOT}/data/halo_sampling_4_subvol_weighted_random}"
 MODE="${MODE:-weighted}"
 PARTITION_SCHEME="${PARTITION_SCHEME:-ivol}"
 RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED:-314159}"
-SIM_NAME="L800"
-MODEL_NAME="lc16"
 BOXSIZE="542.16"
 K_TOTAL="1024"
 
@@ -173,7 +174,11 @@ submit_spec() {
 
     local out_dir_base="${OUT_ROOT}/${MODEL_NAME}/iz${iz}/ntotal_${nmax}/${set_tag}/mhalo_${mhalo_tag}/centrals_${centrals}"
 
-    local base_job="swrL8lc16_i${iz}_N${nmax}_${set_tag}_${mhalo_tag}_c${centrals}"
+    local sim_tag
+    local model_tag
+    sim_tag="${SIM_NAME//[^0-9a-zA-Z._-]/_}"
+    model_tag="${MODEL_NAME//[^0-9a-zA-Z._-]/_}"
+    local base_job="swr${sim_tag}_${model_tag}_i${iz}_N${nmax}_${set_tag}_${mhalo_tag}_c${centrals}"
 
     if [[ "${spec}" == *-* && "${spec}" != *,* ]]; then
         local start end

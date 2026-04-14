@@ -96,14 +96,26 @@ def main() -> None:
     else:
         nvolumes = _parse_subvols(args.subvols, nmax=nmax)
 
-    rbins = np.logspace(-1, 1.5, 21)
+    # Halotools requires max(rbins) < boxsize/3 for periodic calculations.
+    # Keep the notebook default upper scale when allowed, otherwise cap by box size.
+    rbins_rmin = 0.1
+    rbins_rmax_default = 10 ** 1.5
+    rbins_rmax_cap = max((args.boxsize / 3.0) * 0.95, rbins_rmin * 1.01)
+    rbins_rmax = min(rbins_rmax_default, rbins_rmax_cap)
+    if rbins_rmax <= rbins_rmin:
+        raise ValueError(
+            f"Invalid rbins bounds for boxsize={args.boxsize}: "
+            f"rmin={rbins_rmin}, rmax={rbins_rmax}"
+        )
+
+    rbins = np.logspace(np.log10(rbins_rmin), np.log10(rbins_rmax), 21)
     rmids = 0.5 * (rbins[:-1] + rbins[1:])
 
     rows: list[dict[str, float | int | str]] = []
     print(
         f"Running {args.sim_name} iz{args.iz} mode={args.mode} for {len(nvolumes)} subvolume values "
         f"(1..{nvolumes[-1]}), base_dir={base_dir}, centrals_only={args.centrals_only}, "
-        f"mstar_min_log10={args.mstar_min_log10}",
+        f"mstar_min_log10={args.mstar_min_log10}, rbins=[{rbins[0]:.3f}, {rbins[-1]:.3f}]",
         flush=True,
     )
 
@@ -145,9 +157,20 @@ def main() -> None:
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_csv = out_dir / f"group_sampling_convergence_{args.mode}_{args.sim_name}_iz{args.iz}.csv"
 
-    new_df = pd.DataFrame(rows)
+    new_df = pd.DataFrame(rows).sort_values(["n_subvol", "bin_idx"]).reset_index(drop=True)
+
+    # For one-n-per-job workflows, write one shard per n_subvol to avoid file races
+    # and preserve previously correct outputs from earlier runs.
+    if len(nvolumes) == 1:
+        nvol = int(nvolumes[0])
+        out_csv = out_dir / f"group_sampling_convergence_{args.mode}_{args.sim_name}_iz{args.iz}_n{nvol}.csv"
+        new_df.to_csv(out_csv, index=False)
+        print(f"Saved single-n shard: {out_csv}", flush=True)
+        print(f"Rows: {len(new_df)}", flush=True)
+        return
+
+    out_csv = out_dir / f"group_sampling_convergence_{args.mode}_{args.sim_name}_iz{args.iz}.csv"
     if out_csv.exists():
         old_df = pd.read_csv(out_csv)
         if not old_df.empty and "n_subvol" in old_df.columns:
@@ -156,7 +179,7 @@ def main() -> None:
 
     new_df = new_df.sort_values(["n_subvol", "bin_idx"]).reset_index(drop=True)
     new_df.to_csv(out_csv, index=False)
-    print(f"Saved: {out_csv}", flush=True)
+    print(f"Saved merged CSV: {out_csv}", flush=True)
     print(f"Rows: {len(new_df)}", flush=True)
 
 

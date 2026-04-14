@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=gsamp_${MODE}_${SIM_NAME}_iz${IZ}
-#SBATCH --output=logs/gsamp_${MODE}_${SIM_NAME}_iz${IZ}_%j.log
-#SBATCH --error=logs/gsamp_${MODE}_${SIM_NAME}_iz${IZ}_%j.err
+#SBATCH --job-name=gsamp_job
+#SBATCH --output=logs/%x_%j.log
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --time=6:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 echo "======================================================================"
-echo "GROUP-SAMPLING CONVERGENCE: model=${MODEL_NAME:-gp14} mode=${MODE} sim=${SIM_NAME} iz=${IZ}"
+echo "GROUP-SAMPLING CONVERGENCE: model=${MODEL_NAME:-gp14} mode=${MODE} sim=${SIM_NAME} iz=${IZ} n_subvol=${N_SUBVOL}"
 echo "======================================================================"
 echo "Job ID:  ${SLURM_JOB_ID}"
 echo "Node:    ${SLURM_NODELIST}"
@@ -38,7 +38,7 @@ CMD=(
     --base-dir "${BASE_DIR}"
     --sim-name "${SIM_NAME}"
     --iz "${IZ}"
-    --subvols "${SUBVOLS}"
+    --subvols "${N_SUBVOL}"
     --nmax "${NMAX}"
     --output-dir "${OUTPUT_DIR}"
     --boxsize "${BOXSIZE}"
