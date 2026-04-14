@@ -34,7 +34,7 @@ MHALO_MIN="${MHALO_MIN:-1e11}"
 BOXSIZE="${BOXSIZE:-542.16}"
 
 CMD=(
-    python3 scripts/compute_group_sampling_grid.py
+    python3 scripts/2pcf/compute_group_sampling_grid.py
     --base-dir "${BASE_DIR}"
     --sim-name "${SIM_NAME}"
     --iz "${IZ}"
