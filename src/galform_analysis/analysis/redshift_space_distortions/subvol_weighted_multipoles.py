@@ -12,8 +12,9 @@ alpha = m / k
 beta  = m (k - 1) / [k (m - 1)]   (m > 1).
 
 The redshift-space multipoles (monopole xi_0, quadrupole xi_2) are then
-obtained by integrating the Landy-Szalay xi(s, mu) multiplied by the 
-appropriate Legendre polynomials over mu.
+obtained by integrating either the Landy-Szalay xi(s, mu) or a direct
+periodic-box estimator multiplied by the appropriate Legendre polynomials
+over mu.
 """
 
 from __future__ import annotations
@@ -33,6 +34,50 @@ def _counts_to_grid_smu(result: np.ndarray, n_s_bins: int, n_mu_bins: int) -> np
             f"Unexpected DDsmu output size: got {npairs.size}, expected {expected}"
         )
     return npairs.reshape(n_s_bins, n_mu_bins)
+
+
+def _analytic_rr_smu(
+    s_bins: np.ndarray,
+    mu_max: float,
+    n_mu_bins: int,
+    boxsize: float,
+    n_points: int,
+) -> np.ndarray:
+    """Analytic RR normalization for a periodic cubic box in (s, mu) bins."""
+    s_bins = np.asarray(s_bins, dtype=np.float64)
+    if s_bins.ndim != 1 or len(s_bins) < 2:
+        raise ValueError("s_bins must be a 1D array with at least two edges")
+    if mu_max <= 0.0:
+        raise ValueError("mu_max must be positive")
+    if n_mu_bins < 1:
+        raise ValueError("n_mu_bins must be >= 1")
+
+    volume = float(boxsize) ** 3
+    shell_volume = (4.0 / 3.0) * np.pi * (s_bins[1:] ** 3 - s_bins[:-1] ** 3)
+    mu_bin_fraction = 1.0 / float(n_mu_bins)
+    rr_shell = shell_volume / volume
+    return rr_shell[:, None] * np.full((1, int(n_mu_bins)), mu_bin_fraction, dtype=np.float64)
+
+
+def _project_rsd_multipoles(
+    xi_grid: np.ndarray,
+    mu_max: float,
+    n_mu_bins: int,
+    s_bins: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Project xi(s, mu) grids to monopole and quadrupole."""
+    s_bins = np.asarray(s_bins, dtype=np.float64)
+    mu_bins = np.linspace(0.0, mu_max, n_mu_bins + 1)
+    mu_mid = 0.5 * (mu_bins[:-1] + mu_bins[1:])
+    dmu = mu_max / n_mu_bins
+
+    l0 = np.ones_like(mu_mid)
+    l2 = 0.5 * (3.0 * mu_mid**2 - 1.0)
+
+    xi0 = np.nansum(xi_grid * l0 * dmu, axis=1)
+    xi2 = 5.0 * np.nansum(xi_grid * l2 * dmu, axis=1)
+    s_mid = 0.5 * (s_bins[:-1] + s_bins[1:])
+    return s_mid, xi0, xi2
 
 def _paircounts_smu_auto(
     positions: np.ndarray,
@@ -251,4 +296,101 @@ def compute_standard_rsd_multipoles(
         "xi_grid": xi_grid,
         "ngal": int(nd),
         "nrandom": int(nr),
+    }
+
+
+def compute_direct_rsd_multipoles(
+    galaxy_pos: np.ndarray,
+    s_bins: np.ndarray,
+    mu_max: float = 1.0,
+    n_mu_bins: int = 120,
+    boxsize: float = 800.0,
+    nthreads: int = 4,
+) -> dict:
+    """Compute periodic-box RSD multipoles without a random catalog."""
+    galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
+    s_bins = np.asarray(s_bins, dtype=np.float64)
+
+    nd = float(galaxy_pos.shape[0])
+
+    dd_counts = _paircounts_smu_auto(galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads)
+    dd_norm = dd_counts / _choose2(nd)
+
+    rr_norm = _analytic_rr_smu(s_bins, mu_max, n_mu_bins, boxsize, int(nd))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        xi_grid = dd_norm / rr_norm - 1.0
+
+    xi_grid[~np.isfinite(xi_grid)] = np.nan
+    s_mid, xi0, xi2 = _project_rsd_multipoles(xi_grid, mu_max, n_mu_bins, s_bins)
+
+    return {
+        "s": s_mid,
+        "xi0": xi0,
+        "xi2": xi2,
+        "xi_grid": xi_grid,
+        "ngal": int(nd),
+        "nrandom": 0,
+    }
+
+
+def compute_weighted_direct_rsd_multipoles(
+    galaxy_pos: np.ndarray,
+    galaxy_labels: np.ndarray,
+    s_bins: np.ndarray,
+    mu_max: float = 1.0,
+    n_mu_bins: int = 120,
+    k_total: int = 1024,
+    boxsize: float = 800.0,
+    nthreads: int = 4,
+) -> dict:
+    """Compute weighted periodic-box RSD multipoles without random catalogs."""
+    galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
+    galaxy_labels = np.asarray(galaxy_labels, dtype=np.int64)
+    s_bins = np.asarray(s_bins, dtype=np.float64)
+
+    nd = float(galaxy_pos.shape[0])
+    unique_labels = np.unique(galaxy_labels)
+    m_selected = len(unique_labels)
+
+    n_s_bins = len(s_bins) - 1
+
+    dd_total = _paircounts_smu_auto(galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads)
+    dd_total_norm = dd_total / _choose2(nd)
+
+    dd_auto = np.zeros((n_s_bins, n_mu_bins), dtype=np.float64)
+    for label in unique_labels:
+        mask = galaxy_labels == label
+        pos_sub = galaxy_pos[mask]
+        dd_auto += _paircounts_smu_auto(pos_sub, s_bins, mu_max, n_mu_bins, boxsize, nthreads)
+
+    dd_cross = dd_total - dd_auto
+
+    if m_selected < 2:
+        alpha = float(m_selected) / float(k_total)
+        beta = np.nan
+        xi_grid = np.full_like(dd_total_norm, np.nan)
+    else:
+        alpha = float(m_selected) / float(k_total)
+        beta = float(m_selected * (k_total - 1)) / float(k_total * (m_selected - 1))
+        dd_corr = alpha * dd_auto + beta * dd_cross
+        dd_corr_norm = dd_corr / _choose2(nd)
+
+        rr_norm = _analytic_rr_smu(s_bins, mu_max, n_mu_bins, boxsize, int(nd))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            xi_grid = dd_corr_norm / rr_norm - 1.0
+
+    xi_grid[~np.isfinite(xi_grid)] = np.nan
+    s_mid, xi0, xi2 = _project_rsd_multipoles(xi_grid, mu_max, n_mu_bins, s_bins)
+
+    return {
+        "s": s_mid,
+        "xi0": xi0,
+        "xi2": xi2,
+        "xi_grid": xi_grid,
+        "alpha": alpha,
+        "beta": beta,
+        "m_selected": int(m_selected),
+        "k_total": int(k_total),
+        "ngal": int(nd),
+        "nrandom": 0,
     }
