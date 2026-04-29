@@ -31,6 +31,23 @@ def _existing_ivols(iz_path: Path, nmax: int) -> list[int]:
     return out
 
 
+def _select_ivols(
+    available_ivols: list[int], n_subvol: int, selection: str, rng: np.random.Generator
+) -> list[int]:
+    if len(available_ivols) < n_subvol:
+        raise RuntimeError(
+            f"Requested n_subvol={n_subvol} but only {len(available_ivols)} subvolumes found"
+        )
+
+    if selection == "first":
+        return available_ivols[:n_subvol]
+    if selection == "random":
+        chosen = rng.choice(np.asarray(available_ivols), size=n_subvol, replace=False)
+        return [int(v) for v in np.sort(chosen)]
+
+    raise ValueError(f"Unknown ivol selection mode: {selection}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Compute RSD multipoles for n selected subvolumes")
     p.add_argument("--base-dir", required=True)
@@ -40,6 +57,7 @@ def main() -> None:
     p.add_argument("--n-subvol", type=int, required=True)
     p.add_argument("--nmax", type=int, default=1024)
     p.add_argument("--mode", choices=["normal", "corrected"], default="normal")
+    p.add_argument("--ivol-selection", choices=["first", "random"], default="first")
     p.add_argument("--boxsize", type=float, default=542.16)
     p.add_argument("--mhalo-min", type=float, default=1e10)
     p.add_argument("--centrals-only", action="store_true")
@@ -60,12 +78,12 @@ def main() -> None:
     if not iz_path.is_dir():
         raise FileNotFoundError(f"Missing snapshot dir: {iz_path}")
 
-    ivols = _existing_ivols(iz_path, args.nmax)
-    if len(ivols) < args.n_subvol:
-        raise RuntimeError(
-            f"Requested n_subvol={args.n_subvol} but only {len(ivols)} subvolumes found"
-        )
-    ivols = ivols[: args.n_subvol]
+    ivols = _select_ivols(
+        available_ivols=_existing_ivols(iz_path, args.nmax),
+        n_subvol=args.n_subvol,
+        selection=args.ivol_selection,
+        rng=rng,
+    )
 
     z_snap = get_snapshot_redshift(f"iz{args.iz}")
     if z_snap is None:
@@ -137,8 +155,10 @@ def main() -> None:
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    selection_suffix = "" if args.ivol_selection == "first" else f"_ivsel{args.ivol_selection}"
     out_csv = out_dir / (
-        f"rsd_subvol_{args.mode}_{args.sim_name}_{args.model_name}_iz{args.iz}_n{args.n_subvol}.csv"
+        f"rsd_subvol_{args.mode}_{args.sim_name}_{args.model_name}_iz{args.iz}_n{args.n_subvol}"
+        f"{selection_suffix}.csv"
     )
 
     pd.DataFrame(
@@ -149,6 +169,7 @@ def main() -> None:
             "z": float(z_snap),
             "mode": args.mode,
             "n_subvol": int(args.n_subvol),
+            "ivol_selection": args.ivol_selection,
             "centrals_only": int(args.centrals_only),
             "mhalo_min": float(args.mhalo_min),
             "ngal": int(galaxy_pos.shape[0]),

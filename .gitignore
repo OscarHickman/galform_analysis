@@ -89,3 +89,7 @@ scripts/logs/
 # Personal/scratch notebooks
 kai/
 examples/ongoing/
+
+#plots
+
+*_plots/

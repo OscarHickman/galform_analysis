@@ -218,7 +218,7 @@ def _default_cosma_user_root() -> Path:
 def _default_galform_dir() -> Path:
     """Return the default GALFORM source directory on COSMA."""
     user = os.environ.get('USER', Path.home().name)
-    return Path(f'/cosma/home/durham/{user}/galform')
+    return Path(f'/cosma/apps/durham/{user}/galform')
 
 
 def _resolve_log_path(explicit: Optional[str], output_folder_name: str) -> Path:

@@ -19,7 +19,7 @@ export PYTHONPATH=$(pwd)/.venv/lib/python3.9/site-packages:$PYTHONPATH
 mkdir -p logs
 
 # Run the script
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 
 echo "Starting pair counts computation..."
 echo "Job ID: $SLURM_JOB_ID"

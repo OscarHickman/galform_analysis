@@ -19,7 +19,7 @@ echo "Node:    ${SLURM_NODELIST}"
 echo "Start:   $(date)"
 echo ""
 
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 OUTPUT_DIR_BASE="${OUTPUT_DIR_BASE:-${OUTPUT_DIR:-}}"
 SUBVOLS_VALUE="${SUBVOLS:-}"
 
@@ -58,7 +58,7 @@ MODE="${MODE:-weighted}"
 K_TOTAL="${K_TOTAL:-${NMAX}}"
 
 CMD=(
-    python3 scripts/compute_subvol_weighted_grid.py
+    python3 scripts/2pcf/compute_subvol_weighted_grid.py
     --base-dir "${BASE_DIR}"
     --sim-name "${SIM_NAME}"
     --iz "${IZ}"

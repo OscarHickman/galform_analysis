@@ -19,7 +19,7 @@ echo "Node:    ${SLURM_NODELIST}"
 echo "Start:   $(date)"
 echo ""
 
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 
 if [[ -z "${OUTPUT_DIR:-}" ]]; then
     echo "ERROR: OUTPUT_DIR must be set."

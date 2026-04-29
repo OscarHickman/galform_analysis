@@ -2,10 +2,10 @@
 #SBATCH --job-name=swrand_${MODE}_${SIM_NAME}_iz${IZ}
 #SBATCH --output=logs/swrand_${MODE}_${SIM_NAME}_iz${IZ}_%j.log
 #SBATCH --error=logs/swrand_${MODE}_${SIM_NAME}_iz${IZ}_%j.err
-#SBATCH --time=6:00:00
+#SBATCH --time=8:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
+#SBATCH --mem=96G
 #SBATCH -A durham
 #SBATCH --partition=cosma5
 
@@ -19,7 +19,7 @@ echo "Node:    ${SLURM_NODELIST}"
 echo "Start:   $(date)"
 echo ""
 
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 OUTPUT_DIR_BASE="${OUTPUT_DIR_BASE:-${OUTPUT_DIR:-}}"
 SUBVOLS_VALUE="${SUBVOLS:-}"
 
@@ -57,9 +57,12 @@ PARTITION_SCHEME="${PARTITION_SCHEME:-ivol}"
 MODE="${MODE:-weighted}"
 K_TOTAL="${K_TOTAL:-${NMAX}}"
 SELECTION_SEED="${RANDOM_SELECTION_SEED:-314159}"
+R_MIN="${R_MIN:-0.1}"
+R_MAX="${R_MAX:-31.6227766017}"
+N_R_BINS="${N_R_BINS:-20}"
 
 CMD=(
-    python3 scripts/compute_subvol_weighted_grid_random.py
+    python3 scripts/2pcf/compute_subvol_weighted_grid_random.py
     --base-dir "${BASE_DIR}"
     --sim-name "${SIM_NAME}"
     --iz "${IZ}"
@@ -73,6 +76,9 @@ CMD=(
     --partition-scheme "${PARTITION_SCHEME}"
     --mode "${MODE}"
     --selection-seed "${SELECTION_SEED}"
+    --r-min "${R_MIN}"
+    --r-max "${R_MAX}"
+    --n-r-bins "${N_R_BINS}"
 )
 
 if [[ -n "${MSTAR_MIN_LOG10}" ]]; then

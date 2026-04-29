@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 mkdir -p logs "${OUTPUT_DIR}"
 
 module load python/3.9.19
@@ -28,9 +28,11 @@ CMD=(
   --n-subvol "${N_SUBVOL}"
   --nmax "${NMAX}"
   --mode "${MODE}"
+  --ivol-selection "${IVOL_SELECTION:-first}"
   --boxsize "${BOXSIZE}"
   --mhalo-min "${MHALO_MIN}"
   --n-random "${N_RANDOM}"
+  --seed "${SEED:-42}"
   --num-threads "${SLURM_CPUS_PER_TASK}"
   --output-dir "${OUTPUT_DIR}"
 )

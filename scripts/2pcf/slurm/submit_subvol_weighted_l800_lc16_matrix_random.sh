@@ -17,8 +17,12 @@ OUT_ROOT="${OUT_ROOT:-${REPO_ROOT}/data/halo_sampling_4_subvol_weighted_random}"
 MODE="${MODE:-weighted}"
 PARTITION_SCHEME="${PARTITION_SCHEME:-ivol}"
 RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED:-314159}"
+SET_TAG="${SET_TAG:-custom}"
 BOXSIZE="542.16"
 K_TOTAL="1024"
+R_MIN="${R_MIN:-0.1}"
+R_MAX="${R_MAX:-31.6227766017}"
+N_R_BINS="${N_R_BINS:-20}"
 
 # Slurm array indices are typically limited to [1, MaxArraySize-1].
 MAX_ARRAY_TASK_ID="${MAX_ARRAY_TASK_ID:-}"
@@ -32,12 +36,14 @@ if [[ -z "${MAX_ARRAY_TASK_ID}" ]]; then
 fi
 
 # Requested redshifts and matrix definition.
-IZ_LIST=(271 207 155)
-N_SUBVOL_LIST="1,2,4,8,10,15,20,25,30,50,100,200,400,600,800,1024"
+IZ_LIST_CSV="${IZ_LIST_CSV:-271,207,155}"
+read -r -a IZ_LIST <<<"${IZ_LIST_CSV//,/ }"
+N_SUBVOL_LIST="${N_SUBVOL_LIST:-1,2,4,8,10,15,20,25,30,50,100,200,400,600,800,1024}"
 # Comma-separated mass-cut list can be overridden, e.g. MHALO_LIST_CSV="1e13"
 MHALO_LIST_CSV="${MHALO_LIST_CSV:-1e11,1e9}"
 read -r -a MHALO_LIST <<<"${MHALO_LIST_CSV//,/ }"
-CENTRALS_LIST=(0 1)
+CENTRALS_LIST_CSV="${CENTRALS_LIST_CSV:-0,1}"
+read -r -a CENTRALS_LIST <<<"${CENTRALS_LIST_CSV//,/ }"
 
 if [[ ! -f "${TEMPLATE}" ]]; then
     echo "Missing SLURM template: ${TEMPLATE}"
@@ -122,7 +128,7 @@ submit_array_job() {
         --partition="${PARTITION}" \
         --job-name="${job_name}" \
         --array="${array_spec}" \
-        --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",OUTPUT_DIR_BASE="${out_dir_base}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}" \
+        --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",OUTPUT_DIR_BASE="${out_dir_base}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}",R_MIN="${R_MIN}",R_MAX="${R_MAX}",N_R_BINS="${N_R_BINS}" \
         "${TEMPLATE}"
 
     submitted=$((submitted + 1))
@@ -157,7 +163,7 @@ submit_single_job() {
     sbatch \
         --partition="${PARTITION}" \
         --job-name="${job_name}" \
-        --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",SUBVOLS="${n}",OUTPUT_DIR="${out_dir}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}" \
+        --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",SUBVOLS="${n}",OUTPUT_DIR="${out_dir}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}",R_MIN="${R_MIN}",R_MAX="${R_MAX}",N_R_BINS="${N_R_BINS}" \
         "${TEMPLATE}"
 
     submitted=$((submitted + 1))
@@ -227,7 +233,7 @@ for iz in "${IZ_LIST[@]}"; do
         # sanitizing any uncommon characters for paths/job names.
         mhalo_tag="${mhalo//[^0-9a-zA-Z._-]/_}"
         for centrals in "${CENTRALS_LIST[@]}"; do
-            submit_spec "${iz}" "1024" "${N_SUBVOL_LIST}" "custom" "${mhalo}" "${mhalo_tag}" "${centrals}"
+            submit_spec "${iz}" "1024" "${N_SUBVOL_LIST}" "${SET_TAG}" "${mhalo}" "${mhalo_tag}" "${centrals}"
         done
     done
 done

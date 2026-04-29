@@ -9,7 +9,7 @@
 #SBATCH -t 3-00:00:00
 
 # Set workspace
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 
 # Create directories
 mkdir -p logs data/convergence/convergence_results

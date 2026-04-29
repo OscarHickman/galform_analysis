@@ -127,6 +127,9 @@ def main() -> None:
         default=314159,
         help="Seed for random ivol permutation without replacement.",
     )
+    parser.add_argument("--r-min", type=float, default=0.1)
+    parser.add_argument("--r-max", type=float, default=float(10 ** 1.5))
+    parser.add_argument("--n-r-bins", type=int, default=20)
 
     args = parser.parse_args()
 
@@ -148,7 +151,14 @@ def main() -> None:
     if k_total < max(nvolumes):
         raise ValueError("k_total must be >= max requested n_subvol")
 
-    rbins = np.logspace(-1, 1.5, 21)
+    if args.r_min <= 0.0:
+        raise ValueError("--r-min must be > 0")
+    if args.r_max <= args.r_min:
+        raise ValueError("--r-max must be greater than --r-min")
+    if args.n_r_bins < 2:
+        raise ValueError("--n-r-bins must be >= 2")
+
+    rbins = np.logspace(np.log10(args.r_min), np.log10(args.r_max), int(args.n_r_bins) + 1)
 
     rng = np.random.default_rng(args.selection_seed)
     permuted_ivols = rng.permutation(np.array(discovered_ivols, dtype=np.int64)).tolist()
@@ -159,7 +169,8 @@ def main() -> None:
     print(
         f"Running {args.sim_name} iz{args.iz} mode={args.mode} partition={args.partition_scheme} "
         f"for {len(nvolumes)} subvolume values, base_dir={base_dir}, "
-        f"centrals_only={args.centrals_only}, mstar_min_log10={mstar_msg}",
+        f"centrals_only={args.centrals_only}, mstar_min_log10={mstar_msg}, "
+        f"rbins=[{rbins[0]:.3f}, {rbins[-1]:.3f}] ({args.n_r_bins} bins)",
         flush=True,
     )
     print(
@@ -213,6 +224,9 @@ def main() -> None:
                     "partition_scheme": args.partition_scheme,
                     "selection_mode": "random_without_replacement",
                     "selection_seed": int(args.selection_seed),
+                    "r_min": float(args.r_min),
+                    "r_max": float(args.r_max),
+                    "n_r_bins": int(args.n_r_bins),
                     "centrals_only": int(args.centrals_only),
                     "mstar_min_log10": np.nan if args.mstar_min_log10 is None else float(args.mstar_min_log10),
                     "n_subvol": int(n),

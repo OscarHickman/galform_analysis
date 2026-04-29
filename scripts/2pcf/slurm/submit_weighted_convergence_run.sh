@@ -17,7 +17,7 @@ echo "Node:    $SLURM_NODELIST"
 echo "Start:   $(date)"
 echo ""
 
-cd /cosma/home/durham/dc-hick2/galform_analysis
+cd /cosma/apps/durham/dc-hick2/galform_analysis
 
 module load python/3.9.19
 export PYTHONPATH=$(pwd)/.venv/lib/python3.9/site-packages:$PYTHONPATH
