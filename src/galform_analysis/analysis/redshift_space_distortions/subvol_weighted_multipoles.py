@@ -20,10 +20,9 @@ over mu.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 from Corrfunc.theory.DDsmu import DDsmu
 
-from ..correlation.subvol_weighted_correction import _choose2, _pick_partition_labels
+from ..correlation.subvol_weighted_correction import _choose2
 
 def _counts_to_grid_smu(result: np.ndarray, n_s_bins: int, n_mu_bins: int) -> np.ndarray:
     """Convert Corrfunc DDsmu output into a [n_s_bins, n_mu_bins] array."""
@@ -261,7 +260,6 @@ def compute_standard_rsd_multipoles(
     nd = float(galaxy_pos.shape[0])
     nr = float(random_pos.shape[0])
 
-    n_s_bins = len(s_bins) - 1
     s_mid = 0.5 * (s_bins[:-1] + s_bins[1:])
     mu_bins = np.linspace(0.0, mu_max, n_mu_bins + 1)
     mu_mid = 0.5 * (mu_bins[:-1] + mu_bins[1:])
