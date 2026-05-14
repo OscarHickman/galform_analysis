@@ -1,0 +1,50 @@
+import numpy as np
+import pytest
+
+from galform_analysis.analysis.mass_functions import smf_given_redshift_and_subvolume
+from galform_analysis.config import DEFAULT_STELLAR_MASS_BINS
+
+
+def test_returns_expected_keys(galform_iz_dir):
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0)
+    assert result is not None
+    for key in ("iz", "ivol", "centers", "phi", "counts", "V_ivol"):
+        assert key in result, f"Missing key: {key}"
+
+
+def test_iz_and_ivol_metadata(galform_iz_dir):
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0)
+    assert result["iz"] == "iz155"
+    assert result["ivol"] == 0
+
+
+def test_phi_normalisation(galform_iz_dir):
+    """phi * dlogM * V_ivol must exactly recover raw counts."""
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0)
+    dlogM = np.diff(DEFAULT_STELLAR_MASS_BINS)
+    recovered = result["phi"] * dlogM * result["V_ivol"]
+    np.testing.assert_allclose(recovered, result["counts"].astype(float), rtol=1e-5)
+
+
+def test_counts_non_negative(galform_iz_dir):
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0)
+    assert np.all(result["counts"] >= 0)
+
+
+def test_bin_centers_shape(galform_iz_dir):
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0)
+    n = len(DEFAULT_STELLAR_MASS_BINS) - 1
+    assert len(result["centers"]) == n
+    assert len(result["phi"]) == n
+    assert len(result["counts"]) == n
+
+
+def test_custom_bins(galform_iz_dir):
+    bins = np.array([8.0, 9.0, 10.0, 11.0])
+    result = smf_given_redshift_and_subvolume(galform_iz_dir, ivol=0, bins=bins)
+    assert len(result["centers"]) == 3
+
+
+def test_missing_file_returns_none(tmp_path):
+    result = smf_given_redshift_and_subvolume(str(tmp_path / "iz_bad"), ivol=0)
+    assert result is None
