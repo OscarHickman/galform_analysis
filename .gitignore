@@ -1,12 +1,66 @@
-# Byte-compiled / optimized / DLL files
+# ==========================================
+# MASSIVE PHYSICS DATA & PLOTS
+# ==========================================
+*.hdf5
+*.h5
+*.dat
+*.csv
+*.tsv
+*.fits
+*.npy
+*.npz
+*.pkl
+*.parquet
+data/
+convergence_results*/
+*_plots/
+examples/_plots/
+
+# ==========================================
+# HPC LOGS & SLURM OUTPUTS
+# ==========================================
+slurm-*.out
+*.log
+*.err
+core.*
+.last_job_id
+*monitor_memory*
+logs/
+scripts/logs/
+
+# ==========================================
+# CUSTOM PROJECT DIRECTORIES & SCRATCH
+# ==========================================
+# Root-level scratch images from notebooks
+/*.png
+/*.pdf
+kai/
+examples/ongoing/
+examples/.ruff_cache/
+examples/**/.ruff_cache/
+
+# ==========================================
+# COMPILED C/C++/FORTRAN BINARIES
+# ==========================================
+*.o
+*.so
+*.a
+*.out
+*.exe
+*.mod
+bin/
+
+# ==========================================
+# PYTHON CORE (Byte-compiled)
+# ==========================================
 __pycache__/
+scripts/__pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
-*.so
-
-# Distribution / packaging
+# ==========================================
+# DISTRIBUTION & PACKAGING
+# ==========================================
 .Python
 build/
 develop-eggs/
@@ -26,12 +80,12 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
-# PyInstaller
 *.manifest
 *.spec
 
-# Unit test / coverage reports
+# ==========================================
+# TESTING & JUPYTER
+# ==========================================
 htmlcov/
 .tox/
 .nox/
@@ -44,14 +98,18 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-
-# Jupyter Notebook
 .ipynb_checkpoints
 
-# pyenv
-.python-version
+slides/*
+examples/2pcf/*.png
+examples/2pcf/*.gif
+.venv*
 
-# Environments
+
+# ==========================================
+# ENVIRONMENTS & TYPING
+# ==========================================
+.python-version
 .env
 .venv
 env/
@@ -59,37 +117,31 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# IDEs
+# ==========================================
+# IDEs & OS FILES
+# ==========================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Data and output directories
+# ==========================================
+# AI Agents & GENERATED CODE
+# ==========================================
+.claude/*
+.mcp.json
+
+
+# ==========================================
+# Custom
+# ==========================================
+
+scripts/
 data/
-logs/
-convergence_results*/
-examples/.ruff_cache/
-examples/**/.ruff_cache/
-examples/_plots/
-scripts/__pycache__/
-scripts/logs/
-
-# Personal/scratch notebooks
-kai/
-examples/ongoing/
-
-#plots
-
-*_plots/

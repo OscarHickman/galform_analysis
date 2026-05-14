@@ -2,12 +2,11 @@
 #SBATCH --job-name=swrand_${MODE}_${SIM_NAME}_iz${IZ}
 #SBATCH --output=logs/swrand_${MODE}_${SIM_NAME}_iz${IZ}_%j.log
 #SBATCH --error=logs/swrand_${MODE}_${SIM_NAME}_iz${IZ}_%j.err
-#SBATCH --time=8:00:00
+#SBATCH --time=6:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=96G
-#SBATCH -A durham
-#SBATCH --partition=cosma5
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=128G
+#SBATCH --partition=cosma8-shm
 
 set -euo pipefail
 

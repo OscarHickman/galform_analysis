@@ -15,12 +15,6 @@ from .mass_functions import (
     avg_hod_given_redshift_and_subvolumes,
     avg_hod_given_redshifts_and_subvolume,
 )
-from .galaxy_efficiency import (
-    compute_efficiency_vs_mass,
-    process_efficiency_redshifts,
-    save_efficiency_data,
-    find_peak_efficiency,
-)
 from .correlation import (
     compute_xi_corrfunc,
     correlation_given_redshift_and_subvolume,
@@ -46,11 +40,6 @@ __all__ = [
     'hods_given_redshifts_and_subvolume',
     'avg_hod_given_redshift_and_subvolumes',
     'avg_hod_given_redshifts_and_subvolume',
-    # Galaxy efficiency functions
-    'compute_efficiency_vs_mass',
-    'process_efficiency_redshifts',
-    'save_efficiency_data',
-    'find_peak_efficiency',
     # Correlation functions
     'compute_xi_corrfunc',
     'correlation_given_redshift_and_subvolume',

@@ -1,3 +1,0 @@
--- plot ration from dyn scale
--- plot average diff sub vols
--- plot 1e6

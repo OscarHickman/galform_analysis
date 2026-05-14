@@ -654,6 +654,16 @@ set idband_add  = (232 233 164 165 166 167 294 295 297 294 295 297 200 201 164 1
 set iselect_add = (1   1   1   1   1   1   0   0   0   1   1   1   1   1   0   0   0   0  )
 set idband  = ( $idband  $idband_add )
 set iselect = ( $iselect $iselect_add )
+# DESI Legacy Survey bands (DECam: DES-g=350, DES-r=351, DES-z=353) - rest frame
+set idband_add  = (350 351 353)
+set iselect_add = (0   0   0  )
+set idband  = ( $idband  $idband_add )
+set iselect = ( $iselect $iselect_add )
+# DESI Legacy Survey bands - observer frame
+set idband_add  = (350 351 353)
+set iselect_add = (1   1   1  )
+set idband  = ( $idband  $idband_add )
+set iselect = ( $iselect $iselect_add )
 
 set nband = `echo $idband | wc -w`
 ./replace_vector.csh $galform_inputs_file idband $idband

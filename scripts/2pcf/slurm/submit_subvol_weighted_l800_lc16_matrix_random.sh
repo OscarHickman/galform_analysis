@@ -8,7 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE="${SCRIPT_DIR}/run_subvol_weighted_grid_random.slurm"
-PARTITION="cosma5"
+# Use cosma8-shm to match the user's requested cosma8-sh queue class.
+PARTITION="${PARTITION:-cosma8-shm}"
+TIME_LIMIT="${TIME_LIMIT:-6:00:00}"
+CPUS_PER_TASK="${CPUS_PER_TASK:-32}"
+MEMORY="${MEMORY:-128G}"
+ACCOUNT="${ACCOUNT:-}"
 
 SIM_NAME="${SIM_NAME:-L800}"
 MODEL_NAME="${MODEL_NAME:-lc16}"
@@ -27,7 +32,7 @@ N_R_BINS="${N_R_BINS:-20}"
 # Slurm array indices are typically limited to [1, MaxArraySize-1].
 MAX_ARRAY_TASK_ID="${MAX_ARRAY_TASK_ID:-}"
 if [[ -z "${MAX_ARRAY_TASK_ID}" ]]; then
-    max_array_size_raw="$( (scontrol show config 2>/dev/null | awk -F= '/^MaxArraySize/{gsub(/ /, "", $2); print $2; exit}') || true )"
+    max_array_size_raw="$( (timeout 20s scontrol show config 2>/dev/null | awk -F= '/^MaxArraySize/{gsub(/ /, "", $2); print $2; exit}') || true )"
     if [[ "${max_array_size_raw}" =~ ^[0-9]+$ ]] && (( max_array_size_raw > 1 )); then
         MAX_ARRAY_TASK_ID=$((max_array_size_raw - 1))
     else
@@ -58,8 +63,10 @@ fi
 mkdir -p "${REPO_ROOT}/logs" "${OUT_ROOT}"
 
 queued_names=""
-if command -v squeue >/dev/null 2>&1; then
-    queued_names="$(squeue -u "${USER}" -h -o "%j" || true)"
+SKIP_QUEUE_CHECK="${SKIP_QUEUE_CHECK:-0}"
+if [[ "${SKIP_QUEUE_CHECK}" != "1" ]] && command -v squeue >/dev/null 2>&1; then
+    # On busy systems squeue can intermittently hang; keep submitter responsive.
+    queued_names="$(timeout 20s squeue -u "${USER}" -h -o "%j" 2>/dev/null || true)"
 fi
 
 submitted=0
@@ -124,8 +131,17 @@ submit_array_job() {
 
     mkdir -p "${out_dir_base}"
     echo "Submitting ${job_name} as array ${array_spec}"
+    local account_args=()
+    if [[ -n "${ACCOUNT}" ]]; then
+        account_args+=(--account="${ACCOUNT}")
+    fi
+
     sbatch \
         --partition="${PARTITION}" \
+        --time="${TIME_LIMIT}" \
+        --cpus-per-task="${CPUS_PER_TASK}" \
+        --mem="${MEMORY}" \
+        "${account_args[@]}" \
         --job-name="${job_name}" \
         --array="${array_spec}" \
         --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",OUTPUT_DIR_BASE="${out_dir_base}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}",R_MIN="${R_MIN}",R_MAX="${R_MAX}",N_R_BINS="${N_R_BINS}" \
@@ -160,8 +176,17 @@ submit_single_job() {
 
     mkdir -p "${out_dir}"
     echo "Submitting ${job_name} (n_subvol=${n})"
+    local account_args=()
+    if [[ -n "${ACCOUNT}" ]]; then
+        account_args+=(--account="${ACCOUNT}")
+    fi
+
     sbatch \
         --partition="${PARTITION}" \
+        --time="${TIME_LIMIT}" \
+        --cpus-per-task="${CPUS_PER_TASK}" \
+        --mem="${MEMORY}" \
+        "${account_args[@]}" \
         --job-name="${job_name}" \
         --export=ALL,MODE="${MODE}",PARTITION_SCHEME="${PARTITION_SCHEME}",RANDOM_SELECTION_SEED="${RANDOM_SELECTION_SEED}",SIM_NAME="${SIM_NAME}",MODEL_NAME="${MODEL_NAME}",IZ="${iz}",NMAX="${nmax}",K_TOTAL="${K_TOTAL}",SUBVOLS="${n}",OUTPUT_DIR="${out_dir}",BOXSIZE="${BOXSIZE}",MHALO_MIN="${mhalo}",CENTRALS_ONLY="${centrals}",BASE_DIR_OVERRIDE="${BASE_DIR}",R_MIN="${R_MIN}",R_MAX="${R_MAX}",N_R_BINS="${N_R_BINS}" \
         "${TEMPLATE}"

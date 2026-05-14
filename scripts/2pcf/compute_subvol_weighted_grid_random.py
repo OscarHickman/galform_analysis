@@ -16,7 +16,8 @@ import numpy as np
 import pandas as pd
 
 # Ensure src on path when running from repository root or via SLURM scripts.
-project_root = Path(__file__).resolve().parent.parent
+# This script lives in scripts/2pcf/, so repo root is three levels up.
+project_root = Path(__file__).resolve().parent.parent.parent
 src_path = project_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))

@@ -42,7 +42,7 @@ def get_base_dir() -> Path:
 # REDSHIFT MAPPING
 # ==============================================================================
 
-def load_redshift_mapping():
+def load_redshift_mapping() -> dict[int, float]:
     """Load redshift mapping from redshift_list.txt.
     
     Returns:
@@ -68,7 +68,7 @@ def load_redshift_mapping():
     return z_map
 
 
-def get_snapshot_redshift(snapshot_name):
+def get_snapshot_redshift(snapshot_name: str) -> float | None:
     """Get redshift for a snapshot name like 'iz99' or 'iz132'.
     
     Args:
@@ -77,6 +77,8 @@ def get_snapshot_redshift(snapshot_name):
     Returns:
         float or None: Redshift value, or None if not found
     """
+    if not snapshot_name.startswith('iz'):
+        snapshot_name = f'iz{snapshot_name}'
     z_map = load_redshift_mapping()
     
     # Extract iz number from snapshot name
@@ -89,7 +91,7 @@ def get_snapshot_redshift(snapshot_name):
     return None
 
 
-def find_snapshot_at_redshift(target_z, tolerance=0.1):
+def find_snapshot_at_redshift(target_z: float, tolerance: float = 0.1) -> str | None:
     """Find the snapshot closest to a target redshift.
     
     Args:
@@ -99,6 +101,7 @@ def find_snapshot_at_redshift(target_z, tolerance=0.1):
     Returns:
         str or None: Snapshot name (e.g., 'iz99'), or None if not found
     """
+
     z_map = load_redshift_mapping()
     
     best_match = None
