@@ -4,7 +4,7 @@ from typing import Optional, Tuple, List
 import numpy as np
 from Corrfunc.theory.xi import xi as corrfunc_xi
 
-import pandas as pd
+import polars as pl
 
 from ...config import DEFAULT_RBINS, get_base_dir
 from ...io.loaders import read_snapshot_data
@@ -45,7 +45,7 @@ def compute_xi_corrfunc(
     boxsize: float,
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Compute the real-space two-point correlation xi(r) using Corrfunc.
 
     For periodic subvolumes, uses Corrfunc.theory.DD to count pairs
@@ -78,11 +78,11 @@ def compute_xi_corrfunc(
     if ngal < 2:
         # Not enough galaxies for correlation
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-        df = pd.DataFrame({
+        df = pl.DataFrame({
             'r': r_centers,
             'xi': np.full_like(r_centers, np.nan),
         })
-        df.attrs.update({'rbins': rbins, 'ngal': ngal})
+        df.attrs = {'rbins': rbins, 'ngal': ngal}
         return df
 
     # Use Corrfunc's xi calculator for periodic boxes to avoid manual normalization bugs
@@ -106,8 +106,8 @@ def compute_xi_corrfunc(
     else:
         r = 0.5 * (rbins[:-1] + rbins[1:])
 
-    df = pd.DataFrame({'r': r, 'xi': xi_vals})
-    df.attrs.update({'rbins': rbins, 'ngal': ngal})
+    df = pl.DataFrame({'r': r, 'xi': xi_vals})
+    df.attrs = {'rbins': rbins, 'ngal': ngal}
     return df
 
 
@@ -118,7 +118,7 @@ def correlation_given_redshift_and_subvolume(
     nthreads: int = 4,
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
-) -> Optional[pd.DataFrame]:
+) -> Optional[pl.DataFrame]:
     """High-level helper mirroring the HMF API: xi(r) for (snapshot, ivol).
 
     When centrals_only=True, uses only central galaxies (is_central=1).
@@ -183,7 +183,7 @@ def correlation_given_redshift_and_subvolume(
             'ngal': res.attrs.get('ngal'),
             'rbins': res.attrs.get('rbins'),
         }
-        res.attrs.update(metadata)
+        res.attrs = {**getattr(res, 'attrs', {}), **metadata}
         return res
 
     except (FileNotFoundError, RuntimeError, KeyError):
@@ -197,7 +197,7 @@ def halo_correlation_given_redshift_and_subvolume(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
     mhhalo_min: Optional[float] = None,
-) -> Optional[pd.DataFrame]:
+) -> Optional[pl.DataFrame]:
     """Compute dark matter halo correlation function directly from GALFORM halo positions.
 
     DM halos are represented by central galaxies of main halos (is_central=1, ihhalo=1)
@@ -249,7 +249,7 @@ def halo_correlation_given_redshift_and_subvolume(
             'nhalo': res.attrs.get('ngal'),  # Use ngal as count of halos
             'rbins': res.attrs.get('rbins'),
         }
-        res.attrs.update(metadata)
+        res.attrs = {**getattr(res, 'attrs', {}), **metadata}
         return res
 
     except (FileNotFoundError, RuntimeError, KeyError):
@@ -263,7 +263,7 @@ def avg_correlation_given_redshift_and_subvolumes(
     base_dir: Optional[str] = None,
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
-) -> Optional[pd.DataFrame]:
+) -> Optional[pl.DataFrame]:
     """Compute 2PCF by combining galaxies from multiple subvolumes into one box.
 
     CRITICAL: Subvolumes are overlapping realizations of the SAME spatial volume.
@@ -372,7 +372,7 @@ def correlations_given_redshifts_and_subvolume(
     base_dir: Optional[str] = None,
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
-) -> List[pd.DataFrame]:
+) -> List[pl.DataFrame]:
     """Compute correlation function for one subvolume across multiple snapshots.
 
     Args:
@@ -424,7 +424,7 @@ def avg_correlation_given_subvolume_and_redshifts(
     base_dir: Optional[str] = None,
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
-) -> Optional[pd.DataFrame]:
+) -> Optional[pl.DataFrame]:
     """Average xi(r) across multiple redshifts for a single subvolume.
 
     Args:
@@ -482,6 +482,6 @@ def avg_correlation_given_subvolume_and_redshifts(
         'used_z': used_z,
         'rbins': rbins,
     }
-    df = pd.DataFrame({'r': r, 'xi': xi_mean, 'xi_std': xi_std})
-    df.attrs.update(metadata)
+    df = pl.DataFrame({'r': r, 'xi': xi_mean, 'xi_std': xi_std})
+    df.attrs = metadata
     return df

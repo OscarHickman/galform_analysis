@@ -2,7 +2,7 @@
 
 import os
 import numpy as np
-import pandas as pd
+import polars as pl
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -119,7 +119,7 @@ def hmfs_given_redshifts_and_subvolume(ivol: int,
                 'counts': res['counts'][i]
             })
     
-    return pd.DataFrame(df_rows), results_by_z
+    return pl.DataFrame(df_rows), results_by_z
 
 
 def avg_hmf_given_redshift_and_subvolumes(iz_num: int,

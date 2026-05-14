@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from ..config import N_SUBVOLUMES
 from ..io.loaders import (
@@ -150,7 +150,7 @@ def read_galaxies_dataframe(
 	mhalo_min: Optional[float] = None,
 	return_metadata: bool = False,
 ):
-	"""Read galaxies.hdf5 and return a pandas DataFrame.
+	"""Read galaxies.hdf5 and return a Polars DataFrame.
 
 	Args are the same as read_galaxy_arrays. If return_metadata is True,
 	returns (df, metadata).
@@ -166,8 +166,8 @@ def read_galaxies_dataframe(
 		mhalo_min=mhalo_min,
 	)
 
-	df = pd.DataFrame(arrays)
-	df.attrs.update(meta)
+	df = pl.DataFrame(arrays)
+	df.attrs = meta
 	return (df, meta) if return_metadata else df
 
 

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from Corrfunc.theory.DD import DD
 from Corrfunc.theory.DDrppi import DDrppi
 
@@ -36,7 +36,7 @@ from ...utils.read_galaxies import read_galaxy_arrays
 _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")
 
 
-def _pick_partition_labels(catalogue: pd.DataFrame) -> np.ndarray:
+def _pick_partition_labels(catalogue: pl.DataFrame) -> np.ndarray:
     """Return the label vector used for auto/cross decomposition."""
     if "partition_label" in catalogue.columns:
         return catalogue["partition_label"].to_numpy(dtype=np.int64)
@@ -210,7 +210,7 @@ def load_subvolume_galaxies(
     mstar_min_log10: Optional[float] = None,
     partition_scheme: str = "ivol",
     k_total: int = 1024,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Load galaxies for selected subvolumes and attach subvolume labels.
 
     Returns a DataFrame with columns: x, y, z, subvol_rank, partition_label, ivol.
@@ -228,7 +228,7 @@ def load_subvolume_galaxies(
         raise ValueError("k_total must be >= 2")
 
     iz_path = str(Path(base_dir) / f"iz{iz_num}")
-    chunks: list[pd.DataFrame] = []
+    chunks: list[pl.DataFrame] = []
 
     for subvol_rank, ivol in enumerate(ivols):
         extra_fields = _HALO_ID_FIELDS if partition_scheme == "halo_id_hash" else None
@@ -269,27 +269,27 @@ def load_subvolume_galaxies(
             labels = np.mod(np.abs(halo_id[keep]), int(k_total)).astype(np.int64, copy=False)
 
         chunks.append(
-            pd.DataFrame(
+            pl.DataFrame(
                 {
-                    "x": np.asarray(arrays["x"])[keep],
-                    "y": np.asarray(arrays["y"])[keep],
-                    "z": np.asarray(arrays["z"])[keep],
-                    "subvol_rank": int(subvol_rank),
+                    "x": np.asarray(arrays["x"], dtype=np.float64)[keep],
+                    "y": np.asarray(arrays["y"], dtype=np.float64)[keep],
+                    "z": np.asarray(arrays["z"], dtype=np.float64)[keep],
+                    "subvol_rank": np.full(n_keep, int(subvol_rank), dtype=np.int64),
                     "partition_label": labels,
-                    "ivol": int(ivol),
-                    "partition_scheme": partition_scheme,
+                    "ivol": np.full(n_keep, int(ivol), dtype=np.int64),
+                    "partition_scheme": np.full(n_keep, partition_scheme),
                 }
             )
         )
 
     if not chunks:
-        return pd.DataFrame(columns=["x", "y", "z", "subvol_rank", "partition_label", "ivol", "partition_scheme"])
+        return pl.DataFrame(schema={"x": pl.Float64, "y": pl.Float64, "z": pl.Float64, "subvol_rank": pl.Int64, "partition_label": pl.Int64, "ivol": pl.Int64, "partition_scheme": pl.Utf8})
 
-    return pd.concat(chunks, ignore_index=True)
+    return pl.concat(chunks)
 
 
 def compute_weighted_wp_from_catalogue(
-    catalogue: pd.DataFrame,
+    catalogue: pl.DataFrame,
     m_selected: int,
     k_total: int,
     rp_bins: np.ndarray,
@@ -315,7 +315,7 @@ def compute_weighted_wp_from_catalogue(
     n_rp_bins = len(rp_bins) - 1
     rp_mid = 0.5 * (rp_bins[:-1] + rp_bins[1:])
 
-    if catalogue.empty:
+    if catalogue.is_empty():
         nan_wp = np.full(n_rp_bins, np.nan)
         nan_xi = np.full((n_rp_bins, n_pi_bins), np.nan)
         return {
@@ -332,7 +332,7 @@ def compute_weighted_wp_from_catalogue(
             "k_total": int(k_total),
         }
 
-    pos = catalogue[["x", "y", "z"]].to_numpy(dtype=np.float64)
+    pos = catalogue.select(["x", "y", "z"]).to_numpy()
     tags = _pick_partition_labels(catalogue)
     nd = pos.shape[0]
 
@@ -403,7 +403,7 @@ def compute_weighted_wp_from_catalogue(
 
 
 def compute_weighted_xi_from_catalogue(
-    catalogue: pd.DataFrame,
+    catalogue: pl.DataFrame,
     m_selected: int,
     k_total: int,
     rbins: np.ndarray,
@@ -424,7 +424,7 @@ def compute_weighted_xi_from_catalogue(
     r_mid = 0.5 * (rbins[:-1] + rbins[1:])
     n_bins = len(rbins) - 1
 
-    if catalogue.empty:
+    if catalogue.is_empty():
         nan = np.full(n_bins, np.nan)
         return {
             "r": r_mid,
@@ -438,7 +438,7 @@ def compute_weighted_xi_from_catalogue(
             "k_total": int(k_total),
         }
 
-    pos = catalogue[["x", "y", "z"]].to_numpy(dtype=np.float64)
+    pos = catalogue.select(["x", "y", "z"]).to_numpy()
     tags = _pick_partition_labels(catalogue)
     nd = pos.shape[0]
 
@@ -509,7 +509,7 @@ def compute_weighted_xi_for_n_list(
     ivol_start: int = 0,
     load_n_subvolumes: Optional[int] = None,
     partition_scheme: str = "ivol",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Compute standard and corrected xi(r) for multiple subvolume counts."""
     if rbins is None:
         rbins = np.logspace(-1.0, 1.5, 21)
@@ -542,7 +542,7 @@ def compute_weighted_xi_for_n_list(
     out_rows: list[dict[str, float | int]] = []
     label_col = "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
     for n in n_vals:
-        sub_cat = full_cat[full_cat[label_col] < n].copy()
+        sub_cat = full_cat.filter(pl.col(label_col) < n)
         result = compute_weighted_xi_from_catalogue(
             catalogue=sub_cat,
             m_selected=n,
@@ -574,7 +574,7 @@ def compute_weighted_xi_for_n_list(
                 }
             )
 
-    return pd.DataFrame(out_rows)
+    return pl.DataFrame(out_rows)
 
 
 def compute_weighted_wp_for_n_list(
@@ -594,7 +594,7 @@ def compute_weighted_wp_for_n_list(
     ivol_start: int = 0,
     load_n_subvolumes: Optional[int] = None,
     partition_scheme: str = "ivol",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Compute standard and corrected wp for multiple selected subvolume counts.
 
     Subvolumes are chosen deterministically as ivol_start..ivol_start+n-1.
@@ -630,7 +630,7 @@ def compute_weighted_wp_for_n_list(
     out_rows: list[dict[str, float | int]] = []
     label_col = "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
     for n in n_vals:
-        sub_cat = full_cat[full_cat[label_col] < n].copy()
+        sub_cat = full_cat.filter(pl.col(label_col) < n)
         result = compute_weighted_wp_from_catalogue(
             catalogue=sub_cat,
             m_selected=n,
@@ -663,4 +663,4 @@ def compute_weighted_wp_for_n_list(
                 }
             )
 
-    return pd.DataFrame(out_rows)
+    return pl.DataFrame(out_rows)

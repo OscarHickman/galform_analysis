@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from ...config import DEFAULT_HALO_MASS_BINS, get_base_dir
 from ...io.loaders import (
@@ -348,7 +348,7 @@ def hods_given_redshifts_and_subvolume(
     base_dir: Optional[str] = None,
     galaxy_stellar_mass_min: Optional[float] = None,
     halo_mass_lower_limit: Optional[float] = None,
-) -> Optional[Tuple[pd.DataFrame, List[Dict[str, Any]]]]:
+) -> Optional[Tuple[pl.DataFrame, List[Dict[str, Any]]]]:
     """Compute HODs for a single subvolume across multiple snapshots.
 
     Returns (DataFrame, list-of-result-dicts) or None.
@@ -402,7 +402,7 @@ def hods_given_redshifts_and_subvolume(
                 row["mean_satellite"] = res["mean_satellite"][i]
             df_rows.append(row)
 
-    return pd.DataFrame(df_rows), results_by_z
+    return pl.DataFrame(df_rows), results_by_z
 
 
 def avg_hod_given_redshift_and_subvolumes(

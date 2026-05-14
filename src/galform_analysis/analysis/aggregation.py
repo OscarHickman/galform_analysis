@@ -6,7 +6,7 @@ import numpy as np
 import h5py
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-import pandas as pd
+import polars as pl
 
 
 try:
@@ -21,7 +21,7 @@ except ImportError:
     from galform_analysis.io.loaders import read_snapshot_data, close_snapshot
     from galform_analysis.config import get_base_dir
 
-def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pd.DataFrame:
+def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pl.DataFrame:
     """Scan base directory and return DataFrame of all completed galaxy files.
     
     Looks through all iz*/ivol* directories and checks CompletionFlag in galaxies.hdf5 files.
@@ -119,16 +119,15 @@ def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[Lis
             records.append(record)
             iz_records.append(record)
     
-    df = pd.DataFrame(records)
-    
-    # Sort by iz_num and ivol
-    if not df.empty:
-        df = df.sort_values(['iz_num', 'ivol']).reset_index(drop=True)
-    
+    df = pl.DataFrame(records)
+
+    if not df.is_empty():
+        df = df.sort(['iz_num', 'ivol'])
+
     return df
 
 
-def incomplete_subvolumes(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pd.DataFrame:
+def incomplete_subvolumes(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pl.DataFrame:
     """Scan base directory and return DataFrame of incomplete/missing galaxy files.
     
     This is the complement of completed_galaxies(). Returns records for subvolumes
@@ -241,12 +240,11 @@ def incomplete_subvolumes(basedir: str = get_base_dir(), iz_snapshots: Optional[
                 records.append(record)
                 iz_incomplete.append(record)
     
-    df = pd.DataFrame(records)
-    
-    # Sort by iz_num and ivol
-    if not df.empty:
-        df = df.sort_values(['iz_num', 'ivol']).reset_index(drop=True)
-    
+    df = pl.DataFrame(records)
+
+    if not df.is_empty():
+        df = df.sort(['iz_num', 'ivol'])
+
     return df
 
 def aggregate_snapshot(iz_path: str) -> Optional[Dict[str, Any]]:

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
 from ...config import DEFAULT_RBINS
@@ -112,7 +112,7 @@ def compute_xi_cross_corrfunc(
     boxsize: float,
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Compute cross-correlation xi(r) between two samples using Corrfunc.DD."""
     if rbins is None:
         rbins = DEFAULT_RBINS
@@ -129,12 +129,12 @@ def compute_xi_cross_corrfunc(
     n2 = positions_b.shape[0]
     if n1 < 1 or n2 < 1:
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-        df = pd.DataFrame({
+        df = pl.DataFrame({
             "r": r_centers,
             "xi": np.full_like(r_centers, np.nan),
             "npairs": np.zeros_like(r_centers, dtype=float),
         })
-        df.attrs.update({"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize})
+        df.attrs = {"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize}
         return df
 
     pos_a = np.fmod(positions_a, boxsize)
@@ -176,8 +176,8 @@ def compute_xi_cross_corrfunc(
 
     xi_vals = np.where(RR_norm > 0, DD_norm / RR_norm - 1.0, np.nan)
 
-    df = pd.DataFrame({"r": r, "xi": xi_vals, "npairs": npairs})
-    df.attrs.update({"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize})
+    df = pl.DataFrame({"r": r, "xi": xi_vals, "npairs": npairs})
+    df.attrs = {"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize}
     return df
 
 
@@ -190,7 +190,7 @@ def satellite_central_cross_correlation(
     central_stellar_mass_min: Optional[float] = None,
     host_halo_mass_min: Optional[float] = None,
     boxsize_override: Optional[float] = None,
-) -> Optional[pd.DataFrame]:
+) -> Optional[pl.DataFrame]:
     """Compute cross-correlation between satellites and centrals for one subvolume."""
     try:
         pos_sat, z_sat = _load_galaxy_positions(
