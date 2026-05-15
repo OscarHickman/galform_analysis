@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from galform_analysis.utils.read_galaxies import (
@@ -59,13 +59,13 @@ def test_metadata_keys(galform_iz_dir):
 
 def test_dataframe_type_and_columns(galform_iz_dir):
     df = read_galaxies_dataframe(galform_iz_dir, ivol=0)
-    assert isinstance(df, pd.DataFrame)
+    assert isinstance(df, pl.DataFrame)
     assert "mstar" in df.columns
 
 
 def test_dataframe_with_metadata(galform_iz_dir):
     df, meta = read_galaxies_dataframe(galform_iz_dir, ivol=0, return_metadata=True)
-    assert isinstance(df, pd.DataFrame)
+    assert isinstance(df, pl.DataFrame)
     assert "iz" in meta
 
 
