@@ -1,6 +1,6 @@
 import pytest
 
-from galform_analysis.analysis.aggregation import completed_galaxies
+from analysis.aggregation import completed_galaxies
 
 
 def test_finds_files_in_both_snapshots(galform_base_dir):

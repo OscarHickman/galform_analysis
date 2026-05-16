@@ -9,17 +9,8 @@ from typing import Optional, Dict, Any, List
 import polars as pl
 
 
-try:
-    from ..io.loaders import read_snapshot_data, close_snapshot
-    from galform_analysis.config import get_base_dir
-except ImportError:
-    # If running as script, use absolute imports
-    import sys
-    parent_dir = str(Path(__file__).resolve().parents[3])
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    from galform_analysis.io.loaders import read_snapshot_data, close_snapshot
-    from galform_analysis.config import get_base_dir
+from readers.loaders import read_snapshot_data, close_snapshot
+from config import get_base_dir
 
 def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pl.DataFrame:
     """Scan base directory and return DataFrame of all completed galaxy files.
@@ -298,12 +289,5 @@ def aggregate_snapshot(iz_path: str) -> Optional[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    # import sys
-    # from pathlib import Path
-    # parent_dir = str(Path(__file__).resolve().parents[3])
-    # if parent_dir not in sys.path:
-    #     sys.path.insert(0, parent_dir)
-    from galform_analysis.config import get_base_dir
-    
     base_dir = get_base_dir()
     df = completed_galaxies(str(base_dir))

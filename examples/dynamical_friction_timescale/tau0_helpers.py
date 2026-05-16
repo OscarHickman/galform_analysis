@@ -27,7 +27,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from io.loaders import (
+from readers.loaders import (
     open_galaxies_hdf5,
     get_output_group,
     _get_first_array,

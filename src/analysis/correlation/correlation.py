@@ -6,9 +6,9 @@ from Corrfunc.theory.xi import xi as corrfunc_xi
 
 import polars as pl
 
-from ...config import DEFAULT_RBINS, get_base_dir
-from ...io.loaders import read_snapshot_data
-from ...utils.read_galaxies import read_galaxy_positions, read_halo_positions
+from config import DEFAULT_RBINS, get_base_dir
+from readers.loaders import read_snapshot_data
+from utils.read_galaxies import read_galaxy_positions, read_halo_positions
 
 
 def _load_positions_from_hdf5(

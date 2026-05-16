@@ -13,8 +13,8 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 import numpy as np
 import polars as pl
 
-from ..config import N_SUBVOLUMES
-from ..io.loaders import (
+from config import N_SUBVOLUMES
+from readers.loaders import (
 	open_galaxies_hdf5,
 	get_output_group,
 	_get_first_array,

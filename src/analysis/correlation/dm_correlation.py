@@ -13,7 +13,7 @@ import numpy as np
 import h5py
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
-from ...config import DEFAULT_RBINS, get_base_dir
+from config import DEFAULT_RBINS, get_base_dir
 from .correlation import (
     halo_correlation_given_redshift_and_subvolume,
 )

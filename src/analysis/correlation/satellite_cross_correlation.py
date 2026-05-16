@@ -13,8 +13,8 @@ import numpy as np
 import polars as pl
 from Corrfunc.theory.DD import DD as corrfunc_DD
 
-from ...config import DEFAULT_RBINS
-from ...io.loaders import (
+from config import DEFAULT_RBINS
+from readers.loaders import (
     open_galaxies_hdf5,
     get_output_group,
     _get_first_array,

@@ -26,8 +26,8 @@ from typing import Optional, Dict, Any, List, Tuple
 import numpy as np
 import polars as pl
 
-from ...config import DEFAULT_HALO_MASS_BINS, get_base_dir
-from ...io.loaders import (
+from config import DEFAULT_HALO_MASS_BINS, get_base_dir
+from readers.loaders import (
     open_galaxies_hdf5,
     get_output_group,
     _get_first_array,

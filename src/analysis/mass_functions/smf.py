@@ -6,8 +6,8 @@ import polars as pl
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from ...io.loaders import read_snapshot_data, close_snapshot
-from ...config import DEFAULT_STELLAR_MASS_BINS, get_base_dir
+from readers.loaders import read_snapshot_data, close_snapshot
+from config import DEFAULT_STELLAR_MASS_BINS, get_base_dir
 
 
 def smf_given_redshift_and_subvolume(iz_path: str,

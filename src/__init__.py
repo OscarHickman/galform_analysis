@@ -28,7 +28,7 @@ __version__ = "0.1.0"
 
 # Import key modules for convenience
 import config
-import io
+import readers
 import analysis
 
 # Expose commonly used functions at package level
@@ -40,7 +40,7 @@ from config import (
     get_snapshot_redshift,
     find_snapshot_at_redshift,
 )
-from io import read_snapshot_data, close_snapshot
+from readers import read_snapshot_data, close_snapshot
 from analysis import (
     aggregate_snapshot,
     # HMF functions

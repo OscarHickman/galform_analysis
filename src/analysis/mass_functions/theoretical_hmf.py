@@ -19,7 +19,7 @@ Units:
 import numpy as np
 from typing import Optional, Dict, Any
 from hmf import MassFunction
-from ...config import Cosmology
+from config import Cosmology
 
 
 # Mass definition conversion parameters
