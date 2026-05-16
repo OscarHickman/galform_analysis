@@ -5,8 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install (editable, required for script imports)
-pip install -e .
+# Install dependencies
 pip install -r requirements.txt
 
 # Tests
@@ -17,13 +16,23 @@ ruff check src
 
 ```
 
-SLURM jobs run on COSMA and activate `.venv` (Python 3.12) at repo root. All scripts in `scripts/` add `src/` to `sys.path` manually, so a dev install is not required for them.
+SLURM jobs run on COSMA and activate `.venv` (Python 3.12) at repo root. All scripts in `scripts/` add `src/` to `sys.path` manually. Notebooks add `src/` via `Path('../../src').resolve()` at the top of their first import cell.
 
 ## Architecture
 
-Two top-level concerns share this repo:
+**`src/`** — analysis library for post-processing GALFORM HDF5 outputs.
 
-**`src/`** — pip-installable library for post-processing GALFORM HDF5 outputs.
+All modules in `src/` use flat absolute imports (no package prefix). To use them, add `src/` to `sys.path`:
+
+```python
+import sys
+sys.path.insert(0, '/cosma/apps/durham/dc-hick2/galform_analysis/src')
+
+from config import get_base_dir
+from readers.loaders import read_snapshot_data
+from utils.read_galaxies import read_galaxy_arrays
+from analysis.mass_functions import hmf_given_redshift_and_subvolume
+```
 
 ### Data flow
 
@@ -41,7 +50,7 @@ Snapshot indices (`iz`) map to redshifts via `src/redshift_list.txt` — use `co
 | Module | Role |
 |--------|------|
 | `config.py` | `BASE_DIR`, `Cosmology` constants, `iz` ↔ redshift lookup |
-| `io/loaders.py` | Low-level HDF5 openers; `read_snapshot_data()` returns a dict with an open `h5py.File` — caller must call `close_snapshot()` |
+| `readers/loaders.py` | Low-level HDF5 openers; `read_snapshot_data()` returns a dict with an open `h5py.File` — caller must call `close_snapshot()` |
 | `utils/read_galaxies.py` | Higher-level readers → numpy arrays or DataFrames, with optional position/velocity arrays, mass cuts, and centrals-only filtering |
 | `analysis/mass_functions/` | HMF, SMF, HOD, theoretical HMF |
 | `analysis/aggregation.py` | Cross-subvolume aggregation helpers |
