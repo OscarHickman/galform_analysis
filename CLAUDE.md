@@ -13,22 +13,17 @@ pip install -r requirements.txt
 pytest tests -q
 
 # Lint
-ruff check src/galform_analysis src/galform_execution
+ruff check src
 
-# Submit a GALFORM simulation to SLURM
-python src/galform_execution/submit_galform_job.py --nbody-sim Mill2 --model lc16 --iz 40 --nvol 1-64
-python src/galform_execution/submit_galform_job.py --nbody-sim Mill2 --model lc16 --iz 40 --nvol 1-64 --dry-run
 ```
 
-SLURM jobs run on COSMA and activate `.venv` (Python 3.12) at repo root. `.venv3.12` is also present. All scripts in `scripts/` add `src/` to `sys.path` manually, so a dev install is not required for them.
+SLURM jobs run on COSMA and activate `.venv` (Python 3.12) at repo root. All scripts in `scripts/` add `src/` to `sys.path` manually, so a dev install is not required for them.
 
 ## Architecture
 
 Two top-level concerns share this repo:
 
-**`src/galform_analysis/`** — pip-installable library for post-processing GALFORM HDF5 outputs.
-
-**`src/galform_execution/`** — SLURM job submitter for running GALFORM itself on COSMA. Simulation/model/dust/flag configs live in `src/galform_execution/config/*.json`; change defaults there without touching Python.
+**`src/`** — pip-installable library for post-processing GALFORM HDF5 outputs.
 
 ### Data flow
 
@@ -39,9 +34,9 @@ GALFORM writes output at:
 
 The `config.BASE_DIR` (overridable via `GALFORM_BASE_DIR` env var or `set_base_dir()`) points here. Scripts accept `--base-dir` / `--sim-name` / `--model` / `--iz` arguments and construct paths themselves.
 
-Snapshot indices (`iz`) map to redshifts via `src/galform_analysis/redshift_list.txt` — use `config.get_snapshot_redshift('iz155')` or `config.find_snapshot_at_redshift(0.5)`.
+Snapshot indices (`iz`) map to redshifts via `src/redshift_list.txt` — use `config.get_snapshot_redshift('iz155')` or `config.find_snapshot_at_redshift(0.5)`.
 
-### Library structure (`src/galform_analysis/`)
+### Library structure (`src/`)
 
 | Module | Role |
 |--------|------|
