@@ -3,7 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
-from galform_analysis.config import load_redshift_mapping, get_snapshot_redshift, find_snapshot_at_redshift, get_base_dir, set_base_dir
+from config import load_redshift_mapping, get_snapshot_redshift, find_snapshot_at_redshift, get_base_dir, set_base_dir
 
 def test_load_redshift_mapping():
     z_map = load_redshift_mapping()

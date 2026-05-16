@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 import pytest
 
-from galform_analysis.io.loaders import (
+from io.loaders import (
     close_snapshot,
     get_completed_subvolumes,
     get_output_group,

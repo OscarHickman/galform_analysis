@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from galform_analysis.analysis.mass_functions import hmf_given_redshift_and_subvolume
-from galform_analysis.config import DEFAULT_HALO_MASS_BINS
+from analysis.mass_functions import hmf_given_redshift_and_subvolume
+from config import DEFAULT_HALO_MASS_BINS
 
 
 def test_returns_expected_keys(galform_iz_dir):

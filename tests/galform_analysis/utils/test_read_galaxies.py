@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from galform_analysis.utils.read_galaxies import (
+from utils.read_galaxies import (
     read_galaxies_dataframe,
     read_galaxy_arrays,
     read_galaxy_positions,

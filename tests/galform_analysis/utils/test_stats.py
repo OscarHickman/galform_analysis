@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from galform_analysis.utils.stats import (
+from utils.stats import (
     positive_count,
     positive_percentile,
     positive_se,

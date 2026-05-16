@@ -29,8 +29,7 @@ jobs:
 
       - name: Run Ruff (lint and syntax)
         run: |
-          ruff check src/galform_analysis
-          ruff check src/galform_execution
+          ruff check src
 
       - name: Run tests
         run: |

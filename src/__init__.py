@@ -7,9 +7,9 @@ including:
 - Aggregating data across subvolumes
 
 Quick Start:
-    >>> from galform_analysis.config import set_base_dir
-    >>> from galform_analysis.analysis import avg_hmf_given_redshift_and_subvolumes
-    >>> from galform_analysis.analysis import avg_smf_given_redshift_and_subvolumes
+    >>> from config import set_base_dir
+    >>> from analysis import avg_hmf_given_redshift_and_subvolumes
+    >>> from analysis import avg_smf_given_redshift_and_subvolumes
     >>> 
     >>> # Set your GALFORM output directory
     >>> set_base_dir('/path/to/galform/output')
@@ -19,7 +19,7 @@ Quick Start:
 
 Configuration:
     Set the BASE_DIR for your GALFORM outputs:
-    - Via Python: galform_analysis.config.set_base_dir('/path')
+    - Via Python: config.set_base_dir('/path')
     - Via environment: export GALFORM_BASE_DIR=/path
     - Edit config.py directly
 """
@@ -27,12 +27,12 @@ Configuration:
 __version__ = "0.1.0"
 
 # Import key modules for convenience
-from . import config
-from . import io
-from . import analysis
+import config
+import io
+import analysis
 
 # Expose commonly used functions at package level
-from .config import (
+from config import (
     set_base_dir, 
     get_base_dir, 
     Cosmology,
@@ -40,8 +40,8 @@ from .config import (
     get_snapshot_redshift,
     find_snapshot_at_redshift,
 )
-from .io import read_snapshot_data, close_snapshot
-from .analysis import (
+from io import read_snapshot_data, close_snapshot
+from analysis import (
     aggregate_snapshot,
     # HMF functions
     hmf_given_redshift_and_subvolume,
