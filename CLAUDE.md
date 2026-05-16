@@ -43,7 +43,7 @@ GALFORM writes output at:
 
 The `config.BASE_DIR` (overridable via `GALFORM_BASE_DIR` env var or `set_base_dir()`) points here. Scripts accept `--base-dir` / `--sim-name` / `--model` / `--iz` arguments and construct paths themselves.
 
-Snapshot indices (`iz`) map to redshifts via `src/redshift_list.txt` — use `config.get_snapshot_redshift('iz155')` or `config.find_snapshot_at_redshift(0.5)`.
+Snapshot indices (`iz`) map to redshifts via `src/redshift_lists/<sim_name>.txt` — use `config.get_snapshot_redshift('iz155', 'L800')` or `config.find_snapshot_at_redshift(0.5, 'L800')`. To add a new simulation, drop a `<sim_name>.txt` file into `src/redshift_lists/`.
 
 ### Library structure (`src/`)
 
