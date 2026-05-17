@@ -1,3 +1,4 @@
+from typing import Optional
 """Configuration module for galform_analysis.
 
 This module manages paths and constants for GALFORM output analysis.
@@ -78,7 +79,7 @@ def load_redshift_mapping(sim_name: str) -> dict[int, float]:
     return z_map
 
 
-def get_snapshot_redshift(snapshot_name: str, sim_name: str) -> float | None:
+def get_snapshot_redshift(snapshot_name: str, sim_name: str) -> Optional[float]:
     """Get redshift for a snapshot name like 'iz99' or 'iz132'.
 
     Args:

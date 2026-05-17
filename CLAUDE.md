@@ -210,21 +210,19 @@ Scripts in `scripts/2pcf/slurm/` and `scripts/redshift_space_distortions/slurm/`
 
 Output CSVs land in `data/`; logs in `logs/`; plots in `_plots/`.
 
-### /cosma5 mount status on compute nodes (as of 2026-05-07)
+### COSMA Partition & Mount Guide (Mounts /cosma5?)
 
-GALFORM data lives on `/cosma5/data/...`. This filesystem is **not mounted on all compute nodes**. Submitting jobs to unmounted nodes causes immediate `FileNotFoundError`. Always submit to confirmed-working nodes only.
+Most simulation data lives on `/cosma5`. Only specific partitions can see this file system.
 
-**Confirmed working** (mount verified):
+| Partition Group | Mounts `/cosma5`? | Target Nodes | Notes |
+|:---|:---:|:---|:---|
+| `cosma5` | **Yes** | `m5xxx` | Default for this repo. |
+| `cosma7` (standard) | **No** | `m7xxx` | **Avoid.** |
+| `cosma8` (standard) | **No** | `m8xxx` | **Avoid.** |
+| `cosma7-shm` / `shm2` | **Yes** | `mad01-03` | Verified working (2026-05-17). |
+| `cosma8-shm` / `shm2` / `shm3` | **Yes** | `mad04-05`, `ga004-006` | Verified working (2026-05-17). |
+| `cosma8-ska` | **Yes** | `mad07` | Requires `--account=durham`. |
 
-| Node | Partition |
-|------|-----------|
-| m5005, m5006 | cosma5 |
-| ga004, ga006 | cosma8-shm2 |
-| mad09 | cosma8-shm3 |
-| mad07 | cosma8-ska |
-
-**Confirmed failing** (mount absent): cosma8 regular (m8xxx nodes), cosma7-rp, dine2.
-
-**cosma8-ska requires `--account=durham`** (not `dp004`) — submitting with dp004 gives "Invalid account or account/partition combination".
+**Important:** Jobs submitted to standard `cosma7` or `cosma8` partitions will fail with `FileNotFoundError`. Always use one of the specialized `shm`/`ska` partitions if spillover from `cosma5` is needed.
 
 Regular users cannot boost SLURM job priority (`scontrol update` is restricted); only `normal` QOS is available on both dp004 and durham accounts.
