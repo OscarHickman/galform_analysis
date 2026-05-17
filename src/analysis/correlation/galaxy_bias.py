@@ -3,7 +3,6 @@ Galaxy bias computation utilities.
 """
 import numpy as np
 import polars as pl
-from typing import Optional
 
 def compute_galaxy_bias(xi_galaxy: pl.DataFrame, xi_halo: pl.DataFrame) -> pl.DataFrame:
     """

@@ -28,7 +28,6 @@ __version__ = "0.1.0"
 
 # Import key modules for convenience
 import config
-import readers
 import analysis
 
 # Expose commonly used functions at package level

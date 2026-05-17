@@ -1,7 +1,6 @@
 """
 Wrapper for the SCOPE correlation analysis tool.
 """
-import os
 import sys
 
 # Ensure SCOPE's python bindings are in the path

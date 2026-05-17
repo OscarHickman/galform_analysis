@@ -1,12 +1,12 @@
-from typing import Optional
 """Configuration module for galform_analysis.
 
 This module manages paths and constants for GALFORM output analysis.
 Set BASE_DIR to point to your GALFORM output directory before running analyses.
 """
-
 import os
 from pathlib import Path
+from typing import Optional
+
 import numpy as np
 
 # ==============================================================================
