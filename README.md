@@ -1,5 +1,7 @@
 # galform_analysis
 
+[![Build Status](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml)
+
 Tools for analysing GALFORM HDF5 outputs on COSMA.
 
 ## Setup
