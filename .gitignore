@@ -146,4 +146,4 @@ Thumbs.db
 scripts/
 data/
 legacy/
-science/plots/
+science/_plots/

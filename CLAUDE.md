@@ -198,9 +198,11 @@ The asymmetry — Default sits much closer to τ₀=0 than to τ₀=∞ — is t
 
 | Name  | Box (Mpc/h) | N subvolumes | Notes |
 |-------|-------------|--------------|-------|
-| L800  | 542.16      | 1024         | Main high-res box |
-| Mill1 | 365.0       | 64           | Millennium I |
-| Mill2 | 73.0        | 64           | Millennium II |
+| L800  | 542.16      | 1024         | Main high-res box; Planck 2013 |
+| Mill1 | 500.0       | 64           | Millennium I; WMAP1 cosmology |
+| Mill2 | 100.0       | 64           | Millennium II; WMAP1 cosmology |
+| COLIBRE-L100m6 | 68.1 | 64        | Planck 2018; statistical realisations; on cosma8 |
+| FLAMINGO-L1000N1800 | 681.0 | 64  | Planck 2018; statistical realisations; on cosma8 |
 
 Masses in GALFORM HDF5 files are in M_sun/h. `config.DEFAULT_STELLAR_MASS_BINS` and `config.DEFAULT_HALO_MASS_BINS` are in log10(M_sun/h).
 
