@@ -47,6 +47,7 @@ def read_galaxy_arrays(
 	include_derived: bool = True,
 	centrals_only: bool = True,
 	mhalo_min: Optional[float] = None,
+	mstar_min: Optional[float] = None,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
 	"""Read galaxy data arrays from galaxies.hdf5 for one subvolume.
 
@@ -62,6 +63,7 @@ def read_galaxy_arrays(
 		include_derived: Include derived fields (mstar, mhalo, sfr, is_central)
 		centrals_only: If True, keep only central galaxies (is_central==1)
 		mhalo_min: Minimum subhalo mass (mhalo) threshold; None = no cut
+		mstar_min: Minimum stellar mass (mstar) threshold in M_sun/h; None = no cut
 
 	Returns:
 		Tuple of (arrays, metadata)
@@ -116,6 +118,11 @@ def read_galaxy_arrays(
 			if 'mhalo' not in arrays:
 				raise KeyError("mhalo field not found - cannot apply halo mass cut")
 			mask &= arrays['mhalo'] >= mhalo_min
+
+		if mstar_min is not None:
+			if 'mstar' not in arrays:
+				raise KeyError("mstar field not found - cannot apply stellar mass cut")
+			mask &= arrays['mstar'] >= mstar_min
 
 		arrays = _apply_mask(arrays, mask)
 		meta: Dict[str, Any] = {

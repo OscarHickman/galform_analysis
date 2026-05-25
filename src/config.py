@@ -14,7 +14,7 @@ import numpy as np
 # ==============================================================================
 
 # Default base directory - override this or set via environment variable
-_DEFAULT_BASE_DIR = '/cosma5/data/durham/dc-hick2/Galform_Out/L800/gp14'
+_DEFAULT_BASE_DIR = '/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16'
 
 # Check for environment variable override
 BASE_DIR = os.environ.get('GALFORM_BASE_DIR', _DEFAULT_BASE_DIR)

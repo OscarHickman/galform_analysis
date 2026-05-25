@@ -363,6 +363,14 @@ def compute_weighted_direct_rsd_multipoles(
 
     dd_cross = dd_total - dd_auto
 
+    rr_norm = _analytic_rr_smu(s_bins, mu_max, n_mu_bins, boxsize, int(nd))
+
+    # Naive: raw DD_total / RR (no subvolume correction)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        xi_naive = dd_total_norm / rr_norm - 1.0
+    xi_naive[~np.isfinite(xi_naive)] = np.nan
+    _, xi0_naive, xi2_naive = _project_rsd_multipoles(xi_naive, mu_max, n_mu_bins, s_bins)
+
     if m_selected < 2:
         alpha = float(m_selected) / float(k_total)
         beta = np.nan
@@ -373,7 +381,6 @@ def compute_weighted_direct_rsd_multipoles(
         dd_corr = alpha * dd_auto + beta * dd_cross
         dd_corr_norm = dd_corr / _choose2(nd)
 
-        rr_norm = _analytic_rr_smu(s_bins, mu_max, n_mu_bins, boxsize, int(nd))
         with np.errstate(divide="ignore", invalid="ignore"):
             xi_grid = dd_corr_norm / rr_norm - 1.0
 
@@ -384,6 +391,8 @@ def compute_weighted_direct_rsd_multipoles(
         "s": s_mid,
         "xi0": xi0,
         "xi2": xi2,
+        "xi0_naive": xi0_naive,
+        "xi2_naive": xi2_naive,
         "xi_grid": xi_grid,
         "alpha": alpha,
         "beta": beta,
