@@ -30,10 +30,12 @@ def load_simulation_families() -> Dict[str, Dict[str, Any]]:
             with open(file_path, "r") as f:
                 raw = json.load(f)
                 # Filter out metadata keys like "_note"
-                merged.update({
-                    name: {k: v for k, v in cfg.items() if not k.startswith("_")}
-                    for name, cfg in raw.items()
-                })
+                merged.update(
+                    {
+                        name: {k: v for k, v in cfg.items() if not k.startswith("_")}
+                        for name, cfg in raw.items()
+                    }
+                )
     return merged
 
 
