@@ -1,12 +1,9 @@
-"""Vectorised brute-force 3PCF triplet counter.
+"""Vectorised brute-force 3PCF triplet counter and SUGC (formerly SCOPE) weights.
 
 For each i, queries all j within rmax via cKDTree, then enumerates all (j, k)
 pairs vectorised over numpy.  Bins by max(r_ij, r_ik, r_jk).  If subvolume
 labels are passed, decomposes the count into SSS / SSD / DDD by number of
 distinct parent realisations.
-
-Algorithm is identical to the loop in run_3pcf_reference_v3.py — just executes
-the inner (j, k) enumeration in numpy rather than Python.
 """
 
 import numpy as np
@@ -83,10 +80,16 @@ def compute_triplet_counts(positions, rbins, boxsize, labels=None, log_every=100
     return t_sss, t_ssd, t_ddd, t_total
 
 
-def scope_weights(m, k):
+def sugc_weights(m, k):
+    """Universal weights for triplet configurations (SSS, SSD, DDD)."""
     m = float(m)
     k = float(k)
     w_sss = (m / k) ** 2
     w_ssd = (m**2 * (k - 1)) / (k**2 * (m - 1)) if m > 1 else 0.0
     w_ddd = (m**2 * (k - 1) * (k - 2)) / (k**2 * (m - 1) * (m - 2)) if m > 2 else 0.0
     return w_sss, w_ssd, w_ddd
+
+
+# Legacy alias
+def scope_weights(m, k):
+    return sugc_weights(m, k)

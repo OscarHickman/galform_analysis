@@ -51,7 +51,7 @@ def compute_3pcf_counts_reference(positions, rbins, boxsize=542.16):
 
 
 if __name__ == "__main__":
-    from src.analysis.correlation.subvol_weighted_correction import (
+    from galform_analysis.analysis.correlation.subvol_weighted_correction import (
         load_subvolume_galaxies,
     )
 
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     # direct comparison:
     # We load all k subvolumes and sample 5000.
     # This represents the "Full Box" density scaled down to the same N
-    # as the SCOPE test.
-    # Wait, if I use the same N, the counts should match exactly if SCOPE is correct.
+    # as the SUGC test.
+    # Wait, if I use the same N, the counts should match exactly if SUGC is correct.
 
     ivols = list(range(k))
     # Note: Loading all 1024 ivols into memory might be heavy. Let's do it in
@@ -91,6 +91,7 @@ if __name__ == "__main__":
 
     out_df = pl.DataFrame({"r": results["r"], "t_total": results["t_total"]})
 
-    output_path = f"science/SCOPE/3pcf_reference_iz{iz}.csv"
+    output_path = f"data/SUGC/3pcf_reference_iz{iz}.csv"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     out_df.write_csv(output_path)
     print(f"Reference results saved to {output_path}")

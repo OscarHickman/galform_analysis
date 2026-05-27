@@ -1,4 +1,4 @@
-"""General N-point brute-force counter and SCOPE correction weights.
+"""General N-point brute-force counter and SUGC correction weights.
 
 For each starting galaxy i, find all neighbours within rmax via cKDTree, then
 enumerate every (N-1)-subset of those neighbours (with strict idx > i to avoid
@@ -10,7 +10,7 @@ labels s in {1, ..., N}, returning per-s counts T_by_s[s-1].
 
 Reduces to the existing 2PCF / 3PCF brute-force counters when N=2, N=3.
 
-SCOPE weights (`scope_weights_npcf`): derived by inverting the per-s
+SUGC weights (`sugc_weights_npcf`): derived by inverting the per-s
 observation probability when drawing m of k subvolumes,
 
     P_obs(s) = prod_{i=0..s-1} (m-i)/(k-i)
@@ -106,7 +106,7 @@ def compute_npoint_counts(
     return T_by_s, T_total
 
 
-def scope_weights_npcf(N, m, k):
+def sugc_weights_npcf(N, m, k):
     """w[s-1] = (m/k)^N * (k)_s / (m)_s, the scale-down weight for s distinct labels."""
     if N < 2:
         raise ValueError("N must be >= 2")
@@ -117,3 +117,8 @@ def scope_weights_npcf(N, m, k):
         ratio *= (m - s + 1) / (k - s + 1)
         weights[s - 1] = (m / k) ** N / ratio if ratio != 0 else 0.0
     return weights
+
+
+# Legacy alias
+def scope_weights_npcf(N, m, k):
+    return sugc_weights_npcf(N, m, k)
