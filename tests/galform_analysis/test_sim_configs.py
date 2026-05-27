@@ -1,11 +1,11 @@
-from galform_analysis import SimulationConfig, load_sim_config
+from galform_analysis.config import SimulationConfig, load_sim_config
 import pytest
 
 def test_load_sim_config_l800():
     config = load_sim_config('L800')
-    assert config['name'] == 'L800'
-    assert config['box_size'] == 542.16
-    assert config['cosmology']['h'] == 0.6777
+    # Use keys present in the family format
+    assert config['h0'] == 0.6777
+    assert config['lbox'] == 542.16
 
 def test_simulation_config_class():
     cfg = SimulationConfig('L800')

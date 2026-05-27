@@ -70,19 +70,51 @@ class SimulationConfig:
 
     def __init__(self, sim_name: str):
         config = load_sim_config(sim_name)
-        self.name = config["name"]
-        self.box_size = config["box_size"]
-        self.n_subvolumes = config["n_subvolumes"]
+        self.name = config.get("name", sim_name)
 
-        cosmo = config["cosmology"]
-        self.omega_m = cosmo["omega_m"]
-        self.omega_l = cosmo["omega_l"]
-        self.omega_b = cosmo["omega_b"]
-        self.h = cosmo["h"]
-        self.sigma_8 = cosmo["sigma_8"]
-        self.delta_c = cosmo["delta_c"]
-        self.f_b = self.omega_b / self.omega_m
-        self.h0 = self.h * 100.0
+        # Handle both "box_size" (analysis) and "lbox" (execution)
+        self.box_size = config.get("box_size", config.get("lbox"))
+
+        # Handle both "n_subvolumes" (analysis) and "nvol_range" (execution)
+        if "n_subvolumes" in config:
+            self.n_subvolumes = config["n_subvolumes"]
+        elif "nvol_range" in config:
+            # Parse '1-1024' or '64'
+            raw = str(config["nvol_range"]).strip()
+            if "-" in raw:
+                self.n_subvolumes = int(raw.split("-")[1])
+            else:
+                self.n_subvolumes = int(raw)
+        else:
+            self.n_subvolumes = None
+
+        # Cosmology handling
+        if "cosmology" in config:
+            cosmo = config["cosmology"]
+            self.omega_m = cosmo["omega_m"]
+            self.omega_l = cosmo["omega_l"]
+            self.omega_b = cosmo["omega_b"]
+            self.h = cosmo["h"]
+            self.sigma_8 = cosmo["sigma_8"]
+            self.delta_c = cosmo.get("delta_c", 1.686)
+        else:
+            # Flat format from family files
+            self.omega_m = config.get("omega0")
+            self.omega_l = config.get("lambda0")
+            self.omega_b = config.get("omegab")
+            self.h = config.get("h0")
+            self.sigma_8 = config.get("sigma8")
+            self.delta_c = config.get("delta_c", 1.686)
+
+        if self.omega_m and self.omega_b:
+            self.f_b = self.omega_b / self.omega_m
+        else:
+            self.f_b = None
+
+        if self.h:
+            self.h0 = self.h * 100.0
+        else:
+            self.h0 = None
 
     def __repr__(self) -> str:
         return f"<SimulationConfig: {self.name} (L={self.box_size} Mpc/h)>"
