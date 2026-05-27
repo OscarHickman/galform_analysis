@@ -16,45 +16,17 @@ import numpy as np
 # ==============================================================================
 
 _SIM_CONFIGS_DIR = Path(__file__).parent / "sim_configs"
-_SIM_FAMILIES_DIR = _SIM_CONFIGS_DIR / "families"
-
-
-def load_sim_config(sim_name: str) -> Dict[str, Any]:
-    """Load configuration for the given N-body simulation.
-
-    Args:
-        sim_name: Simulation name (e.g. 'L800', 'Mill1', 'Mill2').
-                  Must match a file in galform_analysis/sim_configs/<sim_name>.json.
-
-    Returns:
-        dict: Simulation configuration
-    """
-    config_file = _SIM_CONFIGS_DIR / f"{sim_name}.json"
-
-    if not config_file.exists():
-        # Fallback: check if it's in a family file
-        families = load_simulation_families()
-        if sim_name in families:
-            return families[sim_name]
-
-        available = [p.stem for p in _SIM_CONFIGS_DIR.glob("*.json") if p.stem != "families"]
-        raise FileNotFoundError(
-            f"No configuration for simulation '{sim_name}'. Available: {available}."
-        )
-
-    with open(config_file, "r") as f:
-        return json.load(f)
 
 
 def load_simulation_families() -> Dict[str, Dict[str, Any]]:
-    """Load all simulation family configurations.
+    """Load all simulation family configurations from the sim_configs directory.
 
     Returns:
         Dict[str, Dict[str, Any]]: Merged dictionary of all simulation configs.
     """
     merged: Dict[str, Dict[str, Any]] = {}
-    if _SIM_FAMILIES_DIR.is_dir():
-        for file_path in sorted(_SIM_FAMILIES_DIR.glob("*.json")):
+    if _SIM_CONFIGS_DIR.is_dir():
+        for file_path in sorted(_SIM_CONFIGS_DIR.glob("*.json")):
             with open(file_path, "r") as f:
                 raw = json.load(f)
                 # Filter out metadata keys like "_note"
@@ -63,6 +35,25 @@ def load_simulation_families() -> Dict[str, Dict[str, Any]]:
                     for name, cfg in raw.items()
                 })
     return merged
+
+
+def load_sim_config(sim_name: str) -> Dict[str, Any]:
+    """Load configuration for the given N-body simulation.
+
+    Args:
+        sim_name: Simulation name (e.g. 'L800', 'Mill1', 'Mill2').
+
+    Returns:
+        dict: Simulation configuration
+    """
+    families = load_simulation_families()
+    if sim_name in families:
+        return families[sim_name]
+
+    available = sorted(families.keys())
+    raise FileNotFoundError(
+        f"No configuration for simulation '{sim_name}'. Available: {available}."
+    )
 
 
 class SimulationConfig:
