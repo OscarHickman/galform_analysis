@@ -112,6 +112,7 @@ if __name__ == "__main__":
     mstar_cut = 10.0
 
     import os
+
     _USER = os.environ.get("USER", "<USER>")
     base_dir = f"/cosma5/data/durham/{_USER}/Galform_Out/L800/lc16"
 
