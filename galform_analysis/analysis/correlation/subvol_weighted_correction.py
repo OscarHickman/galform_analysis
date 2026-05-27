@@ -32,7 +32,6 @@ from Corrfunc.theory.DDrppi import DDrppi
 
 from galform_analysis.utils.read_galaxies import read_galaxy_arrays
 
-
 _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")
 
 
@@ -45,7 +44,9 @@ def _pick_partition_labels(catalogue: pl.DataFrame) -> np.ndarray:
     raise KeyError("Catalogue is missing both 'partition_label' and 'subvol_rank'")
 
 
-def _select_halo_id_array(arrays: dict[str, np.ndarray]) -> tuple[Optional[np.ndarray], Optional[str]]:
+def _select_halo_id_array(
+    arrays: dict[str, np.ndarray],
+) -> tuple[Optional[np.ndarray], Optional[str]]:
     """Choose an informative halo identifier array from loaded GALFORM fields."""
     for key in _HALO_ID_FIELDS:
         if key not in arrays:
@@ -161,7 +162,9 @@ def _paircounts_r_auto(
     )
     npairs = np.asarray(res["npairs"], dtype=np.float64)
     if npairs.size != n_bins:
-        raise RuntimeError(f"Unexpected DD output size: got {npairs.size}, expected {n_bins}")
+        raise RuntimeError(
+            f"Unexpected DD output size: got {npairs.size}, expected {n_bins}"
+        )
     return npairs
 
 
@@ -192,7 +195,9 @@ def _paircounts_r_cross(
     )
     npairs = np.asarray(res["npairs"], dtype=np.float64)
     if npairs.size != n_bins:
-        raise RuntimeError(f"Unexpected DD cross output size: got {npairs.size}, expected {n_bins}")
+        raise RuntimeError(
+            f"Unexpected DD cross output size: got {npairs.size}, expected {n_bins}"
+        )
     return npairs
 
 
@@ -266,7 +271,9 @@ def load_subvolume_galaxies(
                     f"No informative halo ID field found for iz{iz_num}/ivol{ivol}; "
                     "cannot build halo_id_hash partitions"
                 )
-            labels = np.mod(np.abs(halo_id[keep]), int(k_total)).astype(np.int64, copy=False)
+            labels = np.mod(np.abs(halo_id[keep]), int(k_total)).astype(
+                np.int64, copy=False
+            )
 
         chunks.append(
             pl.DataFrame(
@@ -283,7 +290,17 @@ def load_subvolume_galaxies(
         )
 
     if not chunks:
-        return pl.DataFrame(schema={"x": pl.Float64, "y": pl.Float64, "z": pl.Float64, "subvol_rank": pl.Int64, "partition_label": pl.Int64, "ivol": pl.Int64, "partition_scheme": pl.Utf8})
+        return pl.DataFrame(
+            schema={
+                "x": pl.Float64,
+                "y": pl.Float64,
+                "z": pl.Float64,
+                "subvol_rank": pl.Int64,
+                "partition_label": pl.Int64,
+                "ivol": pl.Int64,
+                "partition_scheme": pl.Utf8,
+            }
+        )
 
     return pl.concat(chunks)
 
@@ -336,7 +353,9 @@ def compute_weighted_wp_from_catalogue(
     tags = _pick_partition_labels(catalogue)
     nd = pos.shape[0]
 
-    dd_total = _paircounts_rppi_auto(pos, rp_bins=rp_bins, pimax=pimax, boxsize=boxsize, nthreads=nthreads)
+    dd_total = _paircounts_rppi_auto(
+        pos, rp_bins=rp_bins, pimax=pimax, boxsize=boxsize, nthreads=nthreads
+    )
 
     dd_auto = np.zeros_like(dd_total)
     for tag in range(int(m_selected)):
@@ -360,7 +379,9 @@ def compute_weighted_wp_from_catalogue(
         boxsize=boxsize,
         nthreads=nthreads,
     )
-    rr = _paircounts_rppi_auto(rnd, rp_bins=rp_bins, pimax=pimax, boxsize=boxsize, nthreads=nthreads)
+    rr = _paircounts_rppi_auto(
+        rnd, rp_bins=rp_bins, pimax=pimax, boxsize=boxsize, nthreads=nthreads
+    )
 
     dd_norm = dd_total / _choose2(nd)
     dr_norm = dr / (nd * nr)
@@ -449,7 +470,9 @@ def compute_weighted_xi_from_catalogue(
         mask = tags == tag
         if np.count_nonzero(mask) < 2:
             continue
-        dd_auto += _paircounts_r_auto(pos[mask], rbins=rbins, boxsize=boxsize, nthreads=nthreads)
+        dd_auto += _paircounts_r_auto(
+            pos[mask], rbins=rbins, boxsize=boxsize, nthreads=nthreads
+        )
     dd_cross = dd_total - dd_auto
 
     nr = max(2, int(np.ceil(random_multiplier * nd)))
@@ -540,7 +563,9 @@ def compute_weighted_xi_for_n_list(
     )
 
     out_rows: list[dict[str, float | int]] = []
-    label_col = "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
+    label_col = (
+        "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
+    )
     for n in n_vals:
         sub_cat = full_cat.filter(pl.col(label_col) < n)
         result = compute_weighted_xi_from_catalogue(
@@ -628,7 +653,9 @@ def compute_weighted_wp_for_n_list(
     )
 
     out_rows: list[dict[str, float | int]] = []
-    label_col = "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
+    label_col = (
+        "partition_label" if "partition_label" in full_cat.columns else "subvol_rank"
+    )
     for n in n_vals:
         sub_cat = full_cat.filter(pl.col(label_col) < n)
         result = compute_weighted_wp_from_catalogue(

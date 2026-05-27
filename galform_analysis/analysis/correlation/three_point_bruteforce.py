@@ -42,11 +42,11 @@ def compute_triplet_counts(positions, rbins, boxsize, labels=None, log_every=100
 
         pos_n = positions[idx]
         d_ij = _periodic_dist(positions[i] - pos_n, boxsize)
-        r_ij = np.sqrt(np.einsum('ij,ij->i', d_ij, d_ij))
+        r_ij = np.sqrt(np.einsum("ij,ij->i", d_ij, d_ij))
 
         diff = pos_n[:, None, :] - pos_n[None, :, :]
         diff = _periodic_dist(diff, boxsize)
-        r_pair = np.sqrt(np.einsum('ijk,ijk->ij', diff, diff))
+        r_pair = np.sqrt(np.einsum("ijk,ijk->ij", diff, diff))
 
         jj, kk = np.triu_indices(n_idx, k=1)
         r_jk = r_pair[jj, kk]
@@ -87,6 +87,6 @@ def scope_weights(m, k):
     m = float(m)
     k = float(k)
     w_sss = (m / k) ** 2
-    w_ssd = (m ** 2 * (k - 1)) / (k ** 2 * (m - 1)) if m > 1 else 0.0
-    w_ddd = (m ** 2 * (k - 1) * (k - 2)) / (k ** 2 * (m - 1) * (m - 2)) if m > 2 else 0.0
+    w_ssd = (m**2 * (k - 1)) / (k**2 * (m - 1)) if m > 1 else 0.0
+    w_ddd = (m**2 * (k - 1) * (k - 2)) / (k**2 * (m - 1) * (m - 2)) if m > 2 else 0.0
     return w_sss, w_ssd, w_ddd

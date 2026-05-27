@@ -3,10 +3,11 @@
 This module manages paths and constants for GALFORM output analysis.
 Set BASE_DIR to point to your GALFORM output directory before running analyses.
 """
+
 import json
 import os
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -14,7 +15,7 @@ import numpy as np
 # SIMULATION CONFIGURATION
 # ==============================================================================
 
-_SIM_CONFIGS_DIR = Path(__file__).parent / 'sim_configs'
+_SIM_CONFIGS_DIR = Path(__file__).parent / "sim_configs"
 
 
 def load_sim_config(sim_name: str) -> Dict[str, Any]:
@@ -27,16 +28,15 @@ def load_sim_config(sim_name: str) -> Dict[str, Any]:
     Returns:
         dict: Simulation configuration
     """
-    config_file = _SIM_CONFIGS_DIR / f'{sim_name}.json'
+    config_file = _SIM_CONFIGS_DIR / f"{sim_name}.json"
 
     if not config_file.exists():
-        available = [p.stem for p in _SIM_CONFIGS_DIR.glob('*.json')]
+        available = [p.stem for p in _SIM_CONFIGS_DIR.glob("*.json")]
         raise FileNotFoundError(
-            f"No configuration for simulation '{sim_name}'. "
-            f"Available: {available}."
+            f"No configuration for simulation '{sim_name}'. Available: {available}."
         )
 
-    with open(config_file, 'r') as f:
+    with open(config_file, "r") as f:
         return json.load(f)
 
 
@@ -45,17 +45,17 @@ class SimulationConfig:
 
     def __init__(self, sim_name: str):
         config = load_sim_config(sim_name)
-        self.name = config['name']
-        self.box_size = config['box_size']
-        self.n_subvolumes = config['n_subvolumes']
-        
-        cosmo = config['cosmology']
-        self.omega_m = cosmo['omega_m']
-        self.omega_l = cosmo['omega_l']
-        self.omega_b = cosmo['omega_b']
-        self.h = cosmo['h']
-        self.sigma_8 = cosmo['sigma_8']
-        self.delta_c = cosmo['delta_c']
+        self.name = config["name"]
+        self.box_size = config["box_size"]
+        self.n_subvolumes = config["n_subvolumes"]
+
+        cosmo = config["cosmology"]
+        self.omega_m = cosmo["omega_m"]
+        self.omega_l = cosmo["omega_l"]
+        self.omega_b = cosmo["omega_b"]
+        self.h = cosmo["h"]
+        self.sigma_8 = cosmo["sigma_8"]
+        self.delta_c = cosmo["delta_c"]
         self.f_b = self.omega_b / self.omega_m
         self.h0 = self.h * 100.0
 
@@ -68,15 +68,15 @@ class SimulationConfig:
 # ==============================================================================
 
 # Default base directory - override this or set via environment variable
-_DEFAULT_BASE_DIR = '/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16'
+_DEFAULT_BASE_DIR = "/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16"
 
 # Check for environment variable override
-BASE_DIR = os.environ.get('GALFORM_BASE_DIR', _DEFAULT_BASE_DIR)
+BASE_DIR = os.environ.get("GALFORM_BASE_DIR", _DEFAULT_BASE_DIR)
 
 
 def set_base_dir(path: str) -> None:
     """Set the base directory for GALFORM outputs.
-    
+
     Args:
         path: Path to the GALFORM output directory
     """
@@ -86,7 +86,7 @@ def set_base_dir(path: str) -> None:
 
 def get_base_dir() -> Path:
     """Get the current base directory as a Path object.
-    
+
     Returns:
         Path object pointing to the base directory
     """
@@ -97,7 +97,7 @@ def get_base_dir() -> Path:
 # REDSHIFT MAPPING
 # ==============================================================================
 
-_REDSHIFT_LISTS_DIR = Path(__file__).parent / 'redshift_lists'
+_REDSHIFT_LISTS_DIR = Path(__file__).parent / "redshift_lists"
 
 
 def load_redshift_mapping(sim_name: str) -> dict[int, float]:
@@ -110,10 +110,10 @@ def load_redshift_mapping(sim_name: str) -> dict[int, float]:
     Returns:
         dict: Mapping from iz number (int) to redshift (float)
     """
-    redshift_file = _REDSHIFT_LISTS_DIR / f'{sim_name}.txt'
+    redshift_file = _REDSHIFT_LISTS_DIR / f"{sim_name}.txt"
 
     if not redshift_file.exists():
-        available = [p.stem for p in _REDSHIFT_LISTS_DIR.glob('*.txt')]
+        available = [p.stem for p in _REDSHIFT_LISTS_DIR.glob("*.txt")]
         raise FileNotFoundError(
             f"No redshift list for simulation '{sim_name}'. "
             f"Available: {available}. "
@@ -121,7 +121,7 @@ def load_redshift_mapping(sim_name: str) -> dict[int, float]:
         )
 
     z_map = {}
-    with open(redshift_file, 'r') as f:
+    with open(redshift_file, "r") as f:
         for line in f:
             parts = line.strip().split()
             if len(parts) == 2:
@@ -144,16 +144,19 @@ def get_snapshot_redshift(snapshot_name: str, sim_name: str) -> Optional[float]:
         float or None: Redshift value, or None if not found
     """
     import re
-    if not snapshot_name.startswith('iz'):
-        snapshot_name = f'iz{snapshot_name}'
+
+    if not snapshot_name.startswith("iz"):
+        snapshot_name = f"iz{snapshot_name}"
     z_map = load_redshift_mapping(sim_name)
-    match = re.search(r'iz(\d+)', snapshot_name)
+    match = re.search(r"iz(\d+)", snapshot_name)
     if match:
         return z_map.get(int(match.group(1)))
     return None
 
 
-def find_snapshot_at_redshift(target_z: float, sim_name: str, tolerance: float = 0.1) -> str | None:
+def find_snapshot_at_redshift(
+    target_z: float, sim_name: str, tolerance: float = 0.1
+) -> str | None:
     """Find the snapshot closest to a target redshift.
 
     Args:
@@ -167,7 +170,7 @@ def find_snapshot_at_redshift(target_z: float, sim_name: str, tolerance: float =
     z_map = load_redshift_mapping(sim_name)
 
     best_match = None
-    min_diff = float('inf')
+    min_diff = float("inf")
 
     for iz_num, z_val in z_map.items():
         diff = abs(z_val - target_z)
@@ -176,7 +179,7 @@ def find_snapshot_at_redshift(target_z: float, sim_name: str, tolerance: float =
             best_match = iz_num
 
     if min_diff <= tolerance and best_match is not None:
-        return f'iz{best_match}'
+        return f"iz{best_match}"
 
     return None
 
@@ -185,12 +188,13 @@ def find_snapshot_at_redshift(target_z: float, sim_name: str, tolerance: float =
 # COSMOLOGY PARAMETERS
 # ==============================================================================
 
+
 class Cosmology:
     """Cosmological parameters for the simulation.
-    
+
     DEPRECATED: Use SimulationConfig(sim_name) instead.
     """
-    
+
     OMEGA_M = 0.307
     OMEGA_L = 0.693
     OMEGA_B = 0.04825
@@ -219,8 +223,7 @@ SFR_CONVERSION = 1.0  # Msun/yr per code unit
 # GALFORM stores halo/stellar masses in M_sun/h.
 # log10(M) bins here are log10(M_sun/h).
 DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)  # log10(M_star [M_sun/h])
-DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)    # log10(M_halo [M_sun/h])
+DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)  # log10(M_halo [M_sun/h])
 
 # Default sSFR bins (log10 yr^-1)
 DEFAULT_SSFR_BINS = np.arange(-10.0, 5.0, 0.1)
-

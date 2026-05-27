@@ -21,18 +21,18 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
 
 from galform_analysis.config import DEFAULT_HALO_MASS_BINS, get_base_dir
 from galform_analysis.readers.loaders import (
-    open_galaxies_hdf5,
-    get_output_group,
     _get_first_array,
     _get_redshift_from_file,
     _get_redshift_from_zsnap,
+    get_output_group,
+    open_galaxies_hdf5,
 )
 
 # A galaxy with mhalo/mhhalo above this threshold is considered the
@@ -85,9 +85,7 @@ def _load_hod_data(
         mhalo = _get_first_array(g, ["mhalo", "mchalo"])
 
         # Central flag
-        is_central = (
-            np.asarray(g["is_central"]) if "is_central" in g else None
-        )
+        is_central = np.asarray(g["is_central"]) if "is_central" in g else None
 
         # Stellar mass
         m_disk = _get_first_array(g, ["mstars_disk"])
@@ -109,9 +107,7 @@ def _load_hod_data(
         if mstar.size:
             all_arrs["mstar"] = mstar
 
-        all_arrs = {
-            k: np.ravel(v) for k, v in all_arrs.items() if v is not None
-        }
+        all_arrs = {k: np.ravel(v) for k, v in all_arrs.items() if v is not None}
         n = min(len(v) for v in all_arrs.values()) if all_arrs else 0
         if n == 0:
             raise RuntimeError("No galaxy data found for HOD calculation")
@@ -125,9 +121,7 @@ def _load_hod_data(
         galaxy_selection_mask = None
         if galaxy_stellar_mass_min is not None:
             if "mstar" not in all_arrs or all_arrs["mstar"].size == 0:
-                raise KeyError(
-                    "mstar not found — cannot apply stellar mass cut"
-                )
+                raise KeyError("mstar not found — cannot apply stellar mass cut")
             galaxy_selection_mask = all_arrs["mstar"] >= galaxy_stellar_mass_min
         all_arrs["galaxy_selection_mask"] = galaxy_selection_mask
 
@@ -135,8 +129,7 @@ def _load_hod_data(
             "iz": Path(iz_path).name,
             "ivol": ivol,
             "z": (
-                _get_redshift_from_file(f)
-                or _get_redshift_from_zsnap(iz_path, ivol)
+                _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol)
             ),
         }
 
@@ -239,9 +232,7 @@ def _compute_hod_two_histogram(
         fof_cen_mask = (gal_is_cen == 1) & (
             gal_mh / (gal_mhh + 1e-30) > FOF_CENTRAL_RATIO_THRESHOLD
         )
-        counts_cen, _ = np.histogram(
-            log_gal_mhh[fof_cen_mask], bins=bins
-        )
+        counts_cen, _ = np.histogram(log_gal_mhh[fof_cen_mask], bins=bins)
         mean_central = np.divide(
             counts_cen.astype(float),
             counts_halos,
@@ -317,9 +308,7 @@ def hod_given_redshift_and_subvolume(
 
     # Count qualifying galaxies for metadata
     sel = arrays.get("galaxy_selection_mask")
-    n_galaxies = (
-        int(sel.sum()) if sel is not None else int(arrays["mhhalo"].size)
-    )
+    n_galaxies = int(sel.sum()) if sel is not None else int(arrays["mhhalo"].size)
 
     return {
         "iz": meta["iz"],
@@ -370,16 +359,18 @@ def hods_given_redshifts_and_subvolume(
             halo_mass_lower_limit=halo_mass_lower_limit,
         )
         if result is not None:
-            results_by_z.append({
-                "iz": f"iz{iz_num}",
-                "iz_num": iz_num,
-                "z": result["z"],
-                "centers": result["centers"],
-                "mean_occupation": result["mean_occupation"],
-                "mean_central": result.get("mean_central"),
-                "mean_satellite": result.get("mean_satellite"),
-                "counts_halos": result["counts_halos"],
-            })
+            results_by_z.append(
+                {
+                    "iz": f"iz{iz_num}",
+                    "iz_num": iz_num,
+                    "z": result["z"],
+                    "centers": result["centers"],
+                    "mean_occupation": result["mean_occupation"],
+                    "mean_central": result.get("mean_central"),
+                    "mean_satellite": result.get("mean_satellite"),
+                    "counts_halos": result["counts_halos"],
+                }
+            )
 
     if not results_by_z:
         return None
@@ -460,11 +451,7 @@ def avg_hod_given_redshift_and_subvolumes(
         return None
 
     mhhalo = np.concatenate(all_mhhalo)
-    mhalo = (
-        np.concatenate(all_mhalo)
-        if all(a is not None for a in all_mhalo)
-        else None
-    )
+    mhalo = np.concatenate(all_mhalo) if all(a is not None for a in all_mhalo) else None
     is_central = (
         np.concatenate(all_is_central)
         if all(a is not None for a in all_is_central)
@@ -487,9 +474,7 @@ def avg_hod_given_redshift_and_subvolumes(
         halo_mass_lower_limit=halo_mass_lower_limit,
     )
 
-    n_galaxies = (
-        int(sel_mask.sum()) if sel_mask is not None else int(mhhalo.size)
-    )
+    n_galaxies = int(sel_mask.sum()) if sel_mask is not None else int(mhhalo.size)
 
     return {
         "iz": f"iz{iz_num}",
@@ -569,11 +554,7 @@ def avg_hod_given_redshifts_and_subvolume(
     mean_central = np.array(per_cen).mean(axis=0) if per_cen else None
     mean_satellite = np.array(per_sat).mean(axis=0) if per_sat else None
 
-    centers = (
-        centers_ref
-        if centers_ref is not None
-        else 0.5 * (bins[1:] + bins[:-1])
-    )
+    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
 
     return {
         "ivol": ivol,

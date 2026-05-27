@@ -1,18 +1,20 @@
 import os
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import numpy as np
-from Corrfunc.theory.xi import xi as corrfunc_xi
-
 import polars as pl
+from Corrfunc.theory.xi import xi as corrfunc_xi
 
 from galform_analysis.config import DEFAULT_RBINS, get_base_dir
 from galform_analysis.readers.loaders import read_snapshot_data
-from galform_analysis.utils.read_galaxies import read_galaxy_positions, read_halo_positions
+from galform_analysis.utils.read_galaxies import (
+    read_galaxy_positions,
+    read_halo_positions,
+)
 
 
 def _load_positions_from_hdf5(
-    iz_path: str, 
+    iz_path: str,
     ivol: int,
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
@@ -64,25 +66,29 @@ def compute_xi_corrfunc(
     if rbins is None:
         rbins = DEFAULT_RBINS
     rbins = np.asarray(rbins, dtype=float)
-    
+
     # For periodic geometry, rmax must be < boxsize/2 to avoid double-counting
     # Filter bin edges but ensure we keep at least 2 edges to form 1+ bins
     rmax_periodic = boxsize / 2.0
     rbins = rbins[rbins <= rmax_periodic]
-    
-    if len(rbins) < 2:
-        raise ValueError(f"No valid rbins within periodic limit (rmax={rmax_periodic:.2f} Mpc/h). Cannot compute correlation.")
 
-    
+    if len(rbins) < 2:
+        raise ValueError(
+            f"No valid rbins within periodic limit (rmax={rmax_periodic:.2f} Mpc/h). "
+            "Cannot compute correlation."
+        )
+
     ngal = positions.shape[0]
     if ngal < 2:
         # Not enough galaxies for correlation
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-        df = pl.DataFrame({
-            'r': r_centers,
-            'xi': np.full_like(r_centers, np.nan),
-        })
-        df.attrs = {'rbins': rbins, 'ngal': ngal}
+        df = pl.DataFrame(
+            {
+                "r": r_centers,
+                "xi": np.full_like(r_centers, np.nan),
+            }
+        )
+        df.attrs = {"rbins": rbins, "ngal": ngal}
         return df
 
     # Use Corrfunc's xi calculator for periodic boxes to avoid manual normalization bugs
@@ -97,8 +103,8 @@ def compute_xi_corrfunc(
         output_ravg=True,
     )
 
-    ravg = np.array([x['ravg'] for x in results], dtype=np.float64)
-    xi_vals = np.array([x['xi'] for x in results], dtype=np.float64)
+    ravg = np.array([x["ravg"] for x in results], dtype=np.float64)
+    xi_vals = np.array([x["xi"] for x in results], dtype=np.float64)
 
     # Use ravg if available, otherwise fall back to bin centers
     if np.all(np.isfinite(ravg) & (ravg > 0)):
@@ -106,8 +112,8 @@ def compute_xi_corrfunc(
     else:
         r = 0.5 * (rbins[:-1] + rbins[1:])
 
-    df = pl.DataFrame({'r': r, 'xi': xi_vals})
-    df.attrs = {'rbins': rbins, 'ngal': ngal}
+    df = pl.DataFrame({"r": r, "xi": xi_vals})
+    df.attrs = {"rbins": rbins, "ngal": ngal}
     return df
 
 
@@ -144,27 +150,30 @@ def correlation_given_redshift_and_subvolume(
 
         # Get subvolume metadata
         meta = read_snapshot_data(iz_path, ivol)
-        V_ivol = meta.get('V_ivol', None)
-        
-        # CRITICAL: Each subvolume is an INDEPENDENT REALIZATION of the full simulation box.
-        # Positions are stored in full box coordinates (e.g., 0-542 Mpc/h for a 542³ box).
-        # V_ivol represents the statistical volume (number of such realizations × full box volume),
+        V_ivol = meta.get("V_ivol", None)
+
+        # CRITICAL: Each subvolume is an INDEPENDENT REALIZATION of the full
+        # simulation box.
+        # Positions are stored in full box coordinates (e.g., 0-542 Mpc/h for a
+        # 542³ box).
+        # V_ivol represents the statistical volume (number of such realizations
+        # × full box volume),
         # NOT the size of a spatial tile.
         #
         # For correlation function calculation:
         # - Use the position range to infer the actual periodic box size
         # - Each subvolume spans the full box (they're overlapping realizations)
-        
+
         # Infer box size from position extent
         extent = np.ptp(pos, axis=0)  # Range in each dimension
         L = float(np.max(extent))
-        
+
         # Sanity check: positions should start near 0
         pos_min = np.min(pos, axis=0)
         if not np.all(pos_min >= -1.0):  # Allow small numerical errors
             # Shift to [0, L) if needed
             pos = pos - pos_min
-        
+
         # Final wrap to handle any edge cases
         pos = np.fmod(pos, L)
         pos = np.where(pos < 0, pos + L, pos)
@@ -173,17 +182,17 @@ def correlation_given_redshift_and_subvolume(
             raise RuntimeError(f"Invalid box size for {iz_path}/ivol{ivol}: L={L}")
 
         res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
-        
+
         # Metadata
         metadata = {
-            'z': z_val if z_val is not None else meta.get('z'),
-            'ivol': ivol,
-            'V_ivol': V_ivol,
-            'boxsize': L,
-            'ngal': res.attrs.get('ngal'),
-            'rbins': res.attrs.get('rbins'),
+            "z": z_val if z_val is not None else meta.get("z"),
+            "ivol": ivol,
+            "V_ivol": V_ivol,
+            "boxsize": L,
+            "ngal": res.attrs.get("ngal"),
+            "rbins": res.attrs.get("rbins"),
         }
-        res.attrs = {**getattr(res, 'attrs', {}), **metadata}
+        res.attrs = {**getattr(res, "attrs", {}), **metadata}
         return res
 
     except (FileNotFoundError, RuntimeError, KeyError):
@@ -198,7 +207,7 @@ def halo_correlation_given_redshift_and_subvolume(
     nthreads: int = 4,
     mhhalo_min: Optional[float] = None,
 ) -> Optional[pl.DataFrame]:
-    """Compute dark matter halo correlation function directly from GALFORM halo positions.
+    """Compute dark matter halo correlation function from GALFORM halo positions.
 
     DM halos are represented by central galaxies of main halos (is_central=1, ihhalo=1)
     from the galaxies.hdf5 file. Uses host halo mass (mhhalo) for filtering.
@@ -221,17 +230,17 @@ def halo_correlation_given_redshift_and_subvolume(
 
         # Get subvolume metadata
         meta = read_snapshot_data(iz_path, ivol)
-        V_ivol = meta.get('V_ivol', None)
-        
+        V_ivol = meta.get("V_ivol", None)
+
         # Infer box size from position extent (same logic as galaxy correlation)
         extent = np.ptp(pos, axis=0)
         L = float(np.max(extent))
-        
+
         # Ensure positions are in [0, L) range
         pos_min = np.min(pos, axis=0)
         if not np.all(pos_min >= -1.0):
             pos = pos - pos_min
-        
+
         pos = np.fmod(pos, L)
         pos = np.where(pos < 0, pos + L, pos)
 
@@ -239,21 +248,22 @@ def halo_correlation_given_redshift_and_subvolume(
             raise RuntimeError(f"Invalid box size for {iz_path}/ivol{ivol}: L={L}")
 
         res = compute_xi_corrfunc(pos, boxsize=L, rbins=rbins, nthreads=nthreads)
-        
+
         # Metadata
         metadata = {
-            'z': z_val if z_val is not None else meta.get('z'),
-            'ivol': ivol,
-            'V_ivol': V_ivol,
-            'boxsize': L,
-            'nhalo': res.attrs.get('ngal'),  # Use ngal as count of halos
-            'rbins': res.attrs.get('rbins'),
+            "z": z_val if z_val is not None else meta.get("z"),
+            "ivol": ivol,
+            "V_ivol": V_ivol,
+            "boxsize": L,
+            "nhalo": res.attrs.get("ngal"),  # Use ngal as count of halos
+            "rbins": res.attrs.get("rbins"),
         }
-        res.attrs = {**getattr(res, 'attrs', {}), **metadata}
+        res.attrs = {**getattr(res, "attrs", {}), **metadata}
         return res
 
     except (FileNotFoundError, RuntimeError, KeyError):
         return None
+
 
 def avg_correlation_given_redshift_and_subvolumes(
     iz_num: int,
@@ -269,7 +279,7 @@ def avg_correlation_given_redshift_and_subvolumes(
     CRITICAL: Subvolumes are overlapping realizations of the SAME spatial volume.
     Each subvolume samples 1/1024 of the galaxy population in the same spatial box.
     When combining N subvolumes, we get N/1024 of the full population in the SAME box.
-    
+
     Correct approach: Combine ALL galaxy positions from multiple subvolumes into
     a single box, then compute xi(r) once on this denser population. This gives
     the correlation function for a population N times denser than a single subvolume.
@@ -291,7 +301,7 @@ def avg_correlation_given_redshift_and_subvolumes(
     if base_dir is None:
         base_dir = str(get_base_dir())
 
-    iz_path = os.path.join(base_dir, f'iz{iz_num}')
+    iz_path = os.path.join(base_dir, f"iz{iz_num}")
     if not os.path.isdir(iz_path):
         return None
 
@@ -300,7 +310,7 @@ def avg_correlation_given_redshift_and_subvolumes(
     z = None
     V_ivol = None
     L_box = None
-    
+
     for iv in ivols:
         try:
             # Load positions and metadata for this subvolume
@@ -308,12 +318,12 @@ def avg_correlation_given_redshift_and_subvolumes(
                 iz_path, iv, centrals_only=centrals_only, mhalo_min=mhalo_min
             )
             meta = read_snapshot_data(iz_path, iv)
-            
+
             if z is None:
-                z = z_val if z_val is not None else meta.get('z')
+                z = z_val if z_val is not None else meta.get("z")
             if V_ivol is None:
-                V_ivol = meta.get('V_ivol')
-            
+                V_ivol = meta.get("V_ivol")
+
             # Infer box size from first subvolume
             if L_box is None:
                 extent = np.ptp(pos, axis=0)
@@ -331,36 +341,38 @@ def avg_correlation_given_redshift_and_subvolumes(
                     pos = pos - pos_min
                 pos = np.fmod(pos, L_box)
                 pos = np.where(pos < 0, pos + L_box, pos)
-            
+
             all_positions.append(pos)
-            
+
         except (FileNotFoundError, RuntimeError, KeyError):
             continue
-    
+
     if not all_positions:
         return None
-    
+
     # Combine all positions into one dataset (same box, more galaxies)
     combined_positions = np.vstack(all_positions)
     total_galaxies = combined_positions.shape[0]
-    
+
     if not np.isfinite(L_box) or L_box <= 0:
         return None
-    
+
     # Compute xi(r) on the combined population
-    res = compute_xi_corrfunc(combined_positions, boxsize=L_box, rbins=rbins, nthreads=nthreads)
-    
+    res = compute_xi_corrfunc(
+        combined_positions, boxsize=L_box, rbins=rbins, nthreads=nthreads
+    )
+
     # Update metadata
-    res.attrs['z'] = z
-    res.attrs['iz'] = f'iz{iz_num}'
-    res.attrs['V_ivol'] = V_ivol
-    res.attrs['boxsize'] = L_box
-    res.attrs['n_used'] = len(all_positions)
-    res.attrs['n_ivols'] = len(all_positions)
-    res.attrs['total_galaxies'] = total_galaxies
-    res.attrs['rbins'] = rbins
-    res.attrs['method'] = 'combined_overlapping_subvolumes'
-    
+    res.attrs["z"] = z
+    res.attrs["iz"] = f"iz{iz_num}"
+    res.attrs["V_ivol"] = V_ivol
+    res.attrs["boxsize"] = L_box
+    res.attrs["n_used"] = len(all_positions)
+    res.attrs["n_ivols"] = len(all_positions)
+    res.attrs["total_galaxies"] = total_galaxies
+    res.attrs["rbins"] = rbins
+    res.attrs["method"] = "combined_overlapping_subvolumes"
+
     return res
 
 
@@ -401,18 +413,22 @@ def correlations_given_redshifts_and_subvolume(
 
     results = []
     for iz_num in iz_nums:
-        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        iz_path = os.path.join(base_dir, f"iz{iz_num}")
         if not os.path.isdir(iz_path):
             continue
-        
+
         res = correlation_given_redshift_and_subvolume(
-            iz_path, ivol, rbins=rbins, nthreads=nthreads,
-            centrals_only=centrals_only, mhalo_min=mhalo_min
+            iz_path,
+            ivol,
+            rbins=rbins,
+            nthreads=nthreads,
+            centrals_only=centrals_only,
+            mhalo_min=mhalo_min,
         )
         if res is not None:
-            res.attrs['iz'] = f'iz{iz_num}'
+            res.attrs["iz"] = f"iz{iz_num}"
             results.append(res)
-    
+
     return results
 
 
@@ -432,7 +448,8 @@ def avg_correlation_given_subvolume_and_redshifts(
         ivol: Subvolume index to evaluate.
         rbins: Optional radial bin edges; defaults to ``DEFAULT_RBINS``.
         nthreads: Number of OpenMP threads for Corrfunc.
-        base_dir: Optional base directory for snapshots; defaults to configured base dir.
+        base_dir: Optional base directory for snapshots; defaults to configured
+            base dir.
         centrals_only: If True, only include central galaxies (is_central==1).
         mhalo_min: Minimum halo mass threshold in Msun; None applies no cut.
     Returns:
@@ -450,22 +467,26 @@ def avg_correlation_given_subvolume_and_redshifts(
     used_z: List[Optional[float]] = []
 
     for iz_num in iz_nums:
-        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        iz_path = os.path.join(base_dir, f"iz{iz_num}")
         if not os.path.isdir(iz_path):
             continue
 
         res = correlation_given_redshift_and_subvolume(
-            iz_path, ivol, rbins=rbins, nthreads=nthreads,
-            centrals_only=centrals_only, mhalo_min=mhalo_min
+            iz_path,
+            ivol,
+            rbins=rbins,
+            nthreads=nthreads,
+            centrals_only=centrals_only,
+            mhalo_min=mhalo_min,
         )
 
         if res is None:
             continue
         if r_ref is None:
-            r_ref = res['r'].to_numpy()
-        per_xi.append(res['xi'].to_numpy())
-        used_iz.append(f'iz{iz_num}')
-        used_z.append(res.attrs.get('z'))
+            r_ref = res["r"].to_numpy()
+        per_xi.append(res["xi"].to_numpy())
+        used_iz.append(f"iz{iz_num}")
+        used_z.append(res.attrs.get("z"))
 
     if not per_xi:
         return None
@@ -476,12 +497,12 @@ def avg_correlation_given_subvolume_and_redshifts(
     xi_std = per_xi_arr.std(axis=0)
 
     metadata = {
-        'ivol': ivol,
-        'n_used': per_xi_arr.shape[0],
-        'used_iz': used_iz,
-        'used_z': used_z,
-        'rbins': rbins,
+        "ivol": ivol,
+        "n_used": per_xi_arr.shape[0],
+        "used_iz": used_iz,
+        "used_z": used_z,
+        "rbins": rbins,
     }
-    df = pl.DataFrame({'r': r, 'xi': xi_mean, 'xi_std': xi_std})
+    df = pl.DataFrame({"r": r, "xi": xi_mean, "xi_std": xi_std})
     df.attrs = metadata
     return df

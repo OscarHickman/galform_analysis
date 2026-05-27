@@ -29,11 +29,12 @@ from scipy.spatial import cKDTree
 def _periodic_dist_matrix(pos_set, boxsize):
     diff = np.abs(pos_set[:, None, :] - pos_set[None, :, :])
     diff = np.where(diff > 0.5 * boxsize, boxsize - diff, diff)
-    return np.sqrt(np.einsum('ijk,ijk->ij', diff, diff))
+    return np.sqrt(np.einsum("ijk,ijk->ij", diff, diff))
 
 
-def compute_npoint_counts(positions, rbins, boxsize, N, labels=None,
-                          log_every=10000, chunk_subsets=1_000_000):
+def compute_npoint_counts(
+    positions, rbins, boxsize, N, labels=None, log_every=10000, chunk_subsets=1_000_000
+):
     if N < 2:
         raise ValueError("N must be >= 2")
 

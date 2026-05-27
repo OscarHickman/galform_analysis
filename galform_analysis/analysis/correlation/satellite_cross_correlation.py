@@ -15,11 +15,11 @@ from Corrfunc.theory.DD import DD as corrfunc_DD
 
 from galform_analysis.config import DEFAULT_RBINS
 from galform_analysis.readers.loaders import (
-    open_galaxies_hdf5,
-    get_output_group,
     _get_first_array,
     _get_redshift_from_file,
     _get_redshift_from_zsnap,
+    get_output_group,
+    open_galaxies_hdf5,
 )
 
 
@@ -45,7 +45,9 @@ def _load_galaxy_positions(
     """
     f = open_galaxies_hdf5(iz_path, ivol=ivol)
     if f is None:
-        raise FileNotFoundError(f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}")
+        raise FileNotFoundError(
+            f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}"
+        )
 
     try:
         g = get_output_group(f)
@@ -54,14 +56,18 @@ def _load_galaxy_positions(
 
         for key in ("xgal", "ygal", "zgal"):
             if key not in g:
-                raise KeyError("Could not find xgal/ygal/zgal position arrays in Output group")
+                raise KeyError(
+                    "Could not find xgal/ygal/zgal position arrays in Output group"
+                )
 
         x = np.asarray(g["xgal"])
         y = np.asarray(g["ygal"])
         z = np.asarray(g["zgal"])
 
         if "is_central" not in g:
-            raise KeyError("is_central field not found - cannot select centrals/satellites")
+            raise KeyError(
+                "is_central field not found - cannot select centrals/satellites"
+            )
         is_central = np.asarray(g["is_central"]).astype(int, copy=False)
 
         m_disk = _get_first_array(g, ["mstars_disk"])
@@ -69,7 +75,9 @@ def _load_galaxy_positions(
         if m_disk.size and m_bulge.size:
             mstar = m_disk + m_bulge
         else:
-            mstar = _get_first_array(g, ["mstars", "StellarMass", "Mstar", "mstars_allburst"])
+            mstar = _get_first_array(
+                g, ["mstars", "StellarMass", "Mstar", "mstars_allburst"]
+            )
 
         mhhalo = _get_first_array(g, ["mhhalo", "mhalo_host"])
 
@@ -93,7 +101,9 @@ def _load_galaxy_positions(
 
         if host_halo_mass_min is not None:
             if mhhalo.size == 0:
-                raise KeyError("mhhalo field not found - cannot apply host halo mass cut")
+                raise KeyError(
+                    "mhhalo field not found - cannot apply host halo mass cut"
+                )
             mask &= mhhalo >= host_halo_mass_min
 
         pos = np.vstack([x[mask], y[mask], z[mask]]).T.astype(np.float64, copy=False)
@@ -129,11 +139,13 @@ def compute_xi_cross_corrfunc(
     n2 = positions_b.shape[0]
     if n1 < 1 or n2 < 1:
         r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-        df = pl.DataFrame({
-            "r": r_centers,
-            "xi": np.full_like(r_centers, np.nan),
-            "npairs": np.zeros_like(r_centers, dtype=float),
-        })
+        df = pl.DataFrame(
+            {
+                "r": r_centers,
+                "xi": np.full_like(r_centers, np.nan),
+                "npairs": np.zeros_like(r_centers, dtype=float),
+            }
+        )
         df.attrs = {"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize}
         return df
 
@@ -166,7 +178,7 @@ def compute_xi_cross_corrfunc(
     else:
         r = 0.5 * (rbins[:-1] + rbins[1:])
 
-    volume = boxsize ** 3
+    volume = boxsize**3
     r1 = rbins[:-1]
     r2 = rbins[1:]
     V_shell = (4.0 / 3.0) * np.pi * (r2**3 - r1**3)
@@ -228,13 +240,15 @@ def satellite_central_cross_correlation(
             nthreads=nthreads,
         )
 
-        df.attrs.update({
-            "iz": Path(iz_path).name,
-            "ivol": ivol,
-            "z": z_sat if z_sat is not None else z_cen,
-            "n_sat": pos_sat.shape[0],
-            "n_cen": pos_cen.shape[0],
-        })
+        df.attrs.update(
+            {
+                "iz": Path(iz_path).name,
+                "ivol": ivol,
+                "z": z_sat if z_sat is not None else z_cen,
+                "n_sat": pos_sat.shape[0],
+                "n_cen": pos_cen.shape[0],
+            }
+        )
         return df
 
     except (FileNotFoundError, RuntimeError, KeyError):

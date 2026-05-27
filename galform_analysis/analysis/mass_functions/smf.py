@@ -1,18 +1,19 @@
 """Stellar Mass Function (SMF) computation utilities."""
 
 import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import polars as pl
-from pathlib import Path
-from typing import Optional, Dict, Any, List
 
-from galform_analysis.readers.loaders import read_snapshot_data, close_snapshot
 from galform_analysis.config import DEFAULT_STELLAR_MASS_BINS, get_base_dir
+from galform_analysis.readers.loaders import close_snapshot, read_snapshot_data
 
 
-def smf_given_redshift_and_subvolume(iz_path: str,
-                          ivol: int,
-                          bins: np.ndarray = None) -> Optional[Dict[str, Any]]:
+def smf_given_redshift_and_subvolume(
+    iz_path: str, ivol: int, bins: np.ndarray = None
+) -> Optional[Dict[str, Any]]:
     """Compute stellar mass function for a single subvolume.
 
     Args:
@@ -39,9 +40,9 @@ def smf_given_redshift_and_subvolume(iz_path: str,
     except Exception:
         return None
 
-    V_ivol = d.get('V_ivol')
-    mstar = d.get('mstar')
-    z = d.get('z')
+    V_ivol = d.get("V_ivol")
+    mstar = d.get("mstar")
+    z = d.get("z")
     close_snapshot(d)
 
     if V_ivol is None or V_ivol <= 0 or mstar is None:
@@ -58,33 +59,36 @@ def smf_given_redshift_and_subvolume(iz_path: str,
     centers = 0.5 * (edges[1:] + edges[:-1])
 
     return {
-        'iz': Path(iz_path).name,
-        'ivol': ivol,
-        'z': z,
-        'centers': centers,
-        'phi': phi,
-        'counts': counts,
-        'V_ivol': V_ivol,
+        "iz": Path(iz_path).name,
+        "ivol": ivol,
+        "z": z,
+        "centers": centers,
+        "phi": phi,
+        "counts": counts,
+        "V_ivol": V_ivol,
     }
 
-def smfs_given_redshifts_and_subvolume(ivol: int,
-                             iz_nums: List[int],
-                             base_dir: Optional[str] = None) -> None:
+
+def smfs_given_redshifts_and_subvolume(
+    ivol: int, iz_nums: List[int], base_dir: Optional[str] = None
+) -> None:
     """Compute SMFs for a single subvolume across multiple snapshots (redshifts)."""
 
     results_by_z = []
     for iz_num in iz_nums:
-        iz_path = str(base_dir / f'iz{iz_num}')
+        iz_path = str(base_dir / f"iz{iz_num}")
         result = smf_given_redshift_and_subvolume(iz_path, ivol)
         if result is not None:
-            results_by_z.append({
-                'iz': f'iz{iz_num}',
-                'iz_num': iz_num,
-                'z': result['z'],
-                'centers': result['centers'],
-                'phi': result['phi'],
-                'counts': result['counts']
-            })
+            results_by_z.append(
+                {
+                    "iz": f"iz{iz_num}",
+                    "iz_num": iz_num,
+                    "z": result["z"],
+                    "centers": result["centers"],
+                    "phi": result["phi"],
+                    "counts": result["counts"],
+                }
+            )
 
     if not results_by_z:
         return None
@@ -92,23 +96,27 @@ def smfs_given_redshifts_and_subvolume(ivol: int,
     # Build DataFrame (one row per mass bin per redshift)
     df_rows = []
     for res in results_by_z:
-        for i, (center, phi_val) in enumerate(zip(res['centers'], res['phi'])):
-            df_rows.append({
-                'iz': res['iz'],
-                'iz_num': res['iz_num'],
-                'z': res['z'],
-                'log_M': center,
-                'phi': phi_val,
-                'counts': res['counts'][i]
-            })
-        
+        for i, (center, phi_val) in enumerate(zip(res["centers"], res["phi"])):
+            df_rows.append(
+                {
+                    "iz": res["iz"],
+                    "iz_num": res["iz_num"],
+                    "z": res["z"],
+                    "log_M": center,
+                    "phi": phi_val,
+                    "counts": res["counts"][i],
+                }
+            )
+
     return pl.DataFrame(df_rows), results_by_z
 
 
-def avg_smf_given_redshift_and_subvolumes(iz_num: int,
-                                ivols: List[int],
-                                bins: np.ndarray = None,
-                                base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def avg_smf_given_redshift_and_subvolumes(
+    iz_num: int,
+    ivols: List[int],
+    bins: np.ndarray = None,
+    base_dir: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """Average SMF over a provided list of subvolumes for a snapshot.
 
     This replaces the previous path/sampling interface. It simply calls
@@ -137,7 +145,7 @@ def avg_smf_given_redshift_and_subvolumes(iz_num: int,
     if base_dir is None:
         base_dir = str(get_base_dir())
 
-    iz_path = os.path.join(base_dir, f'iz{iz_num}')
+    iz_path = os.path.join(base_dir, f"iz{iz_num}")
     if not os.path.isdir(iz_path):
         return None
 
@@ -150,10 +158,10 @@ def avg_smf_given_redshift_and_subvolumes(iz_num: int,
         if res is None:
             continue
         if centers_ref is None:
-            centers_ref = res['centers']
+            centers_ref = res["centers"]
         if z is None:
-            z = res['z']
-        per_phi.append(res['phi'])
+            z = res["z"]
+        per_phi.append(res["phi"])
 
     if not per_phi:
         return None
@@ -162,24 +170,26 @@ def avg_smf_given_redshift_and_subvolumes(iz_num: int,
     centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
 
     return {
-        'iz': f'iz{iz_num}',
-        'z': z,
-        'centers': centers,
-        'phi': per_phi.mean(axis=0),
-        'phi_std': per_phi.std(axis=0),
-        'n_used': per_phi.shape[0],
-        'n_requested': len(ivols),
+        "iz": f"iz{iz_num}",
+        "z": z,
+        "centers": centers,
+        "phi": per_phi.mean(axis=0),
+        "phi_std": per_phi.std(axis=0),
+        "n_used": per_phi.shape[0],
+        "n_requested": len(ivols),
     }
 
 
-def avg_smf_given_redshifts_and_subvolume(ivol: int,
-                                 iz_nums: List[int],
-                                 bins: np.ndarray = None,
-                                 base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def avg_smf_given_redshifts_and_subvolume(
+    ivol: int,
+    iz_nums: List[int],
+    bins: np.ndarray = None,
+    base_dir: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """Average SMF for a single subvolume across multiple snapshots (redshifts).
 
-    Calls ``smf_given_redshift_and_subvolume`` for the same subvolume at different redshifts
-    and averages the resulting ``phi`` arrays.
+    Calls ``smf_given_redshift_and_subvolume`` for the same subvolume
+    at different redshifts and averages the resulting ``phi`` arrays.
 
     Args:
         ivol: Subvolume index to use across all snapshots.
@@ -210,7 +220,7 @@ def avg_smf_given_redshifts_and_subvolume(ivol: int,
     centers_ref = None
 
     for iz_num in iz_nums:
-        iz_path = os.path.join(base_dir, f'iz{iz_num}')
+        iz_path = os.path.join(base_dir, f"iz{iz_num}")
         if not os.path.isdir(iz_path):
             continue
 
@@ -219,11 +229,11 @@ def avg_smf_given_redshifts_and_subvolume(ivol: int,
             continue
 
         if centers_ref is None:
-            centers_ref = res['centers']
+            centers_ref = res["centers"]
 
-        per_phi.append(res['phi'])
-        iz_list.append(f'iz{iz_num}')
-        z_list.append(res['z'])
+        per_phi.append(res["phi"])
+        iz_list.append(f"iz{iz_num}")
+        z_list.append(res["z"])
 
     if not per_phi:
         return None
@@ -232,53 +242,54 @@ def avg_smf_given_redshifts_and_subvolume(ivol: int,
     centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
 
     return {
-        'ivol': ivol,
-        'iz_list': iz_list,
-        'z_list': z_list,
-        'centers': centers,
-        'phi': per_phi.mean(axis=0),
-        'phi_std': per_phi.std(axis=0),
-        'n_used': per_phi.shape[0],
-        'n_requested': len(iz_nums),
+        "ivol": ivol,
+        "iz_list": iz_list,
+        "z_list": z_list,
+        "centers": centers,
+        "phi": per_phi.mean(axis=0),
+        "phi_std": per_phi.std(axis=0),
+        "n_used": per_phi.shape[0],
+        "n_requested": len(iz_nums),
     }
 
 
-def compute_smf_from_aggregated(agg_data: Optional[Dict[str, Any]], 
-                               bins: np.ndarray = None) -> Optional[Dict[str, Any]]:
+def compute_smf_from_aggregated(
+    agg_data: Optional[Dict[str, Any]], bins: np.ndarray = None
+) -> Optional[Dict[str, Any]]:
     """Compute stellar mass function from pre-aggregated data.
-    
+
     This is useful when you've already collected all stellar masses
     and just need to bin them.
-    
+
     Args:
         agg_data: Dictionary with keys 'mstar' (array), 'volume' (float),
                  'iz' (str), 'z' (float)
         bins: Mass bins in log10(M_sun), defaults to DEFAULT_STELLAR_MASS_BINS
-        
+
     Returns:
         Dictionary with keys: 'iz', 'z', 'centers', 'phi', 'counts'
         Returns None if insufficient data
     """
     if bins is None:
         bins = DEFAULT_STELLAR_MASS_BINS
-        
-    if agg_data is None or 'mstar' not in agg_data or agg_data.get('volume', 0) <= 0:
+
+    if agg_data is None or "mstar" not in agg_data or agg_data.get("volume", 0) <= 0:
         return None
-    
-    mstar = agg_data['mstar']
+
+    mstar = agg_data["mstar"]
     mstar = mstar[(mstar > 0) & np.isfinite(mstar)]
     if len(mstar) == 0:
         return None
-        
+
     logM = np.log10(mstar)
     counts, edges = np.histogram(logM, bins=bins)
     dlogM = np.diff(edges)
-    phi = counts / (dlogM * agg_data['volume'])
-    
+    phi = counts / (dlogM * agg_data["volume"])
+
     return {
-        'iz': agg_data['iz'],
-        'z': agg_data['z'],
-        'centers': 0.5 * (edges[1:] + edges[:-1]),
-        'phi': phi,
-        'counts': counts
+        "iz": agg_data["iz"],
+        "z": agg_data["z"],
+        "centers": 0.5 * (edges[1:] + edges[:-1]),
+        "phi": phi,
+        "counts": counts,
     }

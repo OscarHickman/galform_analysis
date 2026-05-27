@@ -10,10 +10,10 @@ Quick Start:
     >>> from config import set_base_dir
     >>> from analysis import avg_hmf_given_redshift_and_subvolumes
     >>> from analysis import avg_smf_given_redshift_and_subvolumes
-    >>> 
+    >>>
     >>> # Set your GALFORM output directory
     >>> set_base_dir('/path/to/galform/output')
-    >>> 
+    >>>
     >>> # Compute stellar mass function
     >>> smf = avg_smf_given_redshift_and_subvolumes(iz_num=99, ivols=[0, 1, 2])
 
@@ -27,61 +27,60 @@ Configuration:
 __version__ = "0.1.0"
 
 # Import key modules for convenience
-from galform_analysis import config
-from galform_analysis import analysis
-
-# Expose commonly used functions at package level
-from galform_analysis.config import (
-    set_base_dir, 
-    get_base_dir, 
-    Cosmology,
-    load_sim_config,
-    SimulationConfig,
-    load_redshift_mapping,
-    get_snapshot_redshift,
-    find_snapshot_at_redshift,
-)
-from galform_analysis.readers import read_snapshot_data, close_snapshot
+from galform_analysis import analysis, config
 from galform_analysis.analysis import (
     aggregate_snapshot,
+    avg_hmf_given_redshift_and_subvolumes,
+    avg_hmf_given_redshifts_and_subvolume,
+    avg_smf_given_redshift_and_subvolumes,
+    avg_smf_given_redshifts_and_subvolume,
     # HMF functions
     hmf_given_redshift_and_subvolume,
     hmfs_given_redshifts_and_subvolume,
-    avg_hmf_given_redshift_and_subvolumes,
-    avg_hmf_given_redshifts_and_subvolume,
     # SMF functions
     smf_given_redshift_and_subvolume,
     smfs_given_redshifts_and_subvolume,
-    avg_smf_given_redshift_and_subvolumes,
-    avg_smf_given_redshifts_and_subvolume,
 )
 
+# Expose commonly used functions at package level
+from galform_analysis.config import (
+    Cosmology,
+    SimulationConfig,
+    find_snapshot_at_redshift,
+    get_base_dir,
+    get_snapshot_redshift,
+    load_redshift_mapping,
+    load_sim_config,
+    set_base_dir,
+)
+from galform_analysis.readers import close_snapshot, read_snapshot_data
+
 __all__ = [
-    '__version__',
+    "__version__",
     # Submodules
-    'config',
-    'io',
-    'analysis',
+    "config",
+    "io",
+    "analysis",
     # Common functions
-    'set_base_dir',
-    'get_base_dir',
-    'Cosmology',
-    'load_sim_config',
-    'SimulationConfig',
-    'load_redshift_mapping',
-    'get_snapshot_redshift',
-    'find_snapshot_at_redshift',
-    'read_snapshot_data',
-    'close_snapshot',
-    'aggregate_snapshot',
+    "set_base_dir",
+    "get_base_dir",
+    "Cosmology",
+    "load_sim_config",
+    "SimulationConfig",
+    "load_redshift_mapping",
+    "get_snapshot_redshift",
+    "find_snapshot_at_redshift",
+    "read_snapshot_data",
+    "close_snapshot",
+    "aggregate_snapshot",
     # HMF functions
-    'hmf_given_redshift_and_subvolume',
-    'hmfs_given_redshifts_and_subvolume',
-    'avg_hmf_given_redshift_and_subvolumes',
-    'avg_hmf_given_redshifts_and_subvolume',
+    "hmf_given_redshift_and_subvolume",
+    "hmfs_given_redshifts_and_subvolume",
+    "avg_hmf_given_redshift_and_subvolumes",
+    "avg_hmf_given_redshifts_and_subvolume",
     # SMF functions
-    'smf_given_redshift_and_subvolume',
-    'smfs_given_redshifts_and_subvolume',
-    'avg_smf_given_redshift_and_subvolumes',
-    'avg_smf_given_redshifts_and_subvolume',
+    "smf_given_redshift_and_subvolume",
+    "smfs_given_redshifts_and_subvolume",
+    "avg_smf_given_redshift_and_subvolumes",
+    "avg_smf_given_redshifts_and_subvolume",
 ]

@@ -1,6 +1,7 @@
 """
 Wrapper for the SCOPE correlation analysis tool.
 """
+
 import sys
 
 # Ensure SCOPE's python bindings are in the path
@@ -12,6 +13,7 @@ try:
     import scope
 except ImportError:
     scope = None
+
 
 def is_scope_available():
     return scope is not None

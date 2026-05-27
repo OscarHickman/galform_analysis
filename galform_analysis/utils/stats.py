@@ -5,6 +5,7 @@ contains zero or negative ξ values (common at small separations or noisy runs),
 we exclude them from std/percentile/spread calculations to avoid inflating the
 reported uncertainty.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -34,7 +35,11 @@ def positive_std(arr: np.ndarray, axis: int = 0, ddof: int = 0) -> np.ndarray:
     ma = _positive_masked(arr, axis=axis)
     std = ma.std(axis=axis, ddof=ddof)
     # Convert masked invalids to np.nan
-    std = np.where(std.mask, np.nan, std.data) if isinstance(std, np.ma.MaskedArray) else std
+    std = (
+        np.where(std.mask, np.nan, std.data)
+        if isinstance(std, np.ma.MaskedArray)
+        else std
+    )
     return std
 
 
@@ -61,7 +66,9 @@ def positive_percentile(arr: np.ndarray, q: float, axis: int = 0) -> np.ndarray:
 
 
 def positive_se(arr: np.ndarray, axis: int = 0) -> np.ndarray:
-    """Standard error: positive-only std / sqrt(n_positive). Returns NaN when n_positive==0."""
+    """Standard error: positive-only std / sqrt(n_positive).
+    Returns NaN when n_positive==0.
+    """
     std = positive_std(arr, axis=axis)
     npos = positive_count(arr, axis=axis)
     with np.errstate(divide="ignore", invalid="ignore"):
