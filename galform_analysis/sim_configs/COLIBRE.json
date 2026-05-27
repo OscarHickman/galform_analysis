@@ -1,0 +1,14 @@
+{
+    "name": "COLIBRE",
+    "box_size": 68.1,
+    "n_subvolumes": 64,
+    "cosmology": {
+        "omega_m": 0.31,
+        "omega_l": 0.69,
+        "omega_b": 0.049,
+        "h": 0.677,
+        "sigma_8": 0.81,
+        "delta_c": 1.686
+    },
+    "description": "COLIBRE-L100m6 (Planck 2018)"
+}

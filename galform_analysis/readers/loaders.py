@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from config import N_SUBVOLUMES
+from galform_analysis.config import N_SUBVOLUMES
 
 
 def get_completed_subvolumes(iz_path: str) -> List[int]:

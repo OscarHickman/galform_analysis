@@ -27,20 +27,22 @@ Configuration:
 __version__ = "0.1.0"
 
 # Import key modules for convenience
-import config
-import analysis
+from galform_analysis import config
+from galform_analysis import analysis
 
 # Expose commonly used functions at package level
-from config import (
+from galform_analysis.config import (
     set_base_dir, 
     get_base_dir, 
     Cosmology,
+    load_sim_config,
+    SimulationConfig,
     load_redshift_mapping,
     get_snapshot_redshift,
     find_snapshot_at_redshift,
 )
-from readers import read_snapshot_data, close_snapshot
-from analysis import (
+from galform_analysis.readers import read_snapshot_data, close_snapshot
+from galform_analysis.analysis import (
     aggregate_snapshot,
     # HMF functions
     hmf_given_redshift_and_subvolume,
@@ -64,6 +66,8 @@ __all__ = [
     'set_base_dir',
     'get_base_dir',
     'Cosmology',
+    'load_sim_config',
+    'SimulationConfig',
     'load_redshift_mapping',
     'get_snapshot_redshift',
     'find_snapshot_at_redshift',

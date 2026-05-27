@@ -1,0 +1,14 @@
+{
+    "name": "L800",
+    "box_size": 542.16,
+    "n_subvolumes": 1024,
+    "cosmology": {
+        "omega_m": 0.307,
+        "omega_l": 0.693,
+        "omega_b": 0.04825,
+        "h": 0.6777,
+        "sigma_8": 0.8288,
+        "delta_c": 1.686
+    },
+    "description": "Main L800 box (Planck 2013)"
+}

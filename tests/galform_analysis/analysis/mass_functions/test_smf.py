@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from analysis.mass_functions import smf_given_redshift_and_subvolume
-from config import DEFAULT_STELLAR_MASS_BINS
+from galform_analysis.analysis.mass_functions import smf_given_redshift_and_subvolume
+from galform_analysis.config import DEFAULT_STELLAR_MASS_BINS
 
 
 def test_returns_expected_keys(galform_iz_dir):

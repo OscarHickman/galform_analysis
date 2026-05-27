@@ -7,7 +7,7 @@ verified without Corrfunc or real HDF5 data.
 import numpy as np
 import pytest
 
-from analysis.correlation.subvol_weighted_correction import _choose2
+from galform_analysis.analysis.correlation.subvol_weighted_correction import _choose2
 
 
 # ---------------------------------------------------------------------------

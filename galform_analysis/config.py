@@ -3,11 +3,65 @@
 This module manages paths and constants for GALFORM output analysis.
 Set BASE_DIR to point to your GALFORM output directory before running analyses.
 """
+import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict
 
 import numpy as np
+
+# ==============================================================================
+# SIMULATION CONFIGURATION
+# ==============================================================================
+
+_SIM_CONFIGS_DIR = Path(__file__).parent / 'sim_configs'
+
+
+def load_sim_config(sim_name: str) -> Dict[str, Any]:
+    """Load configuration for the given N-body simulation.
+
+    Args:
+        sim_name: Simulation name (e.g. 'L800', 'Mill1', 'Mill2').
+                  Must match a file in galform_analysis/sim_configs/<sim_name>.json.
+
+    Returns:
+        dict: Simulation configuration
+    """
+    config_file = _SIM_CONFIGS_DIR / f'{sim_name}.json'
+
+    if not config_file.exists():
+        available = [p.stem for p in _SIM_CONFIGS_DIR.glob('*.json')]
+        raise FileNotFoundError(
+            f"No configuration for simulation '{sim_name}'. "
+            f"Available: {available}."
+        )
+
+    with open(config_file, 'r') as f:
+        return json.load(f)
+
+
+class SimulationConfig:
+    """Dynamic configuration for a specific simulation."""
+
+    def __init__(self, sim_name: str):
+        config = load_sim_config(sim_name)
+        self.name = config['name']
+        self.box_size = config['box_size']
+        self.n_subvolumes = config['n_subvolumes']
+        
+        cosmo = config['cosmology']
+        self.omega_m = cosmo['omega_m']
+        self.omega_l = cosmo['omega_l']
+        self.omega_b = cosmo['omega_b']
+        self.h = cosmo['h']
+        self.sigma_8 = cosmo['sigma_8']
+        self.delta_c = cosmo['delta_c']
+        self.f_b = self.omega_b / self.omega_m
+        self.h0 = self.h * 100.0
+
+    def __repr__(self) -> str:
+        return f"<SimulationConfig: {self.name} (L={self.box_size} Mpc/h)>"
+
 
 # ==============================================================================
 # BASE DIRECTORY CONFIGURATION
@@ -132,7 +186,10 @@ def find_snapshot_at_redshift(target_z: float, sim_name: str, tolerance: float =
 # ==============================================================================
 
 class Cosmology:
-    """Cosmological parameters for the simulation."""
+    """Cosmological parameters for the simulation.
+    
+    DEPRECATED: Use SimulationConfig(sim_name) instead.
+    """
     
     OMEGA_M = 0.307
     OMEGA_L = 0.693
@@ -149,6 +206,7 @@ class Cosmology:
 # ==============================================================================
 
 # Simulation volume parameters
+# DEPRECATED: Use SimulationConfig(sim_name).n_subvolumes instead.
 N_SUBVOLUMES = 1024  # Total number of subvolumes in the simulation
 
 # Default binning for correlation functions

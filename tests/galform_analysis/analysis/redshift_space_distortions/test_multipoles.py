@@ -7,7 +7,7 @@ with synthetic inputs directly.
 import numpy as np
 import pytest
 
-from analysis.redshift_space_distortions.subvol_weighted_multipoles import (
+from galform_analysis.analysis.redshift_space_distortions.subvol_weighted_multipoles import (
     _analytic_rr_smu,
     _counts_to_grid_smu,
     _project_rsd_multipoles,

@@ -6,27 +6,33 @@ A modular Python framework for reading and analyzing GALFORM HDF5 simulation out
 
 | Directory | Git Status | Purpose |
 |-----------|------------|---------|
-| `src/` | Tracked | Reusable GALFORM analysis library. |
-| `examples/` | Tracked | Showcase notebooks for `src/` usage. |
-| `tests/` | Tracked | Comprehensive unit tests mirroring `src/` structure. |
+| `galform_analysis/` | Tracked | Reusable GALFORM analysis library. |
+| `examples/` | Tracked | Showcase notebooks for `galform_analysis/` usage. |
+| `tests/` | Tracked | Comprehensive unit tests mirroring `galform_analysis/` structure. |
 | `science/` | **Ignored** | Research notebooks, drafts, paper prose (active work streams). |
 | `scripts/` | Ignored | HPC submission scripts and SLURM wrappers. |
 | `data/` | Ignored | Intermediate outputs (CSVs) from HPC runs. |
 | `logs/` | Ignored | SLURM stdout/stderr log files. |
 | `_plots/` | Ignored | Generated figures and visualizations. |
 
-## Library Structure & Usage (`src/`)
+## Installation & Usage
 
-All modules in `src/` use flat absolute imports. To use the library, add the `src/` directory to `sys.path`.
+To install the library in editable mode (recommended for developers):
+
+```bash
+pip install -e .
+```
+
+To use the library in your Python scripts or notebooks:
 
 ```python
-import sys
-sys.path.insert(0, '/cosma/apps/durham/dc-hick2/galform_analysis/src')
+from galform_analysis import config
+from galform_analysis.readers.loaders import read_snapshot_data
+from galform_analysis.utils.read_galaxies import read_galaxy_arrays
+from galform_analysis.analysis.mass_functions import smf
 
-from config import get_snapshot_redshift
-from readers.loaders import read_snapshot_data
-from utils.read_galaxies import read_galaxy_arrays
-from analysis.mass_functions import smf
+# Set your GALFORM output directory
+config.set_base_dir('/path/to/galform/output')
 ```
 
 ### Module Roles
@@ -53,7 +59,7 @@ Simulation data is stored at:
 ### 2. Subvolume-Weighted Correction (2PCF)
 For correlation functions using $m$ selected subvolumes out of $k$ total:
 $DD_{corr} = \alpha \cdot DD_{auto} + \beta \cdot DD_{cross}$
-- **Standard (Scale-Down)**: $\alpha = m/k$, $\beta = m(k-1) / [k(m-1)]$. (Default in `src/analysis/correlation/`)
+- **Standard (Scale-Down)**: $\alpha = m/k$, $\beta = m(k-1) / [k(m-1)]$. (Default in `galform_analysis/analysis/correlation/`)
 - **Legacy (Scale-Up)**: $\alpha = k/m$, $\beta = k(k-1) / [m(m-1)]$. (Used in early SCOPE versions)
 
 ## Active Research Work Streams
@@ -107,7 +113,7 @@ Quantifying how $\tau_0$ shapes galaxy assembly (SHMR, SMF, HOD).
 
 ## Engineering Standards
 - **Testing**: `pytest tests -q`. New features MUST have validation tests.
-- **Linting**: `ruff check src` and `ruff format src`.
+- **Linting**: `ruff check galform_analysis`.
 - **HDF5**: Always use `loaders.close_snapshot()` to prevent resource leaks.
 - **Data Flow**: Science notebooks live in `science/` (gitignored) to separate research from library code.
 - **Plotting**: When creating or editing notebooks and plotting examples, always import `matplotlib as mpl` and call `mpl.setconfig()` before plotting so figures use the repository's custom formatting.

@@ -1,2 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "galform_analysis"
+version = "0.1.0"
+description = "A modular Python framework for reading and analyzing GALFORM HDF5 simulation outputs."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Oscar Hickman", email = "oscar.hickman17@alumni.imperial.ac.uk"},
+]
+dependencies = [
+    "numpy>=1.23.0",
+    "scipy>=1.7.0",
+    "matplotlib>=3.3.0",
+    "polars>=1.0.0",
+    "h5py>=3.0.0",
+    "seaborn>=0.11.0",
+    "Corrfunc>=2.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.1.0",
+    "build",
+]
+science = [
+    "astropy>=4.0",
+    "hmf>=3.0",
+    "packaging>=20.0",
+    "deprecation>=2.0",
+    "halotools>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["galform_analysis*"]
+
+[tool.setuptools.package-data]
+galform_analysis = ["redshift_lists/*.txt", "sim_configs/*.json"]
+
 [tool.ruff]
 extend-exclude = ["*.ipynb"]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

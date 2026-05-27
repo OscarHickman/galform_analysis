@@ -30,7 +30,7 @@ import polars as pl
 from Corrfunc.theory.DD import DD
 from Corrfunc.theory.DDrppi import DDrppi
 
-from utils.read_galaxies import read_galaxy_arrays
+from galform_analysis.utils.read_galaxies import read_galaxy_arrays
 
 
 _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")

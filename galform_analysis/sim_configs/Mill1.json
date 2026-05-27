@@ -1,0 +1,14 @@
+{
+    "name": "Mill1",
+    "box_size": 500.0,
+    "n_subvolumes": 64,
+    "cosmology": {
+        "omega_m": 0.25,
+        "omega_l": 0.75,
+        "omega_b": 0.045,
+        "h": 0.73,
+        "sigma_8": 0.9,
+        "delta_c": 1.686
+    },
+    "description": "Millennium I (WMAP1)"
+}

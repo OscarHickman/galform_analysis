@@ -9,8 +9,8 @@ from typing import Optional, Dict, Any, List
 import polars as pl
 
 
-from readers.loaders import read_snapshot_data, close_snapshot
-from config import get_base_dir
+from galform_analysis.readers.loaders import read_snapshot_data, close_snapshot
+from galform_analysis.config import get_base_dir
 
 def completed_galaxies(basedir: str = get_base_dir(), iz_snapshots: Optional[List[int]] = None) -> pl.DataFrame:
     """Scan base directory and return DataFrame of all completed galaxy files.
