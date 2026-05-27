@@ -8,7 +8,7 @@ package:
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/galform_analysis-{{ version }}.tar.gz
-  sha256: FIXME_INSERT_SHA256_FOR_v0.1.5_HERE
+  sha256: 2aee3d52b4daa41dfbf17ee3a5510efa36ebff2bb114872ceff6530776abc609
 
 build:
   # noarch: python removed because of skip selector
