@@ -17,6 +17,8 @@ ruff check src
 
 SLURM jobs run on COSMA and activate `.venv` (Python 3.12) at repo root. All scripts in `scripts/` add `src/` to `sys.path` manually. Notebooks add `src/` via `Path('../../src').resolve()` at the top of their first import cell.
 
+When creating or editing notebooks and plotting examples, always import `matplotlib as mpl` and call `mpl.setconfig()` before plotting so figures use the repository's custom formatting. Examples in `examples/` should stay reusable after cloning, so resolve paths dynamically from the current environment or repository root and avoid hardcoded absolute paths.
+
 ## Repository layout
 
 | Directory | Git | Purpose |

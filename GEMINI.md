@@ -110,3 +110,5 @@ Quantifying how $\tau_0$ shapes galaxy assembly (SHMR, SMF, HOD).
 - **Linting**: `ruff check src` and `ruff format src`.
 - **HDF5**: Always use `loaders.close_snapshot()` to prevent resource leaks.
 - **Data Flow**: Science notebooks live in `science/` (gitignored) to separate research from library code.
+- **Plotting**: When creating or editing notebooks and plotting examples, always import `matplotlib as mpl` and call `mpl.setconfig()` before plotting so figures use the repository's custom formatting.
+- **Reusable examples**: Notebooks in `examples/` should stay reusable after cloning, so resolve paths dynamically from the current environment or repository root and avoid hardcoded absolute paths.

@@ -151,7 +151,13 @@ def create_theoretical_hmf(z: float,
         an empirical conversion to approximate Mvir-based predictions.
     """
     try:
-        hmf_calc = MassFunction(z=z, Mmin=mmin, Mmax=mmax, dlog10m=dlog10m)
+        hmf_calc = MassFunction(
+            z=z,
+            Mmin=mmin,
+            Mmax=mmax,
+            dlog10m=dlog10m,
+            transfer_params={'extrapolate_with_eh': True},
+        )
     except Exception as e:
         raise ValueError(f"Failed to create MassFunction at z={z}: {e}")
     
