@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.FIXME.svg)](https://doi.org/10.5281/zenodo.FIXME)
 
 
 A modular Python framework designed for the efficient reading and analysis of GALFORM HDF5 simulation outputs. This library provides standardized tools for processing large-scale galaxy formation data, from low-level HDF5 I/O to high-level astronomical probes.
@@ -45,6 +46,22 @@ config.set_base_dir('/path/to/Galform_Out/L800/model_name')
 data = read_snapshot_data('iz271', ivol=0)
 mstar = data['mstar']  # Stellar masses in M_sun/h
 ```
+
+## Citation & Academic Credit
+
+If you use `galform_analysis` in your research, please cite the software using the DOI provided above or the following BibTeX entry:
+
+```bibtex
+@software{galform_analysis,
+  author = {Hickman, Oscar},
+  title = {galform_analysis: A modular Python framework for analyzing GALFORM simulation outputs},
+  version = {0.1.3},
+  doi = {10.5281/zenodo.FIXME},
+  url = {https://github.com/OscarHickman/galform_analysis}
+}
+```
+
+This software is registered in the **Astrophysics Source Code Library (ASCL)** (ascl:XXXX.XXX).
 
 ## Simulation Metadata
 
