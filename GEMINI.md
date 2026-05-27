@@ -20,7 +20,7 @@ A modular Python framework for reading and analyzing GALFORM HDF5 simulation out
 To install the library in editable mode (recommended for developers):
 
 ```bash
-pip install -e .
+uv pip install -e .
 ```
 
 To use the library in your Python scripts or notebooks:

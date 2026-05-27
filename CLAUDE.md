@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install the package in editable mode
-pip install -e .
+uv pip install -e .
 
 # Tests
 pytest tests -q
