@@ -209,10 +209,6 @@ class Cosmology:
 # ANALYSIS CONSTANTS
 # ==============================================================================
 
-# Simulation volume parameters
-# DEPRECATED: Use SimulationConfig(sim_name).n_subvolumes instead.
-N_SUBVOLUMES = 1024  # Total number of subvolumes in the simulation
-
 # Default binning for correlation functions
 DEFAULT_RBINS = np.logspace(-1, 1.5, 21)  # Mpc
 
