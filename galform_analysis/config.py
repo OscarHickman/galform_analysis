@@ -16,6 +16,7 @@ import numpy as np
 # ==============================================================================
 
 _SIM_CONFIGS_DIR = Path(__file__).parent / "sim_configs"
+_SIM_FAMILIES_DIR = _SIM_CONFIGS_DIR / "families"
 
 
 def load_sim_config(sim_name: str) -> Dict[str, Any]:
@@ -31,13 +32,37 @@ def load_sim_config(sim_name: str) -> Dict[str, Any]:
     config_file = _SIM_CONFIGS_DIR / f"{sim_name}.json"
 
     if not config_file.exists():
-        available = [p.stem for p in _SIM_CONFIGS_DIR.glob("*.json")]
+        # Fallback: check if it's in a family file
+        families = load_simulation_families()
+        if sim_name in families:
+            return families[sim_name]
+
+        available = [p.stem for p in _SIM_CONFIGS_DIR.glob("*.json") if p.stem != "families"]
         raise FileNotFoundError(
             f"No configuration for simulation '{sim_name}'. Available: {available}."
         )
 
     with open(config_file, "r") as f:
         return json.load(f)
+
+
+def load_simulation_families() -> Dict[str, Dict[str, Any]]:
+    """Load all simulation family configurations.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Merged dictionary of all simulation configs.
+    """
+    merged: Dict[str, Dict[str, Any]] = {}
+    if _SIM_FAMILIES_DIR.is_dir():
+        for file_path in sorted(_SIM_FAMILIES_DIR.glob("*.json")):
+            with open(file_path, "r") as f:
+                raw = json.load(f)
+                # Filter out metadata keys like "_note"
+                merged.update({
+                    name: {k: v for k, v in cfg.items() if not k.startswith("_")}
+                    for name, cfg in raw.items()
+                })
+    return merged
 
 
 class SimulationConfig:

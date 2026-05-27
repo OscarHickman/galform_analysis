@@ -43,7 +43,7 @@ where = ["."]
 include = ["galform_analysis*"]
 
 [tool.setuptools.package-data]
-galform_analysis = ["redshift_lists/*.txt", "sim_configs/*.json"]
+galform_analysis = ["redshift_lists/*.txt", "sim_configs/*.json", "sim_configs/families/*.json"]
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]
