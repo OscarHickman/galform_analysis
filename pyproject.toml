@@ -12,6 +12,7 @@ license = {file = "LICENSE"}
 authors = [
     {name = "Oscar Hickman", email = "oscar.hickman17@alumni.imperial.ac.uk"},
 ]
+urls = {Homepage = "https://github.com/OscarHickman/galform_analysis", Repository = "https://github.com/OscarHickman/galform_analysis", Issues = "https://github.com/OscarHickman/galform_analysis/issues"}
 dependencies = [
     "numpy>=1.23.0",
     "scipy>=1.7.0",
