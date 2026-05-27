@@ -1,6 +1,8 @@
 # galform_analysis
 
 [![CI](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 
 A modular Python framework designed for the efficient reading and analysis of GALFORM HDF5 simulation outputs. This library provides standardized tools for processing large-scale galaxy formation data, from low-level HDF5 I/O to high-level astronomical probes.
 
