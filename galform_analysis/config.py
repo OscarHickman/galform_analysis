@@ -156,7 +156,7 @@ def load_redshift_mapping(sim_name: str) -> dict[int, float]:
 
     Args:
         sim_name: Simulation name (e.g. 'L800', 'Mill1', 'Mill2').
-                  Must match a file in src/redshift_lists/<sim_name>.txt.
+                  Must match a file in galform_analysis/redshift_lists/<sim_name>.txt.
 
     Returns:
         dict: Mapping from iz number (int) to redshift (float)
