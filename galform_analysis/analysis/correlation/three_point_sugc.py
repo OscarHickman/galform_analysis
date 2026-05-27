@@ -102,9 +102,7 @@ if __name__ == "__main__":
 
     rbins = np.logspace(0, 1.2, 6)  # 5 bins from 1 to 15 Mpc/h
 
-    results = compute_3pcf_counts_with_sugc(
-        pos, labels, rbins, m_selected=m, k_total=k
-    )
+    results = compute_3pcf_counts_with_sugc(pos, labels, rbins, m_selected=m, k_total=k)
 
     # Save results
     out_df = pl.DataFrame(

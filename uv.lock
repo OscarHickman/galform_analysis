@@ -411,7 +411,7 @@ wheels = [
 
 [[package]]
 name = "galform-analysis"
-version = "0.1.0"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "corrfunc" },
@@ -421,6 +421,7 @@ dependencies = [
     { name = "polars" },
     { name = "scipy" },
     { name = "seaborn" },
+    { name = "sugc" },
 ]
 
 [package.optional-dependencies]
@@ -456,6 +457,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "scipy", specifier = ">=1.7.0" },
     { name = "seaborn", specifier = ">=0.11.0" },
+    { name = "sugc", specifier = ">=0.1.0" },
 ]
 provides-extras = ["dev", "science"]
 
@@ -1282,6 +1284,33 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/47/2c/0a5f6f8ee0d5589e48c7640213ed5175d52cf540a06725b628cc1a45d6ce/soupsieve-2.8.4.tar.gz", hash = "sha256:e121fd02e975c695e4e9e8774a5ee35d74714b59307868dcc5319ad2d9e3328e", size = 121110, upload-time = "2026-05-24T13:55:57.154Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5e/f5/0c41cb68dcae6b7de4fac4188a3a9589e21fb31df21ea3a2e888db95e6c9/soupsieve-2.8.4-py3-none-any.whl", hash = "sha256:e7e6b0769c8f51ed59acab6e994b00621096cfb1c640a7509295987388fbaf65", size = 37304, upload-time = "2026-05-24T13:55:55.406Z" },
+]
+
+[[package]]
+name = "sugc"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e2/89/7faca9a97b4270493f85de0be661c37e5cc23bbfcb96c5694d38a33e19c9/sugc-0.1.0.tar.gz", hash = "sha256:65f3a2a9986587532467460f9ffe326d282dcb8f67ce66018a174fce76589c52", size = 388202, upload-time = "2026-05-27T19:25:18.377Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/52/4dfad5cb6ad4637d44e78346e8ee1212aad6df3fe43dc0a77f1de725fb05/sugc-0.1.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d34bec061bf12733752cb5a3ed82c0c21f44325551c56d54e3bfec01f2743c54", size = 285402, upload-time = "2026-05-27T19:24:54.546Z" },
+    { url = "https://files.pythonhosted.org/packages/83/d1/ac76aab3fc52b60acc98a31e9fba0ca9e26328f7a02ba034ed6de79328ae/sugc-0.1.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:441071723cdf6d385b734ce74cf9c023b1911e863f4f95ac78f119c186484291", size = 275517, upload-time = "2026-05-27T19:24:56.396Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/71/2e766252f79fdc8e69f45a568d5c1a4368b27ac081924c60e6d23d3f8544/sugc-0.1.0-cp39-abi3-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:1f2c229eca2c4fc022e1c34301833bb85bb088b23a98a09986aab08e90e93f32", size = 334092, upload-time = "2026-05-27T19:24:57.697Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/9b/f29ccbcad2a802aa9d6b29f23d04a5a48aa989eb5fb5fc1554c73cb73a16/sugc-0.1.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:41ade1d31568a436bd7076a5de57038495cc9a5385f017c368058e7e2c93015b", size = 312452, upload-time = "2026-05-27T19:24:59.087Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/7d/afea85bae7435a77d58655e858589ba565aeaee298d22b34afb7c50ac81d/sugc-0.1.0-cp39-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:b8af7fb16598cf82ec9c00dfb24157e83c208ad55f9da3d6edf7e0cf2670b8a4", size = 321428, upload-time = "2026-05-27T19:25:00.816Z" },
+    { url = "https://files.pythonhosted.org/packages/09/14/3e81f3a14d416b4f9209451530109b484762ee810984e9b3586904ad79d2/sugc-0.1.0-cp39-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:f148fa7f3057b819aa31e5e2726594f5b0c943f8575ac117fcc8761f14bc9e0c", size = 349789, upload-time = "2026-05-27T19:25:02.485Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/16/1ba3c2db982a3437b181b39a28087b03e2359bd5afe27a57d75aed07bbf4/sugc-0.1.0-cp39-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:a3c68ab091e509f23eeb0a766cc237520a42ab51aa7426b44beb3ad87f270fff", size = 354152, upload-time = "2026-05-27T19:25:04.177Z" },
+    { url = "https://files.pythonhosted.org/packages/19/07/24acd51a5681b690d54da5f36decb30f4f8ace084f17eddf96d92acbe5c1/sugc-0.1.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:734fac637424e7e7da8b948c2c83aceed81ded3ee3ac8bbe51187b1ec47d831d", size = 320195, upload-time = "2026-05-27T19:25:05.558Z" },
+    { url = "https://files.pythonhosted.org/packages/33/26/501b3b99a4f4255ec30d7f617425b47a16f3897f75dc9c4cbb6b3dcd5eda/sugc-0.1.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:08351323d25a2ff81d9981d4bd1df2c47b95eab9413dd21c1b48ee302bb39e1c", size = 488214, upload-time = "2026-05-27T19:25:07.27Z" },
+    { url = "https://files.pythonhosted.org/packages/17/08/4d98e8da97834cfdd9b3c312b1d62367db90bf7cb3293cdd56f284a53734/sugc-0.1.0-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:85f4e161c8c0824dfd6a898618b782c74052e5e5446b30296d7067cb0caf145e", size = 597303, upload-time = "2026-05-27T19:25:08.782Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/06/b551dad6b597dfca1a3b2cad72b7d5705da18ed3ab93f46df1fa2c3041f9/sugc-0.1.0-cp39-abi3-musllinux_1_2_i686.whl", hash = "sha256:38fb00687e62606ec4afde233d9a3e4671e44b32a505aee4f218745154bfa0e4", size = 559180, upload-time = "2026-05-27T19:25:10.642Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/2a/e723cc65fe52b2f20fac3e527da7d52b6658217cca9af20c774c767e9a74/sugc-0.1.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a77fd8e8050cdf88dbe4e4fd1da4078c8b0e080fe8cc2c15b75c12044b94ac6a", size = 532206, upload-time = "2026-05-27T19:25:12.544Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/3a/719d413b48416da74a06cb03571259c3683537a23652e8a51ddf7b6885c2/sugc-0.1.0-cp39-abi3-win32.whl", hash = "sha256:02e81184535e16b169fa278799f79368d0a2aa73881aff4d2ebcd14f49553d20", size = 177093, upload-time = "2026-05-27T19:25:14.209Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/68/39d2acf3b64e56a6c8a15e0761be506e69f8cb1eb3a17f61c2ecdebeeabb/sugc-0.1.0-cp39-abi3-win_amd64.whl", hash = "sha256:6be3115743fc4319ba3927d215a0d1cc3edbcb0549ef1ae172d751c5be3ff518", size = 185941, upload-time = "2026-05-27T19:25:15.754Z" },
+    { url = "https://files.pythonhosted.org/packages/84/ae/7208ea27d45e1dffd01025321fcb547e0a15958432780c40aba942074dda/sugc-0.1.0-cp39-abi3-win_arm64.whl", hash = "sha256:709459ee5a3d4f70a659cb1ff901d8120285d2b142838d4e3b31b68b25dda5a8", size = 173404, upload-time = "2026-05-27T19:25:17.039Z" },
 ]
 
 [[package]]
