@@ -28,6 +28,7 @@ dev = [
     "pytest>=8.0.0",
     "ruff>=0.1.0",
     "build",
+    "black>=24.0.0",
 ]
 science = [
     "astropy>=4.0",
