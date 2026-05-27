@@ -8,7 +8,7 @@ package:
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/galform_analysis-{{ version }}.tar.gz
-  sha256: FIXME_INSERT_SHA256_FOR_v0.1.4_HERE
+  sha256: 69eb0223b298e560dd46c45a3fc70fd8d30c35cb75fdff6f3519004e33e08092
 
 build:
   noarch: python
