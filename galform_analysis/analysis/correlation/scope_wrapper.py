@@ -2,10 +2,12 @@
 Wrapper for the SCOPE correlation analysis tool.
 """
 
+import os
 import sys
 
 # Ensure SCOPE's python bindings are in the path
-SCOPE_PATH = "/cosma/apps/durham/dc-hick2/SCOPE/python"
+_USER = os.environ.get("USER", "<USER>")
+SCOPE_PATH = f"/cosma/apps/durham/{_USER}/SCOPE/python"
 if SCOPE_PATH not in sys.path:
     sys.path.append(SCOPE_PATH)
 

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml)
 
-A modular Python framework designed for the efficient reading and analysis of GALFORM HDF5 simulation outputs on the COSMA HPC cluster. This library provides standardized tools for processing large-scale galaxy formation data, from low-level HDF5 I/O to high-level astronomical probes.
+A modular Python framework designed for the efficient reading and analysis of GALFORM HDF5 simulation outputs. This library provides standardized tools for processing large-scale galaxy formation data, from low-level HDF5 I/O to high-level astronomical probes.
 
 ## Core Features
 

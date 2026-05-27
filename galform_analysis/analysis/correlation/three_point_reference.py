@@ -59,7 +59,10 @@ if __name__ == "__main__":
     k = 1024
     iz = 207
     mstar_cut = 10.0
-    base_dir = "/cosma5/data/durham/dc-hick2/Galform_Out/L800/lc16"
+    
+    import os
+    _USER = os.environ.get("USER", "<USER>")
+    base_dir = f"/cosma5/data/durham/{_USER}/Galform_Out/L800/lc16"
 
     print("Loading reference sample (all subvolumes)...")
     # To get a "Full Box" reference with the same number of galaxies for
