@@ -61,8 +61,6 @@ If you use `galform_analysis` in your research, please cite the software using t
 }
 ```
 
-This software is registered in the **Astrophysics Source Code Library (ASCL)** (ascl:XXXX.XXX).
-
 ## Simulation Metadata
 
 Configurations for supported simulations are stored centrally in `galform_analysis/sim_configs/`. This allows for dynamic access to cosmological parameters and volume metadata:
