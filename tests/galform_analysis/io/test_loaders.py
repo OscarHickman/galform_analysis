@@ -47,8 +47,8 @@ def test_read_snapshot_data_keys(galform_iz_dir):
 
 def test_read_snapshot_mstar_is_disk_plus_bulge(galform_iz_dir):
     d = read_snapshot_data(galform_iz_dir, ivol=0)
-    expected = (
-        np.array(d["group"]["mstars_disk"]) + np.array(d["group"]["mstars_bulge"])
+    expected = np.array(d["group"]["mstars_disk"]) + np.array(
+        d["group"]["mstars_bulge"]
     )
     np.testing.assert_allclose(d["mstar"], expected)
     close_snapshot(d)

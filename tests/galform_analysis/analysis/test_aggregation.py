@@ -1,5 +1,3 @@
-import pytest
-
 from galform_analysis.analysis.aggregation import completed_galaxies
 
 

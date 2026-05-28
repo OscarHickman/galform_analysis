@@ -22,8 +22,6 @@ from __future__ import annotations
 import numpy as np
 from Corrfunc.theory.DDsmu import DDsmu
 
-from ..correlation.subvol_weighted_correction import _choose2
-
 
 def _counts_to_grid_smu(
     result: np.ndarray, n_s_bins: int, n_mu_bins: int
@@ -180,7 +178,7 @@ def compute_weighted_rsd_multipoles(
     rr_counts = _paircounts_smu_auto(
         random_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    rr_norm = rr_counts / _choose2(nr)
+    rr_norm = rr_counts / (nr * (nr - 1))
 
     dr_counts = _paircounts_smu_cross(
         galaxy_pos, random_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
@@ -191,7 +189,7 @@ def compute_weighted_rsd_multipoles(
     dd_total = _paircounts_smu_auto(
         galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    dd_total_norm = dd_total / _choose2(nd)
+    dd_total_norm = dd_total / (nd * (nd - 1))
 
     # 3. Standard LS estimator
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -217,7 +215,7 @@ def compute_weighted_rsd_multipoles(
         alpha = float(m_selected) / float(k_total)
         beta = float(m_selected * (k_total - 1)) / float(k_total * (m_selected - 1))
         dd_corr = alpha * dd_auto + beta * dd_cross
-        dd_corr_norm = dd_corr / _choose2(nd)
+        dd_corr_norm = dd_corr / (nd * (nd - 1))
 
         with np.errstate(divide="ignore", invalid="ignore"):
             xi_corrected = (dd_corr_norm - 2.0 * dr_norm + rr_norm) / rr_norm
@@ -282,7 +280,7 @@ def compute_standard_rsd_multipoles(
     rr_counts = _paircounts_smu_auto(
         random_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    rr_norm = rr_counts / _choose2(nr)
+    rr_norm = rr_counts / (nr * (nr - 1))
 
     dr_counts = _paircounts_smu_cross(
         galaxy_pos, random_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
@@ -292,7 +290,7 @@ def compute_standard_rsd_multipoles(
     dd_counts = _paircounts_smu_auto(
         galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    dd_norm = dd_counts / _choose2(nd)
+    dd_norm = dd_counts / (nd * (nd - 1))
 
     with np.errstate(divide="ignore", invalid="ignore"):
         xi_grid = (dd_norm - 2.0 * dr_norm + rr_norm) / rr_norm
@@ -332,7 +330,7 @@ def compute_direct_rsd_multipoles(
     dd_counts = _paircounts_smu_auto(
         galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    dd_norm = dd_counts / _choose2(nd)
+    dd_norm = dd_counts / (nd * (nd - 1))
 
     rr_norm = _analytic_rr_smu(s_bins, mu_max, n_mu_bins, boxsize, int(nd))
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -375,7 +373,7 @@ def compute_weighted_direct_rsd_multipoles(
     dd_total = _paircounts_smu_auto(
         galaxy_pos, s_bins, mu_max, n_mu_bins, boxsize, nthreads
     )
-    dd_total_norm = dd_total / _choose2(nd)
+    dd_total_norm = dd_total / (nd * (nd - 1))
 
     dd_auto = np.zeros((n_s_bins, n_mu_bins), dtype=np.float64)
     for label in unique_labels:
@@ -405,7 +403,7 @@ def compute_weighted_direct_rsd_multipoles(
         alpha = float(m_selected) / float(k_total)
         beta = float(m_selected * (k_total - 1)) / float(k_total * (m_selected - 1))
         dd_corr = alpha * dd_auto + beta * dd_cross
-        dd_corr_norm = dd_corr / _choose2(nd)
+        dd_corr_norm = dd_corr / (nd * (nd - 1))
 
         with np.errstate(divide="ignore", invalid="ignore"):
             xi_grid = dd_corr_norm / rr_norm - 1.0

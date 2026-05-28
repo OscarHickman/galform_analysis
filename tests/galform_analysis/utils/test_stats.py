@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from galform_analysis.utils.stats import (
     positive_count,
@@ -12,8 +11,8 @@ from galform_analysis.utils.stats import (
 _DATA = np.array(
     [
         [1.0, -1.0, 2.0],
-        [3.0,  0.0, 4.0],
-        [5.0,  2.0, 6.0],
+        [3.0, 0.0, 4.0],
+        [5.0, 2.0, 6.0],
         [-2.0, 3.0, -1.0],
     ]
 )
@@ -21,9 +20,9 @@ _DATA = np.array(
 
 def test_positive_count_values():
     counts = positive_count(_DATA)
-    assert counts[0] == 3   # 1, 3, 5
-    assert counts[1] == 2   # 2, 3  (0 and -1 excluded)
-    assert counts[2] == 3   # 2, 4, 6
+    assert counts[0] == 3  # 1, 3, 5
+    assert counts[1] == 2  # 2, 3  (0 and -1 excluded)
+    assert counts[2] == 3  # 2, 4, 6
 
 
 def test_positive_count_all_nonpositive():

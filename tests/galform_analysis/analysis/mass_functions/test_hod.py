@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from galform_analysis.analysis.mass_functions import hod_given_redshift_and_subvolume
 from galform_analysis.config import DEFAULT_HALO_MASS_BINS
@@ -39,7 +38,9 @@ def test_stellar_mass_cut_reduces_occupation(galform_iz_dir):
         galform_iz_dir, ivol=0, galaxy_stellar_mass_min=1e10
     )
     assert result_cut is not None
-    assert np.all(result_cut["mean_occupation"] <= result_all["mean_occupation"] + 1e-12)
+    assert np.all(
+        result_cut["mean_occupation"] <= result_all["mean_occupation"] + 1e-12
+    )
 
 
 def test_missing_file_returns_none(tmp_path):

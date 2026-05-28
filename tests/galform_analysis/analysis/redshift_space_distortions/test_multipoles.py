@@ -7,21 +7,23 @@ with synthetic inputs directly.
 import numpy as np
 import pytest
 
-from galform_analysis.analysis.redshift_space_distortions.subvol_weighted_multipoles import (
+from galform_analysis.analysis.redshift_space_distortions.subvol_weighted_multipoles import (  # noqa: E501
     _analytic_rr_smu,
     _counts_to_grid_smu,
     _project_rsd_multipoles,
 )
 
-
 # ---------------------------------------------------------------------------
 # _analytic_rr_smu
 # ---------------------------------------------------------------------------
 
+
 class TestAnalyticRRSmu:
     def test_output_shape(self):
-        s_bins = np.linspace(0.0, 50.0, 11)   # 10 s-bins
-        rr = _analytic_rr_smu(s_bins, mu_max=1.0, n_mu_bins=5, boxsize=100.0, n_points=1000)
+        s_bins = np.linspace(0.0, 50.0, 11)  # 10 s-bins
+        rr = _analytic_rr_smu(
+            s_bins, mu_max=1.0, n_mu_bins=5, boxsize=100.0, n_points=1000
+        )
         assert rr.shape == (10, 5)
 
     def test_integrates_to_shell_fraction(self):
@@ -29,15 +31,19 @@ class TestAnalyticRRSmu:
         s_bins = np.array([1.0, 2.0, 3.0])
         boxsize = 100.0
         n_mu = 4
-        rr = _analytic_rr_smu(s_bins, mu_max=1.0, n_mu_bins=n_mu, boxsize=boxsize, n_points=1)
+        rr = _analytic_rr_smu(
+            s_bins, mu_max=1.0, n_mu_bins=n_mu, boxsize=boxsize, n_points=1
+        )
         shell_vols = (4.0 / 3.0) * np.pi * (s_bins[1:] ** 3 - s_bins[:-1] ** 3)
-        expected_shell_fractions = shell_vols / boxsize ** 3
+        expected_shell_fractions = shell_vols / boxsize**3
         np.testing.assert_allclose(rr.sum(axis=1), expected_shell_fractions, rtol=1e-10)
 
     def test_uniform_mu_bins(self):
         """All mu bins in a shell should carry equal weight."""
         s_bins = np.array([1.0, 2.0])
-        rr = _analytic_rr_smu(s_bins, mu_max=1.0, n_mu_bins=4, boxsize=100.0, n_points=1)
+        rr = _analytic_rr_smu(
+            s_bins, mu_max=1.0, n_mu_bins=4, boxsize=100.0, n_points=1
+        )
         # Each mu bin = rr[0, :] / 4; all equal
         np.testing.assert_allclose(rr[0], rr[0, 0], rtol=1e-10)
 
@@ -48,12 +54,15 @@ class TestAnalyticRRSmu:
 
     def test_invalid_s_bins_raises(self):
         with pytest.raises(ValueError):
-            _analytic_rr_smu(np.array([1.0]), mu_max=1.0, n_mu_bins=4, boxsize=100.0, n_points=1)
+            _analytic_rr_smu(
+                np.array([1.0]), mu_max=1.0, n_mu_bins=4, boxsize=100.0, n_points=1
+            )
 
 
 # ---------------------------------------------------------------------------
 # _counts_to_grid_smu
 # ---------------------------------------------------------------------------
+
 
 class TestCountsToGridSmu:
     def _make_fake_result(self, n_s, n_mu):
@@ -82,12 +91,15 @@ class TestCountsToGridSmu:
 # _project_rsd_multipoles
 # ---------------------------------------------------------------------------
 
+
 class TestProjectRsdMultipoles:
     def test_output_shapes(self):
         n_s, n_mu = 5, 10
         xi_grid = np.ones((n_s, n_mu))
         s_bins = np.linspace(0.0, 50.0, n_s + 1)
-        s_mid, xi0, xi2 = _project_rsd_multipoles(xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins)
+        s_mid, xi0, xi2 = _project_rsd_multipoles(
+            xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
+        )
         assert s_mid.shape == (n_s,)
         assert xi0.shape == (n_s,)
         assert xi2.shape == (n_s,)
@@ -98,7 +110,9 @@ class TestProjectRsdMultipoles:
         C = 2.5
         xi_grid = np.full((n_s, n_mu), C)
         s_bins = np.linspace(1.0, 5.0, n_s + 1)
-        _, xi0, _ = _project_rsd_multipoles(xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins)
+        _, xi0, _ = _project_rsd_multipoles(
+            xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
+        )
         # xi0 = sum(C * 1 * dmu) = C * sum(dmu) = C * 1.0
         np.testing.assert_allclose(xi0, C, rtol=1e-2)
 
@@ -107,13 +121,17 @@ class TestProjectRsdMultipoles:
         n_s, n_mu = 4, 200
         xi_grid = np.full((n_s, n_mu), 3.0)
         s_bins = np.linspace(1.0, 5.0, n_s + 1)
-        _, _, xi2 = _project_rsd_multipoles(xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins)
+        _, _, xi2 = _project_rsd_multipoles(
+            xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
+        )
         np.testing.assert_allclose(xi2, 0.0, atol=1e-2)
 
     def test_s_mid_is_bin_centers(self):
         n_s, n_mu = 3, 5
         s_bins = np.array([0.0, 1.0, 2.0, 3.0])
         xi_grid = np.ones((n_s, n_mu))
-        s_mid, _, _ = _project_rsd_multipoles(xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins)
+        s_mid, _, _ = _project_rsd_multipoles(
+            xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
+        )
         expected = np.array([0.5, 1.5, 2.5])
         np.testing.assert_allclose(s_mid, expected)

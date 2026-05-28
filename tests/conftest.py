@@ -44,9 +44,9 @@ def write_galaxy_hdf5(
     mstar_disk = rng.uniform(1e6, _MSTAR_DISK_MAX, n_gals).astype(np.float32)
     mstar_bulge = rng.uniform(1e6, _MSTAR_BULGE_MAX, n_gals).astype(np.float32)
     # Log-uniform halo masses matching real distribution
-    mhalo = np.exp(
-        rng.uniform(np.log(_MHALO_MIN), np.log(_MHALO_MAX), n_gals)
-    ).astype(np.float32)
+    mhalo = np.exp(rng.uniform(np.log(_MHALO_MIN), np.log(_MHALO_MAX), n_gals)).astype(
+        np.float32
+    )
     # Host halo mass >= subhalo mass
     mhhalo = (mhalo * rng.uniform(1.0, 3.0, n_gals)).astype(np.float32)
     x = rng.uniform(0.0, _BOXSIZE, n_gals).astype(np.float32)

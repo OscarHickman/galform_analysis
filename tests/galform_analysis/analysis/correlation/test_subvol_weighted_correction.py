@@ -9,10 +9,10 @@ import pytest
 
 from galform_analysis.analysis.correlation.subvol_weighted_correction import _choose2
 
-
 # ---------------------------------------------------------------------------
 # _choose2 — combinatorial helper: C(n,2) = n*(n-1)/2
 # ---------------------------------------------------------------------------
+
 
 class TestChoose2:
     def test_known_values(self):
@@ -33,6 +33,7 @@ class TestChoose2:
 # alpha/beta coefficient formulae
 # ---------------------------------------------------------------------------
 
+
 def _alpha(m, k):
     return float(m) / float(k)
 
@@ -43,9 +44,9 @@ def _beta(m, k):
 
 class TestAlphaBeta:
     """The two coefficients satisfy:
-        - alpha + beta = 1  only when m == k (trivially)
-        - As m → k:  alpha → 1, beta → 1 (converge to unbiased estimator)
-        - When m = 1: alpha = 1/k, beta is undefined (no cross pairs)
+    - alpha + beta = 1  only when m == k (trivially)
+    - As m → k:  alpha → 1, beta → 1 (converge to unbiased estimator)
+    - When m = 1: alpha = 1/k, beta is undefined (no cross pairs)
     """
 
     def test_alpha_at_full_selection(self):
@@ -79,5 +80,7 @@ class TestAlphaBeta:
         assert _alpha(m=64, k=1024) < 1.0
 
     def test_beta_gt_one_for_subselection(self):
-        """beta > 1 means cross pairs are up-weighted to compensate for missing volume."""
+        """beta > 1 means cross pairs are up-weighted
+        to compensate for missing volume.
+        """
         assert _beta(m=64, k=1024) > 1.0
