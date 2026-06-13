@@ -21,14 +21,13 @@ from typing import Any, Dict, Optional
 import numpy as np
 from hmf import MassFunction
 
-from galform_analysis.config import Cosmology
-
-# Mass definition conversion parameters
-# Mvir/M200c ratios as a function of redshift and halo mass
-# Based on concentration-mass relations and halo profile assumptions
 MASS_DEFINITION_MVIR = "virial"
 MASS_DEFINITION_M200C = "200c"
 MASS_DEFINITION_M200M = "200m"
+
+# Default cosmology (L800 / Planck 2015)
+_OMEGA_M = 0.307
+_OMEGA_L = 0.693
 
 
 def get_concentration(mass: np.ndarray, z: float) -> np.ndarray:
@@ -99,15 +98,10 @@ def get_mvir_to_m200c_ratio(z: float, mass: Optional[np.ndarray] = None) -> np.n
 
     mass_arr = np.atleast_1d(mass)
 
-    # Get concentration from mass and redshift
     c_vir = get_concentration(mass_arr, z)
 
-    # Virial overdensity as function of redshift (flat ΛCDM; Bryan & Norman 1998)
-    cosmo = Cosmology()
-    Omega_m0 = cosmo.OMEGA_M
-    Omega_lambda0 = cosmo.OMEGA_L
-    Ez2 = Omega_m0 * (1.0 + z) ** 3 + Omega_lambda0
-    Omega_z = Omega_m0 * (1.0 + z) ** 3 / Ez2
+    Ez2 = _OMEGA_M * (1.0 + z) ** 3 + _OMEGA_L
+    Omega_z = _OMEGA_M * (1.0 + z) ** 3 / Ez2
     x = Omega_z - 1.0
     Delta_vir = 18.0 * np.pi**2 + 82.0 * x - 39.0 * x**2
 
@@ -501,11 +495,7 @@ def create_press_schechter_plus(
     log10M = np.arange(mmin, mmax + dlog10m / 2.0, dlog10m)
     M = 10**log10M
 
-    # Get cosmology from Cosmology class for consistency
-    cosmo_config = Cosmology()
-    omega_m = cosmo_config.OMEGA_M
-
-    hmf_model = HaloMassFunction(omega_m=omega_m, z=z, mdef=mdef)
+    hmf_model = HaloMassFunction(omega_m=_OMEGA_M, z=z, mdef=mdef)
     dn_dlnM = hmf_model.n0(M)  # dn/dlnM
     dndlog10m = dn_dlnM * np.log(10.0)  # Convert to dn/dlog10M
 
@@ -520,11 +510,8 @@ def create_press_schechter_plus(
 
     # Convert from m200b to Mvir if requested (NOT RECOMMENDED)
     if use_mvir and mdef == "m200b":
-        # Approximate m200b to Mvir conversion
-        # At z=0: Mvir/m200b ~ 1.5-2.0 depending on mass
-        # This conversion may reduce GPS+ accuracy since it was calibrated on m200b
-        Ez2 = omega_m * (1.0 + z) ** 3 + (1.0 - omega_m)
-        Omega_z = omega_m * (1.0 + z) ** 3 / Ez2
+        Ez2 = _OMEGA_M * (1.0 + z) ** 3 + _OMEGA_L
+        Omega_z = _OMEGA_M * (1.0 + z) ** 3 / Ez2
         x_vir = Omega_z - 1.0
         Delta_vir = 18.0 * np.pi**2 + 82.0 * x_vir - 39.0 * x_vir**2
 

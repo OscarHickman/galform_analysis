@@ -13,19 +13,7 @@ from galform_analysis.config import N_SUBVOLUMES
 
 
 def get_completed_subvolumes(iz_path: str) -> List[int]:
-    """Scan all subvolumes in a snapshot directory and return list of ivol numbers
-    where CompletionFlag=1 in the galaxies.hdf5 file.
-
-    This function pre-scans all subvolumes to check CompletionFlag, which can be used
-    to get an accurate count before processing. For faster iteration, consider using
-    glob.glob directly and handling failures with try/except during data reading.
-
-    Args:
-        iz_path: Path to the snapshot directory (e.g., 'iz99')
-
-    Returns:
-        List of ivol numbers that have CompletionFlag=1
-    """
+    """Return ivol numbers where CompletionFlag=1 in iz_path/ivol*/galaxies.hdf5."""
     ivol_dirs = sorted(glob.glob(os.path.join(iz_path, "ivol*")))
     completed = []
 
@@ -79,20 +67,12 @@ def open_galaxies_hdf5(iz_path: str, ivol: int = 0) -> Optional[h5py.File]:
 
 
 def get_output_group(f: Optional[h5py.File]) -> Optional[h5py.Group]:
-    """Get the first 'Output' group from an HDF5 file.
-
-    Args:
-        f: HDF5 file object
-
-    Returns:
-        Output group or None if not found
-    """
+    """Return the highest-numbered OutputNNN group from an HDF5 file."""
     if not f:
         return None
     outs = [k for k in f.keys() if re.match(r"^Output\d+$", k)]
     if not outs:
         return None
-    # Extract the numeric part and find the group with the largest NNN
     outs_sorted = sorted(
         outs, key=lambda x: int(re.search(r"Output(\d+)", x).group(1)), reverse=True
     )
@@ -170,25 +150,8 @@ def _get_first_array(
 def read_snapshot_data(iz_path: str, ivol: int = 0) -> Dict[str, Any]:
     """Read key galaxy properties from a single snapshot subvolume.
 
-    Args:
-        iz_path: Path to the snapshot directory
-        ivol: Subvolume number
-
-    Returns:
-        Dictionary containing galaxy data with keys:
-            - 'file': h5py.File object (needs to be closed!)
-            - 'group': Output group
-            - 'mstar': Stellar masses
-            - 'mhalo': Halo masses
-            - 'sfr': Star formation rates
-            - 'Lg', 'Lr': g-band and r-band luminosities (if available)
-            - 'z': Redshift
-            - 'V_total': Total volume
-            - 'V_ivol': Subvolume volume
-
-    Raises:
-        FileNotFoundError: If HDF5 file cannot be read
-        RuntimeError: If no Output group found
+    Returns dict with keys: file (must be closed!), group, mstar, mhalo, sfr,
+    Lg, Lr, z, V_total, V_ivol. Raises FileNotFoundError / RuntimeError on failure.
     """
     f = open_galaxies_hdf5(iz_path, ivol=ivol)
     if f is None:
@@ -251,27 +214,16 @@ def read_snapshot_data(iz_path: str, ivol: int = 0) -> Dict[str, Any]:
     # Redshift
     data["z"] = _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol)
 
-    # Volume
     data["V_total"] = data["V_ivol"] = None
     if "Parameters" in f and "volume" in f["Parameters"]:
-        # The 'volume' parameter in GALFORM HDF5 files stores the PER-SUBVOLUME volume
-        # NOT the total simulation box volume
         V_ivol = float(np.array(f["Parameters"]["volume"]))
         data["V_ivol"] = V_ivol
-
-        # Calculate total volume by multiplying by number of subvolumes
-        n_subvol = None
-        if "n_subvolumes" in f["Parameters"]:
-            n_subvol = int(np.array(f["Parameters"]["n_subvolumes"]))
-        else:
-            # Use the configured value from config.py
-            n_subvol = N_SUBVOLUMES
-
-        if n_subvol and n_subvol > 0:
-            data["V_total"] = V_ivol * n_subvol
-        else:
-            # Fallback: if not specified, assume this is the total
-            data["V_total"] = V_ivol
+        n_subvol = (
+            int(np.array(f["Parameters"]["n_subvolumes"]))
+            if "n_subvolumes" in f["Parameters"]
+            else N_SUBVOLUMES
+        )
+        data["V_total"] = V_ivol * n_subvol if n_subvol and n_subvol > 0 else V_ivol
 
     return data
 

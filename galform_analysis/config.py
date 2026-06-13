@@ -1,8 +1,4 @@
-"""Configuration module for galform_analysis.
-
-This module manages paths and constants for GALFORM output analysis.
-Set BASE_DIR to point to your GALFORM output directory before running analyses.
-"""
+"""Configuration and path management for galform_analysis."""
 
 import json
 import os
@@ -10,10 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
-
-# ==============================================================================
-# SIMULATION CONFIGURATION
-# ==============================================================================
 
 _SIM_CONFIGS_DIR = Path(__file__).parent / "sim_configs"
 
@@ -113,40 +105,21 @@ class SimulationConfig:
         return f"<SimulationConfig: {self.name} (L={self.box_size} Mpc/h)>"
 
 
-# ==============================================================================
-# BASE DIRECTORY CONFIGURATION
-# ==============================================================================
-
-# Default base directory - override this or set via environment variable
 _USER = os.environ.get("USER", "<USER>")
 _DEFAULT_BASE_DIR = f"/cosma5/data/durham/{_USER}/Galform_Out/L800/lc16"
-
-# Check for environment variable override
 BASE_DIR = os.environ.get("GALFORM_BASE_DIR", _DEFAULT_BASE_DIR)
 
 
 def set_base_dir(path: str) -> None:
-    """Set the base directory for GALFORM outputs.
-
-    Args:
-        path: Path to the GALFORM output directory
-    """
+    """Set the base directory for GALFORM outputs."""
     global BASE_DIR
     BASE_DIR = str(Path(path).resolve())
 
 
 def get_base_dir() -> Path:
-    """Get the current base directory as a Path object.
-
-    Returns:
-        Path object pointing to the base directory
-    """
+    """Get the current base directory."""
     return Path(BASE_DIR)
 
-
-# ==============================================================================
-# REDSHIFT MAPPING
-# ==============================================================================
 
 _REDSHIFT_LISTS_DIR = Path(__file__).parent / "redshift_lists"
 
@@ -235,46 +208,9 @@ def find_snapshot_at_redshift(
     return None
 
 
-# ==============================================================================
-# COSMOLOGY PARAMETERS
-# ==============================================================================
+N_SUBVOLUMES = 1024  # fallback when HDF5 Parameters/n_subvolumes is absent
 
-
-class Cosmology:
-    """Cosmological parameters for the simulation.
-
-    DEPRECATED: Use SimulationConfig(sim_name) instead.
-    """
-
-    OMEGA_M = 0.307
-    OMEGA_L = 0.693
-    OMEGA_B = 0.04825
-    H0 = 67.77
-    h = H0 / 100.0
-    SIGMA_8 = 0.8288
-    DELTA_C = 1.686
-    F_B = OMEGA_B / OMEGA_M
-
-
-# ==============================================================================
-# ANALYSIS CONSTANTS
-# ==============================================================================
-
-# Simulation volume parameters
-# DEPRECATED: Use SimulationConfig(sim_name).n_subvolumes instead.
-N_SUBVOLUMES = 1024  # Total number of subvolumes in the simulation
-
-# Default binning for correlation functions
-DEFAULT_RBINS = np.logspace(-1, 1.5, 21)  # Mpc
-
-# SFR conversion factor
-SFR_CONVERSION = 1.0  # Msun/yr per code unit
-
-# Default mass bins for mass functions
-# GALFORM stores halo/stellar masses in M_sun/h.
-# log10(M) bins here are log10(M_sun/h).
-DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)  # log10(M_star [M_sun/h])
-DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)  # log10(M_halo [M_sun/h])
-
-# Default sSFR bins (log10 yr^-1)
+DEFAULT_RBINS = np.logspace(-1, 1.5, 21)
+DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)
+DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)
 DEFAULT_SSFR_BINS = np.arange(-10.0, 5.0, 0.1)

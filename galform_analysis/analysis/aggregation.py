@@ -37,9 +37,7 @@ def completed_galaxies(
     """
     records = []
 
-    # Find all iz* directories
     if iz_snapshots is not None:
-        # Filter to only the requested snapshots
         iz_dirs = sorted(
             [
                 os.path.join(basedir, f"iz{iz}")
@@ -52,9 +50,6 @@ def completed_galaxies(
 
     for iz_dir in iz_dirs:
         iz_name = Path(iz_dir).name
-        iz_records = []  # Track records for this redshift only
-
-        # Extract numeric iz value
         try:
             iz_num = int(iz_name.replace("iz", ""))
         except ValueError:
@@ -64,62 +59,30 @@ def completed_galaxies(
 
         for ivol_dir in ivol_dirs:
             ivol_name = Path(ivol_dir).name
-
             try:
                 ivol_num = int(ivol_name.replace("ivol", ""))
             except ValueError:
                 continue
 
-            # Check for galaxies.hdf5 file
             gal_file = os.path.join(ivol_dir, "galaxies.hdf5")
-
             if not os.path.exists(gal_file):
                 continue
 
-            # Quick file size check - empty or very small files are incomplete
             try:
-                file_size = os.path.getsize(gal_file)
-                if file_size < 1000:  # Less than 1KB is definitely incomplete
-                    record = {
-                        "iz": iz_name,
-                        "iz_num": iz_num,
-                        "ivol": ivol_num,
-                        "path": gal_file,
-                        "completed": False,
-                    }
-                    records.append(record)
-                    iz_records.append(record)
+                if os.path.getsize(gal_file) < 1000:
+                    records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "completed": False})
                     continue
             except OSError:
                 continue
 
-            # Try to open the file - if it fails with serialization error,
-            # it's incomplete
             completed = False
-
             try:
-                # Use swmr mode for faster read access
                 with h5py.File(gal_file, "r", swmr=True):
-                    # If we can open it without error, it's completed
                     completed = True
-            except (OSError, KeyError, RuntimeError) as e:
-                # Check if it's the specific serialization error indicating
-                # incomplete file
-                if "Can't deserialize" in str(e) or "bad object header" in str(e):
-                    completed = False
-                else:
-                    # Other errors might be temporary, but mark as incomplete
-                    completed = False
+            except (OSError, KeyError, RuntimeError):
+                pass
 
-            record = {
-                "iz": iz_name,
-                "iz_num": iz_num,
-                "ivol": ivol_num,
-                "path": gal_file,
-                "completed": completed,
-            }
-            records.append(record)
-            iz_records.append(record)
+            records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "completed": completed})
 
     df = pl.DataFrame(records)
 
@@ -154,9 +117,7 @@ def incomplete_subvolumes(
     """
     records = []
 
-    # Find all iz* directories
     if iz_snapshots is not None:
-        # Filter to only the requested snapshots
         iz_dirs = sorted(
             [
                 os.path.join(basedir, f"iz{iz}")
@@ -169,9 +130,6 @@ def incomplete_subvolumes(
 
     for iz_dir in iz_dirs:
         iz_name = Path(iz_dir).name
-        iz_incomplete = []  # Track incomplete records for this redshift
-
-        # Extract numeric iz value
         try:
             iz_num = int(iz_name.replace("iz", ""))
         except ValueError:
@@ -181,75 +139,30 @@ def incomplete_subvolumes(
 
         for ivol_dir in ivol_dirs:
             ivol_name = Path(ivol_dir).name
-
             try:
                 ivol_num = int(ivol_name.replace("ivol", ""))
             except ValueError:
                 continue
 
-            # Check for galaxies.hdf5 file
             gal_file = os.path.join(ivol_dir, "galaxies.hdf5")
 
             if not os.path.exists(gal_file):
-                record = {
-                    "iz": iz_name,
-                    "iz_num": iz_num,
-                    "ivol": ivol_num,
-                    "path": gal_file,
-                    "reason": "missing",
-                }
-                records.append(record)
-                iz_incomplete.append(record)
+                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "missing"})
                 continue
 
-            # Quick file size check - empty or very small files are incomplete
             try:
-                file_size = os.path.getsize(gal_file)
-                if file_size < 1000:  # Less than 1KB is definitely incomplete
-                    record = {
-                        "iz": iz_name,
-                        "iz_num": iz_num,
-                        "ivol": ivol_num,
-                        "path": gal_file,
-                        "reason": "incomplete",
-                    }
-                    records.append(record)
-                    iz_incomplete.append(record)
+                if os.path.getsize(gal_file) < 1000:
+                    records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "incomplete"})
                     continue
             except OSError:
-                record = {
-                    "iz": iz_name,
-                    "iz_num": iz_num,
-                    "ivol": ivol_num,
-                    "path": gal_file,
-                    "reason": "inaccessible",
-                }
-                records.append(record)
-                iz_incomplete.append(record)
+                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "inaccessible"})
                 continue
 
-            # Try to open the file - if it fails, it's corrupted
             try:
-                # Use swmr mode for faster read access
                 with h5py.File(gal_file, "r", swmr=True):
-                    pass  # File is valid
-            except (OSError, KeyError, RuntimeError) as e:
-                # Check if it's the specific serialization error indicating
-                # incomplete file
-                if "Can't deserialize" in str(e) or "bad object header" in str(e):
-                    reason = "corrupted"
-                else:
-                    reason = "corrupted"
-
-                record = {
-                    "iz": iz_name,
-                    "iz_num": iz_num,
-                    "ivol": ivol_num,
-                    "path": gal_file,
-                    "reason": reason,
-                }
-                records.append(record)
-                iz_incomplete.append(record)
+                    pass
+            except (OSError, KeyError, RuntimeError):
+                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "corrupted"})
 
     df = pl.DataFrame(records)
 
@@ -309,6 +222,3 @@ def aggregate_snapshot(iz_path: str) -> Optional[Dict[str, Any]]:
     }
 
 
-if __name__ == "__main__":
-    base_dir = get_base_dir()
-    df = completed_galaxies(str(base_dir))
