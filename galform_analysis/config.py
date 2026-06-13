@@ -7,7 +7,18 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-_SIM_CONFIGS_DIR = Path(__file__).parent / "sim_configs"
+try:
+    import galform_execution as _ge
+
+    _GE_SIM_CONFIGS = Path(_ge.__file__).parent / "config" / "simulations"
+except ImportError:
+    _GE_SIM_CONFIGS = None
+
+_SIM_CONFIGS_DIR = (
+    _GE_SIM_CONFIGS
+    if _GE_SIM_CONFIGS is not None and _GE_SIM_CONFIGS.is_dir()
+    else Path(__file__).parent / "sim_configs"
+)
 
 
 def load_simulation_families() -> Dict[str, Dict[str, Any]]:
