@@ -1,32 +1,7 @@
-"""galform_analysis - A Python library for GALFORM simulation analysis.
+"""galform_analysis — Python library for GALFORM simulation analysis."""
 
-This library provides tools for analyzing GALFORM galaxy formation simulation outputs,
-including:
-- Reading HDF5 snapshot data
-- Computing mass functions (stellar and halo)
-- Aggregating data across subvolumes
+__version__ = "0.1.7"
 
-Quick Start:
-    >>> from config import set_base_dir
-    >>> from analysis import avg_hmf_given_redshift_and_subvolumes
-    >>> from analysis import avg_smf_given_redshift_and_subvolumes
-    >>>
-    >>> # Set your GALFORM output directory
-    >>> set_base_dir('/path/to/galform/output')
-    >>>
-    >>> # Compute stellar mass function
-    >>> smf = avg_smf_given_redshift_and_subvolumes(iz_num=99, ivols=[0, 1, 2])
-
-Configuration:
-    Set the BASE_DIR for your GALFORM outputs:
-    - Via Python: config.set_base_dir('/path')
-    - Via environment: export GALFORM_BASE_DIR=/path
-    - Edit config.py directly
-"""
-
-__version__ = "0.1.0"
-
-# Import key modules for convenience
 from galform_analysis import analysis, config
 from galform_analysis.analysis import (
     aggregate_snapshot,
@@ -34,17 +9,31 @@ from galform_analysis.analysis import (
     avg_hmf_given_redshifts_and_subvolume,
     avg_smf_given_redshift_and_subvolumes,
     avg_smf_given_redshifts_and_subvolume,
-    # HMF functions
     hmf_given_redshift_and_subvolume,
     hmfs_given_redshifts_and_subvolume,
-    # SMF functions
     smf_given_redshift_and_subvolume,
     smfs_given_redshifts_and_subvolume,
 )
-
-# Expose commonly used functions at package level
+from galform_analysis.analysis.correlation import (
+    avg_correlation_given_redshift_and_subvolumes,
+    avg_correlation_given_subvolume_and_redshifts,
+    avg_galaxy_bias_over_subvolumes,
+    compute_3pcf_counts_with_sugc,
+    compute_galaxy_bias,
+    compute_matter_xi,
+    compute_npoint_counts,
+    compute_triplet_counts,
+    compute_xi_corrfunc,
+    correlation_given_redshift_and_subvolume,
+    correlations_given_redshifts_and_subvolume,
+    halo_correlation_given_redshift_and_subvolume,
+    matter_xi_at_snapshot,
+    matter_xi_at_snapshots,
+    satellite_central_cross_correlation,
+    sugc_weights,
+    sugc_weights_npcf,
+)
 from galform_analysis.config import (
-    Cosmology,
     SimulationConfig,
     find_snapshot_at_redshift,
     get_base_dir,
@@ -59,28 +48,51 @@ __all__ = [
     "__version__",
     # Submodules
     "config",
-    "io",
     "analysis",
-    # Common functions
+    # Configuration
     "set_base_dir",
     "get_base_dir",
-    "Cosmology",
-    "load_sim_config",
     "SimulationConfig",
+    "load_sim_config",
     "load_redshift_mapping",
     "get_snapshot_redshift",
     "find_snapshot_at_redshift",
+    # I/O
     "read_snapshot_data",
     "close_snapshot",
+    # Aggregation
     "aggregate_snapshot",
-    # HMF functions
+    # HMF
     "hmf_given_redshift_and_subvolume",
     "hmfs_given_redshifts_and_subvolume",
     "avg_hmf_given_redshift_and_subvolumes",
     "avg_hmf_given_redshifts_and_subvolume",
-    # SMF functions
+    # SMF
     "smf_given_redshift_and_subvolume",
     "smfs_given_redshifts_and_subvolume",
     "avg_smf_given_redshift_and_subvolumes",
     "avg_smf_given_redshifts_and_subvolume",
+    # Galaxy 2PCF
+    "compute_xi_corrfunc",
+    "correlation_given_redshift_and_subvolume",
+    "correlations_given_redshifts_and_subvolume",
+    "avg_correlation_given_redshift_and_subvolumes",
+    "avg_correlation_given_subvolume_and_redshifts",
+    # Halo 2PCF (halo tracer — not matter xi)
+    "halo_correlation_given_redshift_and_subvolume",
+    # Linear matter correlation function
+    "compute_matter_xi",
+    "matter_xi_at_snapshot",
+    "matter_xi_at_snapshots",
+    # Galaxy bias
+    "compute_galaxy_bias",
+    "avg_galaxy_bias_over_subvolumes",
+    # Satellite–central cross-correlation
+    "satellite_central_cross_correlation",
+    # N-point / 3PCF
+    "compute_3pcf_counts_with_sugc",
+    "compute_triplet_counts",
+    "sugc_weights",
+    "compute_npoint_counts",
+    "sugc_weights_npcf",
 ]

@@ -29,8 +29,7 @@ import polars as pl
 from galform_analysis.config import DEFAULT_HALO_MASS_BINS, get_base_dir
 from galform_analysis.readers.loaders import (
     _get_first_array,
-    _get_redshift_from_file,
-    _get_redshift_from_zsnap,
+    resolve_redshift,
     get_output_group,
     open_galaxies_hdf5,
 )
@@ -128,9 +127,7 @@ def _load_hod_data(
         meta: Dict[str, Any] = {
             "iz": Path(iz_path).name,
             "ivol": ivol,
-            "z": (
-                _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol)
-            ),
+            "z": resolve_redshift(f, iz_path, ivol),
         }
 
         return all_arrs, tree_mphalo, meta

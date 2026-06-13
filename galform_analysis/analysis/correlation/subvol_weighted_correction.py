@@ -38,9 +38,9 @@ _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")
 def _pick_partition_labels(catalogue: pl.DataFrame) -> np.ndarray:
     """Return the label vector used for auto/cross decomposition."""
     if "partition_label" in catalogue.columns:
-        return catalogue["partition_label"].to_numpy(dtype=np.int64)
+        return catalogue["partition_label"].to_numpy().astype(np.int64)
     if "subvol_rank" in catalogue.columns:
-        return catalogue["subvol_rank"].to_numpy(dtype=np.int64)
+        return catalogue["subvol_rank"].to_numpy().astype(np.int64)
     raise KeyError("Catalogue is missing both 'partition_label' and 'subvol_rank'")
 
 

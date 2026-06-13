@@ -16,8 +16,7 @@ from Corrfunc.theory.DD import DD as corrfunc_DD
 from galform_analysis.config import DEFAULT_RBINS
 from galform_analysis.readers.loaders import (
     _get_first_array,
-    _get_redshift_from_file,
-    _get_redshift_from_zsnap,
+    resolve_redshift,
     get_output_group,
     open_galaxies_hdf5,
 )
@@ -107,7 +106,7 @@ def _load_galaxy_positions(
             mask &= mhhalo >= host_halo_mass_min
 
         pos = np.vstack([x[mask], y[mask], z[mask]]).T.astype(np.float64, copy=False)
-        z_val = _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol)
+        z_val = resolve_redshift(f, iz_path, ivol)
         return pos, z_val
     finally:
         try:

@@ -80,9 +80,19 @@ def get_output_group(f: Optional[h5py.File]) -> Optional[h5py.Group]:
 
 
 def _get_redshift_from_file(f: Optional[h5py.File]) -> Optional[float]:
-    """Attempt to read redshift from 'Redshifts' or 'Output_Times' datasets."""
+    """Attempt to read redshift from the highest output group, 'Redshifts' or 'Output_Times'."""
     if not f:
         return None
+    try:
+        # First, try to read from the highest-numbered Output group's redshift dataset
+        g = get_output_group(f)
+        if g is not None and "redshift" in g:
+            val = g["redshift"]
+            if isinstance(val, h5py.Dataset):
+                return float(val[()])
+    except Exception:
+        pass
+
     try:
         if "Redshifts" in f:
             obj = f["Redshifts"]
@@ -122,16 +132,37 @@ def _get_redshift_from_file(f: Optional[h5py.File]) -> Optional[float]:
 
 
 def _get_redshift_from_zsnap(iz_path: str, ivol: int) -> Optional[float]:
-    """Read redshift from a zsnap.dat file."""
-    zfile = os.path.join(iz_path, f"ivol{ivol}", "zsnap.dat")
-    if os.path.exists(zfile):
-        try:
-            with open(zfile, "r") as f:
-                line = f.readline().strip()
-                return float(line)
-        except Exception:
-            return None
+    """Read redshift from a zsnap.dat file at either snapshot or subvolume level."""
+    # Check parent snapshot directory first, then subvolume subdirectory
+    paths = [
+        os.path.join(iz_path, "zsnap.dat"),
+        os.path.join(iz_path, f"ivol{ivol}", "zsnap.dat"),
+    ]
+    for zfile in paths:
+        if os.path.exists(zfile):
+            try:
+                with open(zfile, "r") as f:
+                    line = f.readline().strip()
+                    # Try direct float conversion
+                    try:
+                        return float(line)
+                    except ValueError:
+                        # Try parsing "iz= 155 z= 1.496"
+                        import re
+                        match = re.search(r"z\s*=\s*([0-9.-]+)", line)
+                        if match:
+                            return float(match.group(1))
+            except Exception:
+                continue
     return None
+
+
+def resolve_redshift(f: Optional[h5py.File], iz_path: str, ivol: int) -> Optional[float]:
+    """Resolve redshift robustly, avoiding falsy z=0.0 issues."""
+    z = _get_redshift_from_file(f)
+    if z is not None:
+        return z
+    return _get_redshift_from_zsnap(iz_path, ivol)
 
 
 def _get_first_array(
@@ -212,7 +243,7 @@ def read_snapshot_data(iz_path: str, ivol: int = 0) -> Dict[str, Any]:
                 )
 
     # Redshift
-    data["z"] = _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol)
+    data["z"] = resolve_redshift(f, iz_path, ivol)
 
     data["V_total"] = data["V_ivol"] = None
     if "Parameters" in f and "volume" in f["Parameters"]:

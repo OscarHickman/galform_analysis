@@ -1,22 +1,13 @@
 """General N-point brute-force counter and SUGC correction weights.
 
-For each starting galaxy i, find all neighbours within rmax via cKDTree, then
-enumerate every (N-1)-subset of those neighbours (with strict idx > i to avoid
-double-counting). For each subset, compute all C(N, 2) pairwise periodic
-distances; if max < rmax, bin the tuple by max pairwise distance.
+For each starting galaxy i, finds all neighbours within rmax via cKDTree, then
+enumerates every (N-1)-subset of those neighbours. For each subset, computes all
+C(N, 2) pairwise periodic distances; if max < rmax, bins by max pairwise distance.
 
-If labels are passed, also classify each kept tuple by the number of distinct
-labels s in {1, ..., N}, returning per-s counts T_by_s[s-1].
+If labels are passed, decomposes each kept tuple by number of distinct labels s
+in {1, ..., N}, returning per-s counts T_by_s[s-1].
 
-Reduces to the existing 2PCF / 3PCF brute-force counters when N=2, N=3.
-
-SUGC weights (`sugc_weights_npcf`): derived by inverting the per-s
-observation probability when drawing m of k subvolumes,
-
-    P_obs(s) = prod_{i=0..s-1} (m-i)/(k-i)
-
-so that, under the scale-down convention,
-
+sugc_weights_npcf: scale-down weight for s distinct labels,
     w_s = (m/k)^N * (k)_s / (m)_s
 """
 
@@ -107,7 +98,7 @@ def compute_npoint_counts(
 
 
 def sugc_weights_npcf(N, m, k):
-    """w[s-1] = (m/k)^N * (k)_s / (m)_s, the scale-down weight for s distinct labels."""
+    """SUGC scale-down weights for N-point functions: w[s-1] = (m/k)^N * (k)_s / (m)_s."""
     if N < 2:
         raise ValueError("N must be >= 2")
     m, k = float(m), float(k)
@@ -117,8 +108,3 @@ def sugc_weights_npcf(N, m, k):
         ratio *= (m - s + 1) / (k - s + 1)
         weights[s - 1] = (m / k) ** N / ratio if ratio != 0 else 0.0
     return weights
-
-
-# Legacy alias
-def scope_weights_npcf(N, m, k):
-    return sugc_weights_npcf(N, m, k)

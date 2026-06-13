@@ -16,8 +16,7 @@ import polars as pl
 from galform_analysis.config import N_SUBVOLUMES
 from galform_analysis.readers.loaders import (
     _get_first_array,
-    _get_redshift_from_file,
-    _get_redshift_from_zsnap,
+    resolve_redshift,
     get_output_group,
     open_galaxies_hdf5,
 )
@@ -143,7 +142,7 @@ def read_galaxy_arrays(
         meta: Dict[str, Any] = {
             "iz": Path(iz_path).name,
             "ivol": ivol,
-            "z": _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol),
+            "z": resolve_redshift(f, iz_path, ivol),
             "V_total": None,
             "V_ivol": None,
         }
@@ -275,7 +274,7 @@ def read_halo_arrays(
         meta: Dict[str, Any] = {
             "iz": Path(iz_path).name,
             "ivol": ivol,
-            "z": _get_redshift_from_file(f) or _get_redshift_from_zsnap(iz_path, ivol),
+            "z": resolve_redshift(f, iz_path, ivol),
             "V_total": None,
             "V_ivol": None,
         }

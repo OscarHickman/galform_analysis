@@ -10,6 +10,8 @@ import polars as pl
 from galform_analysis.config import DEFAULT_STELLAR_MASS_BINS, get_base_dir
 from galform_analysis.readers.loaders import close_snapshot, read_snapshot_data
 
+from ._common import _avg_phi_over_snapshots
+
 
 def smf_given_redshift_and_subvolume(
     iz_path: str, ivol: int, bins: np.ndarray = None
@@ -18,19 +20,12 @@ def smf_given_redshift_and_subvolume(
 
     Args:
         iz_path: Path to snapshot directory (e.g. '/path/to/iz155').
-        ivol: Subvolume index (integer extracted from 'ivolXXX').
-        bins: log10(M) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
+        ivol: Subvolume index.
+        bins: log10(M_star [M_sun/h]) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
 
     Returns:
-        Dictionary with keys:
-            - 'iz': snapshot folder name
-            - 'ivol': subvolume index
-            - 'z': redshift (from file)
-            - 'centers': bin centers log10(M)
-            - 'phi': number density [Mpc^-3 dex^-1]
-            - 'counts': raw counts per bin
-            - 'V_ivol': comoving volume (if present)
-        Returns None if data invalid or missing.
+        dict with keys: iz, ivol, z, centers, phi [Mpc^-3 dex^-1], counts, V_ivol.
+        None if data is invalid or missing.
     """
     if bins is None:
         bins = DEFAULT_STELLAR_MASS_BINS
@@ -70,37 +65,35 @@ def smf_given_redshift_and_subvolume(
 
 
 def smfs_given_redshifts_and_subvolume(
-    ivol: int, iz_nums: List[int], base_dir: Optional[str] = None
-) -> None:
-    """Compute SMFs for a single subvolume across multiple snapshots (redshifts)."""
+    ivol: int,
+    iz_nums: List[int],
+    base_dir: Optional[str] = None,
+) -> Optional[pl.DataFrame]:
+    """SMF for one subvolume across multiple snapshots, returned as a long-form DataFrame.
 
-    results_by_z = []
+    Args:
+        ivol: Subvolume index.
+        iz_nums: List of snapshot numbers (e.g. [82, 155, 207]).
+        base_dir: Base directory; defaults to configured base dir.
+
+    Returns:
+        polars DataFrame with columns: iz, iz_num, z, log_M, phi, counts.
+        None if no snapshot produced valid data.
+    """
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
+    rows = []
     for iz_num in iz_nums:
-        iz_path = str(base_dir / f"iz{iz_num}")
-        result = smf_given_redshift_and_subvolume(iz_path, ivol)
-        if result is not None:
-            results_by_z.append(
+        iz_path = os.path.join(base_dir, f"iz{iz_num}")
+        res = smf_given_redshift_and_subvolume(iz_path, ivol)
+        if res is None:
+            continue
+        for i, (center, phi_val) in enumerate(zip(res["centers"], res["phi"])):
+            rows.append(
                 {
                     "iz": f"iz{iz_num}",
                     "iz_num": iz_num,
-                    "z": result["z"],
-                    "centers": result["centers"],
-                    "phi": result["phi"],
-                    "counts": result["counts"],
-                }
-            )
-
-    if not results_by_z:
-        return None
-
-    # Build DataFrame (one row per mass bin per redshift)
-    df_rows = []
-    for res in results_by_z:
-        for i, (center, phi_val) in enumerate(zip(res["centers"], res["phi"])):
-            df_rows.append(
-                {
-                    "iz": res["iz"],
-                    "iz_num": res["iz_num"],
                     "z": res["z"],
                     "log_M": center,
                     "phi": phi_val,
@@ -108,7 +101,9 @@ def smfs_given_redshifts_and_subvolume(
                 }
             )
 
-    return pl.DataFrame(df_rows), results_by_z
+    if not rows:
+        return None
+    return pl.DataFrame(rows)
 
 
 def avg_smf_given_redshift_and_subvolumes(
@@ -117,28 +112,17 @@ def avg_smf_given_redshift_and_subvolumes(
     bins: np.ndarray = None,
     base_dir: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Average SMF over a provided list of subvolumes for a snapshot.
-
-    This replaces the previous path/sampling interface. It simply calls
-    ``smf_given_redshift_and_subvolume`` for each requested ``ivol`` and averages the
-    resulting ``phi`` arrays.
+    """Average SMF over a list of subvolumes for one snapshot.
 
     Args:
-        iz_num: Numeric snapshot identifier (e.g. 207 for 'iz207').
-        ivols: List of subvolume indices to include in the average.
-        bins: Optional log10(M) bin edges (defaults to DEFAULT_STELLAR_MASS_BINS).
-        base_dir: Optional base directory; defaults to configured base dir.
+        iz_num: Snapshot number (e.g. 207 for 'iz207').
+        ivols: Subvolume indices to average over.
+        bins: log10(M_star) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
+        base_dir: Base directory; defaults to configured base dir.
 
     Returns:
-        Dictionary with keys:
-            - 'iz': snapshot name (e.g. 'iz207')
-            - 'z': redshift (from first successful subvolume)
-            - 'centers': bin centers
-            - 'phi': mean number density across provided subvolumes
-            - 'phi_std': standard deviation across provided subvolumes
-            - 'n_used': number of successful subvolumes
-            - 'n_requested': length of ivols list
-        Returns None if no subvolume produced valid data.
+        dict with keys: iz, z, centers, phi, phi_std, n_used, n_requested.
+        None if no subvolume produced valid data.
     """
     if bins is None:
         bins = DEFAULT_STELLAR_MASS_BINS
@@ -186,89 +170,38 @@ def avg_smf_given_redshifts_and_subvolume(
     bins: np.ndarray = None,
     base_dir: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Average SMF for a single subvolume across multiple snapshots (redshifts).
-
-    Calls ``smf_given_redshift_and_subvolume`` for the same subvolume
-    at different redshifts and averages the resulting ``phi`` arrays.
+    """Average SMF for one subvolume across multiple snapshots.
 
     Args:
-        ivol: Subvolume index to use across all snapshots.
-        iz_nums: List of numeric snapshot identifiers (e.g. [82, 100, 120, 155]).
-        bins: Optional log10(M) bin edges (defaults to DEFAULT_STELLAR_MASS_BINS).
-        base_dir: Optional base directory; defaults to configured base dir.
+        ivol: Subvolume index.
+        iz_nums: List of snapshot numbers (e.g. [82, 100, 120, 155]).
+        bins: log10(M_star) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
+        base_dir: Base directory; defaults to configured base dir.
 
     Returns:
-        Dictionary with keys:
-            - 'ivol': the subvolume index used
-            - 'iz_list': list of snapshot names that contributed data
-            - 'z_list': list of redshifts (parallel to iz_list)
-            - 'centers': bin centers
-            - 'phi': mean number density across provided snapshots
-            - 'phi_std': standard deviation across provided snapshots
-            - 'n_used': number of successful snapshots
-            - 'n_requested': length of iz_nums list
-        Returns None if no snapshot produced valid data.
+        dict with keys: ivol, iz_list, z_list, centers, phi, phi_std, n_used, n_requested.
+        None if no snapshot produced valid data.
     """
     if bins is None:
         bins = DEFAULT_STELLAR_MASS_BINS
     if base_dir is None:
         base_dir = str(get_base_dir())
-
-    per_phi = []
-    iz_list = []
-    z_list = []
-    centers_ref = None
-
-    for iz_num in iz_nums:
-        iz_path = os.path.join(base_dir, f"iz{iz_num}")
-        if not os.path.isdir(iz_path):
-            continue
-
-        res = smf_given_redshift_and_subvolume(iz_path, ivol, bins=bins)
-        if res is None:
-            continue
-
-        if centers_ref is None:
-            centers_ref = res["centers"]
-
-        per_phi.append(res["phi"])
-        iz_list.append(f"iz{iz_num}")
-        z_list.append(res["z"])
-
-    if not per_phi:
-        return None
-
-    per_phi = np.array(per_phi)
-    centers = centers_ref if centers_ref is not None else 0.5 * (bins[1:] + bins[:-1])
-
-    return {
-        "ivol": ivol,
-        "iz_list": iz_list,
-        "z_list": z_list,
-        "centers": centers,
-        "phi": per_phi.mean(axis=0),
-        "phi_std": per_phi.std(axis=0),
-        "n_used": per_phi.shape[0],
-        "n_requested": len(iz_nums),
-    }
+    return _avg_phi_over_snapshots(
+        smf_given_redshift_and_subvolume, ivol, iz_nums, bins, base_dir
+    )
 
 
 def compute_smf_from_aggregated(
     agg_data: Optional[Dict[str, Any]], bins: np.ndarray = None
 ) -> Optional[Dict[str, Any]]:
-    """Compute stellar mass function from pre-aggregated data.
-
-    This is useful when you've already collected all stellar masses
-    and just need to bin them.
+    """Compute SMF from pre-aggregated stellar masses.
 
     Args:
-        agg_data: Dictionary with keys 'mstar' (array), 'volume' (float),
-                 'iz' (str), 'z' (float)
-        bins: Mass bins in log10(M_sun), defaults to DEFAULT_STELLAR_MASS_BINS
+        agg_data: dict with keys 'mstar' (array), 'volume' (float), 'iz' (str), 'z' (float).
+        bins: log10(M_star) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
 
     Returns:
-        Dictionary with keys: 'iz', 'z', 'centers', 'phi', 'counts'
-        Returns None if insufficient data
+        dict with keys: iz, z, centers, phi, counts. None if insufficient data.
     """
     if bins is None:
         bins = DEFAULT_STELLAR_MASS_BINS
