@@ -31,6 +31,7 @@ def xi_matter(sim, rbins):
 
 # ── compute_matter_xi ────────────────────────────────────────────────────────
 
+
 def test_matter_xi_returns_dataframe(xi_matter):
     assert isinstance(xi_matter, pl.DataFrame)
     assert "r" in xi_matter.columns
@@ -68,6 +69,7 @@ def test_matter_xi_sigma8_scaling(sim, rbins):
 
 # ── compute_galaxy_bias ──────────────────────────────────────────────────────
 
+
 def _make_xi(r_centers, xi_vals):
     df = pl.DataFrame({"r": r_centers, "xi": xi_vals})
     df.attrs = {}
@@ -103,24 +105,28 @@ def test_bias_interpolates_on_matching_bin_boundaries_mismatched_r(xi_matter, rb
     # Create slightly shifted r points simulating ravg
     r_shifted = r_centers * 1.005
     xi_galaxy = _make_xi(r_shifted, xi_matter["xi"].to_numpy() * 4.0)
-    
+
     # Store the same rbins in attrs
     xi_galaxy.attrs["rbins"] = rbins
     xi_matter.attrs["rbins"] = rbins
-    
+
     bias = compute_galaxy_bias(xi_galaxy, xi_matter)
-    
-    # Check that it interpolated xi_matter onto r_shifted
-    expected_xi_matter_interp = np.interp(r_shifted, r_centers, xi_matter["xi"].to_numpy())
-    expected_bias = np.sqrt(np.abs(xi_galaxy["xi"].to_numpy() / expected_xi_matter_interp))
+
+    expected_xi_matter_interp = np.interp(
+        r_shifted, r_centers, xi_matter["xi"].to_numpy()
+    )
+    expected_bias = np.sqrt(
+        np.abs(xi_galaxy["xi"].to_numpy() / expected_xi_matter_interp)
+    )
     np.testing.assert_allclose(bias["bias"].to_numpy(), expected_bias, rtol=1e-6)
 
 
 # ── avg_galaxy_bias_over_subvolumes ──────────────────────────────────────────
 
+
 def test_avg_bias_mean_and_std(xi_matter):
     r = xi_matter["r"].to_numpy()
-    xi_b1 = _make_xi(r, xi_matter["xi"].to_numpy())        # b=1
+    xi_b1 = _make_xi(r, xi_matter["xi"].to_numpy())  # b=1
     xi_b2 = _make_xi(r, xi_matter["xi"].to_numpy() * 4.0)  # b=2
 
     avg = avg_galaxy_bias_over_subvolumes([xi_b1, xi_b2], xi_matter)

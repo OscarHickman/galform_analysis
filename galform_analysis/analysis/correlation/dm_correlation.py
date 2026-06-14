@@ -83,6 +83,7 @@ def dm_correlation_given_redshift_and_subvolume(
 ):
     """Dark matter halo 2PCF using the galaxies.hdf5 subvolume."""
     from .correlation import halo_correlation_given_redshift_and_subvolume
+
     return halo_correlation_given_redshift_and_subvolume(
         iz_path=iz_path,
         ivol=ivol,

@@ -26,18 +26,18 @@ from .three_point_bruteforce import compute_triplet_counts, sugc_weights
 from .three_point_sugc import compute_3pcf_counts_with_sugc
 
 try:
-    from .subvol_weighted_correction import (
-        compute_weighted_wp_for_n_list,
-        compute_weighted_wp_from_catalogue,
-        compute_weighted_xi_for_n_list,
-        compute_weighted_xi_from_catalogue,
-        load_subvolume_galaxies,
-    )
     from ..redshift_space_distortions.subvol_weighted_multipoles import (
-        compute_direct_rsd_multipoles,
-        compute_standard_rsd_multipoles,
-        compute_weighted_direct_rsd_multipoles,
-        compute_weighted_rsd_multipoles,
+        compute_direct_rsd_multipoles,  # noqa: F401
+        compute_standard_rsd_multipoles,  # noqa: F401
+        compute_weighted_direct_rsd_multipoles,  # noqa: F401
+        compute_weighted_rsd_multipoles,  # noqa: F401
+    )
+    from .subvol_weighted_correction import (
+        compute_weighted_wp_for_n_list,  # noqa: F401
+        compute_weighted_wp_from_catalogue,  # noqa: F401
+        compute_weighted_xi_for_n_list,  # noqa: F401
+        compute_weighted_xi_from_catalogue,  # noqa: F401
+        load_subvolume_galaxies,  # noqa: F401
     )
 
     _HAS_SUBVOL_WEIGHTED = True

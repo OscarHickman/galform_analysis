@@ -80,7 +80,9 @@ def get_output_group(f: Optional[h5py.File]) -> Optional[h5py.Group]:
 
 
 def _get_redshift_from_file(f: Optional[h5py.File]) -> Optional[float]:
-    """Attempt to read redshift from the highest output group, 'Redshifts' or 'Output_Times'."""
+    """Attempt to read redshift from the highest output group, 'Redshifts' or
+    'Output_Times'.
+    """
     if not f:
         return None
     try:
@@ -149,6 +151,7 @@ def _get_redshift_from_zsnap(iz_path: str, ivol: int) -> Optional[float]:
                     except ValueError:
                         # Try parsing "iz= 155 z= 1.496"
                         import re
+
                         match = re.search(r"z\s*=\s*([0-9.-]+)", line)
                         if match:
                             return float(match.group(1))
@@ -157,7 +160,9 @@ def _get_redshift_from_zsnap(iz_path: str, ivol: int) -> Optional[float]:
     return None
 
 
-def resolve_redshift(f: Optional[h5py.File], iz_path: str, ivol: int) -> Optional[float]:
+def resolve_redshift(
+    f: Optional[h5py.File], iz_path: str, ivol: int
+) -> Optional[float]:
     """Resolve redshift robustly, avoiding falsy z=0.0 issues."""
     z = _get_redshift_from_file(f)
     if z is not None:

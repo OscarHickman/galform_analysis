@@ -28,7 +28,11 @@ def compute_galaxy_bias(
     rbins_gal = xi_galaxy.attrs.get("rbins", None)
     rbins_mat = xi_matter.attrs.get("rbins", None)
 
-    if rbins_gal is not None and rbins_mat is not None and np.allclose(rbins_gal, rbins_mat):
+    if (
+        rbins_gal is not None
+        and rbins_mat is not None
+        and np.allclose(rbins_gal, rbins_mat)
+    ):
         bins_match = True
     else:
         bins_match = np.allclose(xi_galaxy["r"], xi_matter["r"])
@@ -69,8 +73,7 @@ def avg_galaxy_bias_over_subvolumes(
         DataFrame with columns 'r', 'bias', 'bias_std'.
     """
     biases = [
-        compute_galaxy_bias(xg, xi_matter)["bias"].to_numpy()
-        for xg in xi_gal_list
+        compute_galaxy_bias(xg, xi_matter)["bias"].to_numpy() for xg in xi_gal_list
     ]
     bias_arr = np.vstack(biases)
     r = xi_gal_list[0]["r"].to_numpy()

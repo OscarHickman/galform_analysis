@@ -69,7 +69,8 @@ def smfs_given_redshifts_and_subvolume(
     iz_nums: List[int],
     base_dir: Optional[str] = None,
 ) -> Optional[pl.DataFrame]:
-    """SMF for one subvolume across multiple snapshots, returned as a long-form DataFrame.
+    """SMF for one subvolume across multiple snapshots, returned as a long-form
+    DataFrame.
 
     Args:
         ivol: Subvolume index.
@@ -179,7 +180,8 @@ def avg_smf_given_redshifts_and_subvolume(
         base_dir: Base directory; defaults to configured base dir.
 
     Returns:
-        dict with keys: ivol, iz_list, z_list, centers, phi, phi_std, n_used, n_requested.
+        dict with keys:
+            ivol, iz_list, z_list, centers, phi, phi_std, n_used, n_requested.
         None if no snapshot produced valid data.
     """
     if bins is None:
@@ -197,7 +199,8 @@ def compute_smf_from_aggregated(
     """Compute SMF from pre-aggregated stellar masses.
 
     Args:
-        agg_data: dict with keys 'mstar' (array), 'volume' (float), 'iz' (str), 'z' (float).
+        agg_data: dict with keys 'mstar' (array), 'volume' (float),
+            'iz' (str), 'z' (float).
         bins: log10(M_star) bin edges. Defaults to DEFAULT_STELLAR_MASS_BINS.
 
     Returns:

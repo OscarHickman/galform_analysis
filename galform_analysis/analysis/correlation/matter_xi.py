@@ -88,11 +88,19 @@ def compute_matter_xi(
     except AttributeError:
         _trapz = np.trapz  # NumPy < 2.0
 
-    xi_vals = np.array([
-        _trapz(kh**2 * pk_z * np.sinc(kh * r / np.pi), kh) / (2.0 * np.pi**2)
-        for r in r_centers
-    ])
+    xi_vals = np.array(
+        [
+            _trapz(kh**2 * pk_z * np.sinc(kh * r / np.pi), kh) / (2.0 * np.pi**2)
+            for r in r_centers
+        ]
+    )
 
     df = pl.DataFrame({"r": r_centers.astype(np.float64), "xi": xi_vals})
-    df.attrs = {"z": float(z), "sim": sim.name, "linear": True, "ns": ns, "rbins": rbins}
+    df.attrs = {
+        "z": float(z),
+        "sim": sim.name,
+        "linear": True,
+        "ns": ns,
+        "rbins": rbins,
+    }
     return df

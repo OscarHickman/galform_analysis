@@ -70,7 +70,15 @@ def completed_galaxies(
 
             try:
                 if os.path.getsize(gal_file) < 1000:
-                    records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "completed": False})
+                    records.append(
+                        {
+                            "iz": iz_name,
+                            "iz_num": iz_num,
+                            "ivol": ivol_num,
+                            "path": gal_file,
+                            "completed": False,
+                        }
+                    )
                     continue
             except OSError:
                 continue
@@ -82,7 +90,15 @@ def completed_galaxies(
             except (OSError, KeyError, RuntimeError):
                 pass
 
-            records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "completed": completed})
+            records.append(
+                {
+                    "iz": iz_name,
+                    "iz_num": iz_num,
+                    "ivol": ivol_num,
+                    "path": gal_file,
+                    "completed": completed,
+                }
+            )
 
     df = pl.DataFrame(records)
 
@@ -147,22 +163,54 @@ def incomplete_subvolumes(
             gal_file = os.path.join(ivol_dir, "galaxies.hdf5")
 
             if not os.path.exists(gal_file):
-                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "missing"})
+                records.append(
+                    {
+                        "iz": iz_name,
+                        "iz_num": iz_num,
+                        "ivol": ivol_num,
+                        "path": gal_file,
+                        "reason": "missing",
+                    }
+                )
                 continue
 
             try:
                 if os.path.getsize(gal_file) < 1000:
-                    records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "incomplete"})
+                    records.append(
+                        {
+                            "iz": iz_name,
+                            "iz_num": iz_num,
+                            "ivol": ivol_num,
+                            "path": gal_file,
+                            "reason": "incomplete",
+                        }
+                    )
                     continue
             except OSError:
-                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "inaccessible"})
+                records.append(
+                    {
+                        "iz": iz_name,
+                        "iz_num": iz_num,
+                        "ivol": ivol_num,
+                        "path": gal_file,
+                        "reason": "inaccessible",
+                    }
+                )
                 continue
 
             try:
                 with h5py.File(gal_file, "r", swmr=True):
                     pass
             except (OSError, KeyError, RuntimeError):
-                records.append({"iz": iz_name, "iz_num": iz_num, "ivol": ivol_num, "path": gal_file, "reason": "corrupted"})
+                records.append(
+                    {
+                        "iz": iz_name,
+                        "iz_num": iz_num,
+                        "ivol": ivol_num,
+                        "path": gal_file,
+                        "reason": "corrupted",
+                    }
+                )
 
     df = pl.DataFrame(records)
 
@@ -220,5 +268,3 @@ def aggregate_snapshot(iz_path: str) -> Optional[Dict[str, Any]]:
         "mstar": np.concatenate(all_mstar) if all_mstar else np.array([]),
         "mhalo": np.concatenate(all_mhalo) if all_mhalo else np.array([]),
     }
-
-

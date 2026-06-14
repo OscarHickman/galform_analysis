@@ -98,7 +98,9 @@ def compute_npoint_counts(
 
 
 def sugc_weights_npcf(N, m, k):
-    """SUGC scale-down weights for N-point functions: w[s-1] = (m/k)^N * (k)_s / (m)_s."""
+    """SUGC scale-down weights for N-point functions:
+    w[s-1] = (m/k)^N * (k)_s / (m)_s.
+    """
     if N < 2:
         raise ValueError("N must be >= 2")
     m, k = float(m), float(k)

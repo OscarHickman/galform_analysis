@@ -78,7 +78,8 @@ def hmfs_given_redshifts_and_subvolume(
     base_dir: Optional[str] = None,
     halo_mass_lower_limit: Optional[float] = None,
 ) -> Optional[pl.DataFrame]:
-    """HMF for one subvolume across multiple snapshots, returned as a long-form DataFrame.
+    """HMF for one subvolume across multiple snapshots, returned as a long-form
+    DataFrame.
 
     Args:
         ivol: Subvolume index.
@@ -139,7 +140,8 @@ def avg_hmf_given_redshift_and_subvolumes(
         halo_mass_lower_limit: Optional lower mass cut (M_sun/h).
 
     Returns:
-        dict with keys: iz, z, centers, phi, counts, V_total, V_ivol, n_used, n_requested.
+        dict with keys:
+            iz, z, centers, phi, counts, V_total, V_ivol, n_used, n_requested.
         None if no subvolume produced valid data.
     """
     if bins is None:
@@ -223,7 +225,8 @@ def avg_hmf_given_redshifts_and_subvolume(
         halo_mass_lower_limit: Optional lower mass cut (M_sun/h).
 
     Returns:
-        dict with keys: ivol, iz_list, z_list, centers, phi, phi_std, n_used, n_requested.
+        dict with keys:
+            ivol, iz_list, z_list, centers, phi, phi_std, n_used, n_requested.
         None if no snapshot produced valid data.
     """
     if bins is None:
@@ -248,7 +251,8 @@ def compute_hmf_from_aggregated(
     """Compute HMF from pre-aggregated halo masses.
 
     Args:
-        agg_data: dict with keys 'mhalo' (array), 'volume' (float), 'iz' (str), 'z' (float).
+        agg_data: dict with keys 'mhalo' (array), 'volume' (float),
+            'iz' (str), 'z' (float).
         bins: log10(M_halo) bin edges. Defaults to DEFAULT_HALO_MASS_BINS.
         halo_mass_lower_limit: Optional lower mass cut (M_sun/h).
 

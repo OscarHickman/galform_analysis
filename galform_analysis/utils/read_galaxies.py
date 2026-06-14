@@ -16,9 +16,9 @@ import polars as pl
 from galform_analysis.config import N_SUBVOLUMES
 from galform_analysis.readers.loaders import (
     _get_first_array,
-    resolve_redshift,
     get_output_group,
     open_galaxies_hdf5,
+    resolve_redshift,
 )
 
 
