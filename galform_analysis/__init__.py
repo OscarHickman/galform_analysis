@@ -1,6 +1,6 @@
 """galform_analysis — Python library for GALFORM simulation analysis."""
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 from galform_analysis import analysis, config
 from galform_analysis.analysis import (
