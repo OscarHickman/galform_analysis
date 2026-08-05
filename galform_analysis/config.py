@@ -1,5 +1,7 @@
 """Configuration and path management for galform_analysis."""
 
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
