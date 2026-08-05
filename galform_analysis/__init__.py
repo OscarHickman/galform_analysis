@@ -18,11 +18,8 @@ from galform_analysis.analysis.correlation import (
     avg_correlation_given_redshift_and_subvolumes,
     avg_correlation_given_subvolume_and_redshifts,
     avg_galaxy_bias_over_subvolumes,
-    compute_3pcf_counts_with_sugc,
     compute_galaxy_bias,
     compute_matter_xi,
-    compute_npoint_counts,
-    compute_triplet_counts,
     compute_xi_corrfunc,
     correlation_given_redshift_and_subvolume,
     correlations_given_redshifts_and_subvolume,
@@ -30,8 +27,6 @@ from galform_analysis.analysis.correlation import (
     matter_xi_at_snapshot,
     matter_xi_at_snapshots,
     satellite_central_cross_correlation,
-    sugc_weights,
-    sugc_weights_npcf,
 )
 from galform_analysis.config import (
     SimulationConfig,
@@ -89,10 +84,4 @@ __all__ = [
     "avg_galaxy_bias_over_subvolumes",
     # Satellite–central cross-correlation
     "satellite_central_cross_correlation",
-    # N-point / 3PCF
-    "compute_3pcf_counts_with_sugc",
-    "compute_triplet_counts",
-    "sugc_weights",
-    "compute_npoint_counts",
-    "sugc_weights_npcf",
 ]

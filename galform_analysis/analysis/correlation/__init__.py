@@ -17,13 +17,10 @@ from .galaxy_bias import (
     compute_galaxy_bias,
 )
 from .matter_xi import compute_matter_xi
-from .n_point_bruteforce import compute_npoint_counts, sugc_weights_npcf
 from .satellite_cross_correlation import (
     compute_xi_cross_corrfunc,
     satellite_central_cross_correlation,
 )
-from .three_point_bruteforce import compute_triplet_counts, sugc_weights
-from .three_point_sugc import compute_3pcf_counts_with_sugc
 
 try:
     from ..redshift_space_distortions.subvol_weighted_multipoles import (
@@ -63,13 +60,6 @@ __all__ = [
     # Satellite–central cross-correlation
     "satellite_central_cross_correlation",
     "compute_xi_cross_corrfunc",
-    # N-point / 3PCF (SUGC-based)
-    "compute_3pcf_counts_with_sugc",
-    # N-point / 3PCF (brute-force, for small samples / validation)
-    "compute_triplet_counts",
-    "sugc_weights",
-    "compute_npoint_counts",
-    "sugc_weights_npcf",
 ]
 
 if _HAS_SUBVOL_WEIGHTED:

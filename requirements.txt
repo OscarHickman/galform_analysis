@@ -6,7 +6,6 @@ polars>=1.0.0
 h5py>=3.0.0
 seaborn>=0.11.0
 Corrfunc>=2.3.0
-sugc>=0.1.0
 galform_execution>=0.1.6
 
 # Development dependencies
