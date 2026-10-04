@@ -3,17 +3,20 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Hickman"
   given-names: "Oscar"
-  orcid: "https://orcid.org/0000-0000-0000-0000" # Replace with your ORCID if available
-title: "galform_analysis: A modular Python framework for analyzing GALFORM simulation outputs"
-version: 0.1.5
-doi: 10.5281/zenodo.FIXME # Zenodo will provide this once linked
-date-released: 2026-05-27
+title: "galform_analysis: A modular Python framework for analysing GALFORM simulation outputs"
+version: 0.2.0
+date-released: 2026-10-04
 url: "https://github.com/OscarHickman/galform_analysis"
 repository-code: "https://github.com/OscarHickman/galform_analysis"
 license: MIT
+keywords:
+  - galform
+  - galaxy formation
+  - semi-analytic model
+  - cosmology
 abstract: >-
-  A modular Python framework for reading and analyzing GALFORM HDF5 simulation
-  outputs on the COSMA HPC cluster. It supports large-scale data aggregation
-  across subvolumes and various astronomical probes including Stellar/Halo
-  Mass Functions (SMF/HMF), N-point correlation functions, and Redshift-Space
-  Distortions (RSD).
+  A modular Python framework for reading and analysing GALFORM HDF5
+  simulation outputs. It aggregates data across simulation subvolumes and
+  computes stellar and halo mass functions, halo occupation distributions,
+  two-point correlation functions with subvolume-weighted corrections, galaxy
+  bias and redshift-space distortion multipoles.

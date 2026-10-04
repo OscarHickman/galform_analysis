@@ -13,6 +13,7 @@ from typing import Optional
 import numpy as np
 import polars as pl
 
+from galform_analysis._optional import import_optional
 from galform_analysis.config import DEFAULT_RBINS, SimulationConfig
 
 
@@ -42,14 +43,9 @@ def compute_matter_xi(
         DataFrame with columns ['r', 'xi'] and attrs {z, sim, linear, ns}.
 
     Raises:
-        ImportError: If camb is not installed (pip install camb).
+        ImportError: If camb is not installed (galform_analysis[science]).
     """
-    try:
-        import camb
-    except ImportError:
-        raise ImportError(
-            "compute_matter_xi requires CAMB: pip install camb  (or: pip install hmf)"
-        )
+    camb = import_optional("camb")
 
     if rbins is None:
         rbins = DEFAULT_RBINS

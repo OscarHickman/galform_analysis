@@ -27,9 +27,8 @@ from typing import Optional, Sequence
 
 import numpy as np
 import polars as pl
-from Corrfunc.theory.DD import DD
-from Corrfunc.theory.DDrppi import DDrppi
 
+from galform_analysis._optional import import_optional
 from galform_analysis.utils.read_galaxies import read_galaxy_arrays
 
 _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")
@@ -93,6 +92,7 @@ def _paircounts_rppi_auto(
     if positions.shape[0] < 2:
         return np.zeros((n_rp_bins, n_pi_bins), dtype=np.float64)
 
+    DDrppi = import_optional("Corrfunc.theory.DDrppi").DDrppi
     res = DDrppi(
         autocorr=1,
         nthreads=nthreads,
@@ -122,6 +122,7 @@ def _paircounts_rppi_cross(
     if positions_a.shape[0] == 0 or positions_b.shape[0] == 0:
         return np.zeros((n_rp_bins, n_pi_bins), dtype=np.float64)
 
+    DDrppi = import_optional("Corrfunc.theory.DDrppi").DDrppi
     res = DDrppi(
         autocorr=0,
         nthreads=nthreads,
@@ -150,6 +151,7 @@ def _paircounts_r_auto(
     if positions.shape[0] < 2:
         return np.zeros(n_bins, dtype=np.float64)
 
+    DD = import_optional("Corrfunc.theory.DD").DD
     res = DD(
         autocorr=1,
         nthreads=nthreads,
@@ -180,6 +182,7 @@ def _paircounts_r_cross(
     if positions_a.shape[0] == 0 or positions_b.shape[0] == 0:
         return np.zeros(n_bins, dtype=np.float64)
 
+    DD = import_optional("Corrfunc.theory.DD").DD
     res = DD(
         autocorr=0,
         nthreads=nthreads,

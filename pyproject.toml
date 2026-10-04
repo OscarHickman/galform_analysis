@@ -1,42 +1,83 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "galform_analysis"
-version = "0.1.9"
+dynamic = ["version"]
 description = "A modular Python framework for reading and analyzing GALFORM HDF5 simulation outputs."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Oscar Hickman", email = "oscar.hickman17@alumni.imperial.ac.uk"},
 ]
-urls = {Homepage = "https://github.com/OscarHickman/galform_analysis", Repository = "https://github.com/OscarHickman/galform_analysis", Issues = "https://github.com/OscarHickman/galform_analysis/issues"}
+keywords = [
+    "galform",
+    "semi-analytic model",
+    "galaxy formation",
+    "cosmology",
+    "hdf5",
+    "stellar mass function",
+    "halo mass function",
+    "halo occupation distribution",
+    "correlation function",
+    "redshift-space distortions",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
     "numpy>=1.23.0",
-    "scipy>=1.7.0",
     "matplotlib>=3.3.0",
     "polars>=1.0.0",
     "h5py>=3.0.0",
-    "seaborn>=0.11.0",
-    "Corrfunc>=2.3.0",
-    "galform_execution>=0.2.2",
+    "galform_execution>=0.2.4",
 ]
 
 [project.optional-dependencies]
+# Correlation functions and RSD multipoles. Corrfunc has no wheels on PyPI and
+# compiles from source: it needs a C compiler with OpenMP and GSL headers.
+clustering = [
+    "Corrfunc>=2.3.0",
+]
+# Theoretical predictions: halo mass functions and the linear matter xi(r).
+science = [
+    "scipy>=1.7.0",
+    "hmf>=3.0",
+    "camb>=1.0",
+    "colossus>=1.3.0",
+]
+all = [
+    "galform_analysis[clustering,science]",
+]
 dev = [
     "pytest>=8.0.0",
-    "ruff>=0.1.0",
-    "build",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
 ]
-science = [
-    "astropy>=4.0",
-    "hmf>=3.0",
-    "packaging>=20.0",
-    "deprecation>=2.0",
-    "halotools>=0.7.0",
-]
+
+[project.urls]
+Homepage = "https://github.com/OscarHickman/galform_analysis"
+Repository = "https://github.com/OscarHickman/galform_analysis"
+Issues = "https://github.com/OscarHickman/galform_analysis/issues"
+Changelog = "https://github.com/OscarHickman/galform_analysis/blob/main/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = {attr = "galform_analysis.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -56,4 +97,12 @@ ignore = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["galform_analysis"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true

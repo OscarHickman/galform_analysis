@@ -20,7 +20,8 @@ over mu.
 from __future__ import annotations
 
 import numpy as np
-from Corrfunc.theory.DDsmu import DDsmu
+
+from galform_analysis._optional import import_optional
 
 
 def _counts_to_grid_smu(
@@ -95,6 +96,7 @@ def _paircounts_smu_auto(
     if positions.shape[0] < 2:
         return np.zeros((n_s_bins, n_mu_bins), dtype=np.float64)
 
+    DDsmu = import_optional("Corrfunc.theory.DDsmu").DDsmu
     res = DDsmu(
         autocorr=1,
         nthreads=nthreads,
@@ -124,6 +126,7 @@ def _paircounts_smu_cross(
     if positions_a.shape[0] == 0 or positions_b.shape[0] == 0:
         return np.zeros((n_s_bins, n_mu_bins), dtype=np.float64)
 
+    DDsmu = import_optional("Corrfunc.theory.DDsmu").DDsmu
     res = DDsmu(
         autocorr=0,
         nthreads=nthreads,

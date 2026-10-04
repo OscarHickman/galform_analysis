@@ -7,43 +7,75 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test-lint:
-    name: Build, Test, and Lint (Python ${{ matrix.python-version }})
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Ruff (lint and format check)
+        run: |
+          uvx ruff check galform_analysis tests
+          uvx ruff format --check galform_analysis tests
+
+  test:
+    name: Tests, all extras (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13']
-
+    env:
+      OMP_NUM_THREADS: 2
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Install GSL
+      - uses: astral-sh/setup-uv@v5
+      - name: Install GSL (needed to compile Corrfunc)
         run: sudo apt-get update && sudo apt-get install -y libgsl-dev
-
-      - name: Install dependencies
+      - name: Install package with all extras
         run: |
-          uv venv
-          uv pip install -e ".[dev,science]"
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[all,dev]"
+      - name: Run tests with coverage
+        run: uv run --no-sync pytest tests --cov --cov-report=term-missing
 
-      - name: Run Ruff (lint and format check)
+  package:
+    name: Build and test the installed wheel
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
+      - name: Check sdist ships the tests
+        run: tar tzf dist/*.tar.gz | grep -q '/tests/conftest.py'
+      # Tests run from a copy outside the repo so they import the installed
+      # wheel, not the source tree. This catches missing package data and
+      # imports of optional dependencies at module level.
+      - name: Base install (no extras) passes tests
         run: |
-          uv run ruff check galform_analysis
-          uv run ruff format --check galform_analysis
-
-      - name: Run tests
+          uv venv .venv-base
+          uv pip install --python .venv-base/bin/python dist/*.whl pytest
+          mkdir -p "$RUNNER_TEMP/base" && cp -r tests "$RUNNER_TEMP/base/"
+          cd "$RUNNER_TEMP/base"
+          "$GITHUB_WORKSPACE/.venv-base/bin/python" -c "import galform_analysis as g; assert 'site-packages' in g.__file__, g.__file__"
+          "$GITHUB_WORKSPACE/.venv-base/bin/pytest" tests -p no:cacheprovider -o addopts="-ra"
+      - name: Install GSL (needed to compile Corrfunc)
+        run: sudo apt-get update && sudo apt-get install -y libgsl-dev
+      - name: Full install ([all] extras) passes tests
         run: |
-          uv run pytest tests -v --tb=short
-
-      - name: Build package
-        run: |
-          uv build
+          uv venv .venv-all
+          uv pip install --python .venv-all/bin/python "$(ls dist/*.whl)[all]" pytest
+          mkdir -p "$RUNNER_TEMP/all" && cp -r tests "$RUNNER_TEMP/all/"
+          cd "$RUNNER_TEMP/all"
+          "$GITHUB_WORKSPACE/.venv-all/bin/pytest" tests -p no:cacheprovider -o addopts="-ra"

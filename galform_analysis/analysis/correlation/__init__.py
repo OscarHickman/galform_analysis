@@ -1,5 +1,11 @@
 """Correlation function analysis subpackage."""
 
+from ..redshift_space_distortions.subvol_weighted_multipoles import (
+    compute_direct_rsd_multipoles,
+    compute_standard_rsd_multipoles,
+    compute_weighted_direct_rsd_multipoles,
+    compute_weighted_rsd_multipoles,
+)
 from .correlation import (
     avg_correlation_given_redshift_and_subvolumes,
     avg_correlation_given_subvolume_and_redshifts,
@@ -21,25 +27,13 @@ from .satellite_cross_correlation import (
     compute_xi_cross_corrfunc,
     satellite_central_cross_correlation,
 )
-
-try:
-    from ..redshift_space_distortions.subvol_weighted_multipoles import (
-        compute_direct_rsd_multipoles,  # noqa: F401
-        compute_standard_rsd_multipoles,  # noqa: F401
-        compute_weighted_direct_rsd_multipoles,  # noqa: F401
-        compute_weighted_rsd_multipoles,  # noqa: F401
-    )
-    from .subvol_weighted_correction import (
-        compute_weighted_wp_for_n_list,  # noqa: F401
-        compute_weighted_wp_from_catalogue,  # noqa: F401
-        compute_weighted_xi_for_n_list,  # noqa: F401
-        compute_weighted_xi_from_catalogue,  # noqa: F401
-        load_subvolume_galaxies,  # noqa: F401
-    )
-
-    _HAS_SUBVOL_WEIGHTED = True
-except Exception:
-    _HAS_SUBVOL_WEIGHTED = False
+from .subvol_weighted_correction import (
+    compute_weighted_wp_for_n_list,
+    compute_weighted_wp_from_catalogue,
+    compute_weighted_xi_for_n_list,
+    compute_weighted_xi_from_catalogue,
+    load_subvolume_galaxies,
+)
 
 __all__ = [
     # Galaxy 2PCF
@@ -60,19 +54,15 @@ __all__ = [
     # Satellite–central cross-correlation
     "satellite_central_cross_correlation",
     "compute_xi_cross_corrfunc",
+    # Subvolume-weighted clustering corrections
+    "load_subvolume_galaxies",
+    "compute_weighted_xi_from_catalogue",
+    "compute_weighted_xi_for_n_list",
+    "compute_weighted_wp_from_catalogue",
+    "compute_weighted_wp_for_n_list",
+    # Redshift-space multipoles
+    "compute_weighted_rsd_multipoles",
+    "compute_standard_rsd_multipoles",
+    "compute_direct_rsd_multipoles",
+    "compute_weighted_direct_rsd_multipoles",
 ]
-
-if _HAS_SUBVOL_WEIGHTED:
-    __all__.extend(
-        [
-            "load_subvolume_galaxies",
-            "compute_weighted_xi_from_catalogue",
-            "compute_weighted_xi_for_n_list",
-            "compute_weighted_wp_from_catalogue",
-            "compute_weighted_wp_for_n_list",
-            "compute_weighted_rsd_multipoles",
-            "compute_standard_rsd_multipoles",
-            "compute_direct_rsd_multipoles",
-            "compute_weighted_direct_rsd_multipoles",
-        ]
-    )

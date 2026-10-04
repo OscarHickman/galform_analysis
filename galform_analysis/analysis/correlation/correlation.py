@@ -3,8 +3,8 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import polars as pl
-from Corrfunc.theory.xi import xi as corrfunc_xi
 
+from galform_analysis._optional import import_optional
 from galform_analysis.config import DEFAULT_RBINS, get_base_dir
 from galform_analysis.readers.loaders import read_snapshot_data
 from galform_analysis.utils.read_galaxies import (
@@ -93,6 +93,7 @@ def compute_xi_corrfunc(
 
     # Use Corrfunc's xi calculator for periodic boxes to avoid manual normalization bugs
     # corrfunc_xi applies the Landy-Szalay estimator internally and returns xi directly.
+    corrfunc_xi = import_optional("Corrfunc.theory.xi").xi
     results = corrfunc_xi(
         boxsize=boxsize,
         nthreads=nthreads,

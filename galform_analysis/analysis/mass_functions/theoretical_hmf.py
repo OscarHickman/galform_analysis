@@ -19,7 +19,8 @@ Units:
 from typing import Any, Dict, Optional
 
 import numpy as np
-from hmf import MassFunction
+
+from galform_analysis._optional import import_optional
 
 MASS_DEFINITION_MVIR = "virial"
 MASS_DEFINITION_M200C = "200c"
@@ -151,6 +152,7 @@ def create_theoretical_hmf(
         an empirical conversion to approximate Mvir-based predictions.
     """
     try:
+        MassFunction = import_optional("hmf").MassFunction
         hmf_calc = MassFunction(
             z=z,
             Mmin=mmin,
@@ -346,9 +348,9 @@ def create_press_schechter_plus(
         The paper uses m200b (background density). Using Mvir may reduce accuracy.
         Implementation uses the exact HaloMassFunction class from GitHub.
     """
-    from colossus.cosmology import cosmology
-    from scipy.integrate import quad
-    from scipy.special import erfc
+    cosmology = import_optional("colossus.cosmology.cosmology")
+    quad = import_optional("scipy.integrate").quad
+    erfc = import_optional("scipy.special").erfc
 
     # HaloMassFunction class - exact implementation from GitHub
     class HaloMassFunction:

@@ -6,69 +6,83 @@ on:
       - 'v*'
 
 jobs:
+  check-version:
+    name: Tag matches package version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag with galform_analysis.__version__
+        run: |
+          pkg_version=$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' galform_analysis/__init__.py)
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "tag=${tag_version} package=${pkg_version}"
+          test "${tag_version}" = "${pkg_version}"
+
   test:
     name: Test before release (Python ${{ matrix.python-version }})
+    needs: check-version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13']
-
+    env:
+      OMP_NUM_THREADS: 2
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Install GSL
+      - uses: astral-sh/setup-uv@v5
+      - name: Install GSL (needed to compile Corrfunc)
         run: sudo apt-get update && sudo apt-get install -y libgsl-dev
-
-      - name: Install dependencies
+      - name: Install package with all extras
         run: |
-          uv venv
-          uv pip install -e ".[dev,science]"
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[all,dev]"
+      - name: Run tests with coverage
+        run: uv run --no-sync pytest tests --cov --cov-report=term-missing
 
-      - name: Run tests
+  build:
+    name: Build distributions
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
+      - name: Smoke-test the base wheel outside the source tree
         run: |
-          uv run pytest tests -v --tb=short
+          uv venv .venv-smoke
+          uv pip install --python .venv-smoke/bin/python dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE/.venv-smoke/bin/python" -c "import galform_analysis as g; print(g.__version__, g.__file__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
   release:
-    name: Build and Release
+    name: Publish to GitHub Releases and PyPI
+    needs: build
     runs-on: ubuntu-latest
-    needs: test
     environment:
       name: release
       url: https://pypi.org/p/galform_analysis
     permissions:
       contents: write
       id-token: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Install GSL
-        run: sudo apt-get update && sudo apt-get install -y libgsl-dev
-
-      - name: Build package
-        run: |
-          uv build
+          name: dist
+          path: dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -80,10 +94,8 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # To use this, you must set up Trusted Publishing on PyPI:
+        # Uses PyPI Trusted Publishing:
         # https://docs.pypi.org/trusted-publishers/adding-a-publisher/
         # Project Name: galform_analysis
         # Workflow Name: release.yml
         # Environment Name: release
-        with:
-          skip-existing: true

@@ -14,19 +14,28 @@ from galform_analysis.config import SimulationConfig
 pytest.importorskip("camb", reason="camb required for matter xi tests")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sim():
     return SimulationConfig("L800")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def rbins():
     return np.logspace(0, 1.5, 6)  # coarse bins — fast for tests
 
 
-@pytest.fixture
-def xi_matter(sim, rbins):
+@pytest.fixture(scope="module")
+def xi_matter_z0(sim, rbins):
+    """CAMB is slow (~8 s per call), so compute the z=0 reference once."""
     return compute_matter_xi(sim, z=0.0, rbins=rbins)
+
+
+@pytest.fixture
+def xi_matter(xi_matter_z0):
+    """Per-test copy, since some tests mutate ``attrs``."""
+    df = xi_matter_z0.clone()
+    df.attrs = dict(xi_matter_z0.attrs)
+    return df
 
 
 # ── compute_matter_xi ────────────────────────────────────────────────────────
@@ -48,19 +57,19 @@ def test_matter_xi_attrs(xi_matter):
     assert xi_matter.attrs["z"] == pytest.approx(0.0)
 
 
-def test_matter_xi_z_evolution(sim, rbins):
-    xi_z0 = compute_matter_xi(sim, z=0.0, rbins=rbins)
+def test_matter_xi_z_evolution(sim, rbins, xi_matter):
+    xi_z0 = xi_matter
     xi_z1 = compute_matter_xi(sim, z=1.0, rbins=rbins)
     # xi_m should be larger at z=0 (growth factor suppression at high z)
     assert (xi_z0["xi"].to_numpy() > xi_z1["xi"].to_numpy()).all()
 
 
-def test_matter_xi_sigma8_scaling(sim, rbins):
+def test_matter_xi_sigma8_scaling(sim, rbins, xi_matter):
     """Doubling sigma8 should quadruple xi_m (xi proportional to sigma8^2)."""
     sim2 = SimulationConfig("L800")
     sim2.sigma_8 = sim.sigma_8 * 2.0
 
-    xi_ref = compute_matter_xi(sim, z=0.0, rbins=rbins)
+    xi_ref = xi_matter
     xi_2s8 = compute_matter_xi(sim2, z=0.0, rbins=rbins)
 
     ratio = xi_2s8["xi"].to_numpy() / xi_ref["xi"].to_numpy()

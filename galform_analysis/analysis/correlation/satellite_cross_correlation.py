@@ -11,8 +11,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 import polars as pl
-from Corrfunc.theory.DD import DD as corrfunc_DD
 
+from galform_analysis._optional import import_optional
 from galform_analysis.config import DEFAULT_RBINS
 from galform_analysis.readers.loaders import (
     _get_first_array,
@@ -153,6 +153,7 @@ def compute_xi_cross_corrfunc(
     pos_b = np.fmod(positions_b, boxsize)
     pos_b = np.where(pos_b < 0, pos_b + boxsize, pos_b)
 
+    corrfunc_DD = import_optional("Corrfunc.theory.DD").DD
     results = corrfunc_DD(
         autocorr=0,
         nthreads=nthreads,
