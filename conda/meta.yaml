@@ -8,9 +8,7 @@ package:
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/galform_analysis-{{ version }}.tar.gz
-  # Replace with the sha256 of the sdist once it is on PyPI:
-  #   curl -sL <url above> | sha256sum
-  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  sha256: a9c9b5024a26a9519854e09a5a56578bd6bea815f7d5ff3df119de7702470f9b
 
 build:
   noarch: python
