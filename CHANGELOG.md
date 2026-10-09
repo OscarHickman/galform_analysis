@@ -30,9 +30,12 @@ results made with earlier versions.
     converts from the native definition.
   - `get_mvir_to_m200c_ratio` returned 0.72–0.91 at z = 0, which is
     impossible because Δ_vir < 200. It now uses an NFW conversion (about 1.2).
-  - GPS+ was silently all-NaN on NumPy ≥ 2 (`np.trapz` was removed). Its
-    m200b → Mvir conversion is now an NFW conversion, and it uses the L800
-    cosmology.
+  - GPS+ was silently all-NaN on NumPy ≥ 2 (`np.trapz` was removed), and
+    with CAMB ≥ 2 whenever colossus had no cached σ(R) (colossus asks CAMB
+    for a 2-point spectrum). σ(R) is now computed directly from a CAMB P(k)
+    (agrees with colossus to < 0.05%) and colossus no longer writes a cache.
+    Its m200b → Mvir conversion is now an NFW conversion, and it uses the
+    L800 cosmology.
 - `avg_hmf_given_redshift_and_subvolumes` normalised phi by one subvolume's
   volume instead of the total volume of the subvolumes used.
 - `aggregate_snapshot` now uses only completed subvolumes

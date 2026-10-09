@@ -363,6 +363,48 @@ def compute_theoretical_hmfs(
     return models
 
 
+def _camb_sigma_function(omega_m: float):
+    """sigma(R, z) of the linear CAMB P(k) in the L800 cosmology.
+
+    Returns a function ``sigma(R, growth)`` for R in Mpc/h, where ``growth``
+    is the linear growth factor D(z)/D(0). The spectrum is normalised to
+    sigma_8 = ``_SIGMA_8``. This replaces colossus's ``model="camb"``, which
+    asks CAMB >= 2 for a 2-point spectrum (rejected by CAMB) whenever colossus
+    has no cached sigma(R).
+    """
+    camb = import_optional("camb")
+    pars = camb.CAMBparams()
+    pars.set_cosmology(
+        H0=100.0 * _HUBBLE_H,
+        ombh2=_OMEGA_B * _HUBBLE_H**2,
+        omch2=(omega_m - _OMEGA_B) * _HUBBLE_H**2,
+        omk=0.0,
+        mnu=0.0,
+        TCMB=_T_CMB,
+    )
+    pars.InitPower.set_params(ns=_N_S)
+    pars.set_matter_power(redshifts=[0.0], kmax=1e3)
+    pars.NonLinear = camb.model.NonLinear_none
+    k, _, pk = camb.get_results(pars).get_matter_power_spectrum(
+        minkh=1e-4, maxkh=1e3, npoints=4000
+    )
+    pk = pk[0]
+    ln_k = np.log(k)
+
+    def sigma_unnormalised(R: np.ndarray) -> np.ndarray:
+        kr = np.outer(np.atleast_1d(R), k)
+        window = 3.0 * (np.sin(kr) - kr * np.cos(kr)) / kr**3
+        integrand = k**3 * pk * window**2 / (2.0 * np.pi**2)
+        return np.sqrt(_trapezoid(integrand, ln_k, axis=-1))
+
+    norm = _SIGMA_8 / sigma_unnormalised(np.array([8.0]))[0]
+
+    def sigma(R, growth: float) -> np.ndarray:
+        return norm * growth * sigma_unnormalised(R)
+
+    return sigma
+
+
 def create_press_schechter_plus(
     z: float,
     mmin: float = 9.0,
@@ -420,8 +462,11 @@ def create_press_schechter_plus(
             self.z = z
             self.rho_crit = 277536627245.708  # M_sun / (h Mpc)^3
             self.rho_m = omega_m * self.rho_crit
+            # persistence="" keeps colossus from caching sigma(R) on disk,
+            # where it would outlive changes to the cosmology or P(k).
             self.cosmo = cosmology.setCosmology(
                 "galform_analysis_L800",
+                persistence="",
                 params={
                     "flat": True,
                     "H0": 100.0 * _HUBBLE_H,
@@ -432,12 +477,8 @@ def create_press_schechter_plus(
                 },
             )
             self.D0 = self.D_unnormalized(0.0)
-            self.pk_table_path = None
-            self.ps_args = (
-                dict(model="uchuu_table", path=self.pk_table_path)
-                if self.pk_table_path
-                else dict(model="camb")
-            )
+            self._sigma = _camb_sigma_function(omega_m)
+            self._growth = self.cosmo.growthFactor(z)
             self.mdef = mdef
 
             if self.mdef == "m200b":
@@ -464,7 +505,7 @@ def create_press_schechter_plus(
         def sigma(self, M):
             M = np.atleast_1d(M)
             R = self.RtoM(M)
-            sigma_std = self.cosmo.sigma(R, self.z, ps_args=self.ps_args)
+            sigma_std = self._sigma(R, self._growth)
             x = sigma_std / 1.676
             U2 = (-0.00221 * x**3 + 0.03835 * x**2 + 0.17810 * x - 0.01507) ** 2
             sigma_mod = np.sqrt(sigma_std**2 + U2)
@@ -525,7 +566,7 @@ def create_press_schechter_plus(
             R = self.RtoM(m_array)
             b_val = self.b(m_array)
             sig = self.sigma(m_array)
-            x = self.cosmo.sigma(R, self.z, ps_args=self.ps_args) / 1.676
+            x = self._sigma(R, self._growth) / 1.676
 
             term1 = (1 + 0.845 * x - 0.04 * x**2 + 0.0025 * x**3) ** self.bb
             term2 = (

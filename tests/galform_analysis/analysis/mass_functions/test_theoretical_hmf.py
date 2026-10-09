@@ -390,3 +390,23 @@ class TestPressSchechterPlus:
     def test_unsupported_mass_definition(self):
         with pytest.raises(ValueError, match="mdef"):
             th.create_press_schechter_plus(z=0.0, mdef="mvir", dlog10m=1.0)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("camb") is None, reason="needs camb (science extra)"
+)
+class TestCambSigma:
+    """sigma(R) for GPS+ is computed from CAMB directly, not via colossus."""
+
+    @pytest.fixture(scope="class")
+    def sigma(self):
+        return th._camb_sigma_function(th._OMEGA_M)
+
+    def test_normalised_to_sigma8(self, sigma):
+        assert sigma(np.array([8.0]), 1.0)[0] == pytest.approx(th._SIGMA_8)
+
+    def test_scales_with_growth_and_decreases_with_radius(self, sigma):
+        R = np.array([0.5, 2.0, 8.0, 30.0])
+        s0 = sigma(R, 1.0)
+        assert np.all(np.diff(s0) < 0)
+        np.testing.assert_allclose(sigma(R, 0.5), 0.5 * s0)
