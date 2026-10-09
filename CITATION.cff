@@ -5,7 +5,7 @@ authors:
   given-names: "Oscar"
 title: "galform_analysis: A modular Python framework for analysing GALFORM simulation outputs"
 version: 0.2.0
-date-released: 2026-10-04
+date-released: 2026-10-09
 url: "https://github.com/OscarHickman/galform_analysis"
 repository-code: "https://github.com/OscarHickman/galform_analysis"
 license: MIT
