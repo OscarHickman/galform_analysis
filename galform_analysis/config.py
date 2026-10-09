@@ -77,10 +77,11 @@ class SimulationConfig:
         if "n_subvolumes" in config:
             self.n_subvolumes = config["n_subvolumes"]
         elif "nvol_range" in config:
-            # Parse '1-1024' or '64'
+            # Inclusive range '1-1024' (or '0-1023'), or a plain count '64'
             raw = str(config["nvol_range"]).strip()
             if "-" in raw:
-                self.n_subvolumes = int(raw.split("-")[1])
+                lo, hi = (int(part) for part in raw.split("-", 1))
+                self.n_subvolumes = hi - lo + 1
             else:
                 self.n_subvolumes = int(raw)
         else:
@@ -118,9 +119,9 @@ class SimulationConfig:
         return f"<SimulationConfig: {self.name} (L={self.box_size} Mpc/h)>"
 
 
-_USER = os.environ.get("USER", "<USER>")
-_DEFAULT_BASE_DIR = f"/cosma5/data/durham/{_USER}/Galform_Out/L800/lc16"
-BASE_DIR = os.environ.get("GALFORM_BASE_DIR", _DEFAULT_BASE_DIR)
+# Directory holding the iz<NNN>/ snapshot folders. Unset until set_base_dir()
+# is called or the GALFORM_BASE_DIR environment variable is defined.
+BASE_DIR: Optional[str] = os.environ.get("GALFORM_BASE_DIR") or None
 
 
 def set_base_dir(path: str) -> None:
@@ -130,7 +131,17 @@ def set_base_dir(path: str) -> None:
 
 
 def get_base_dir() -> Path:
-    """Get the current base directory."""
+    """Get the current base directory.
+
+    Raises:
+        RuntimeError: If no base directory has been configured.
+    """
+    if not BASE_DIR:
+        raise RuntimeError(
+            "No GALFORM base directory configured. Call "
+            "galform_analysis.set_base_dir(path), set the GALFORM_BASE_DIR "
+            "environment variable, or pass base_dir explicitly."
+        )
     return Path(BASE_DIR)
 
 

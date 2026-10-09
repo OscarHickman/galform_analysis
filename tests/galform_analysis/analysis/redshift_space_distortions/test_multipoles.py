@@ -47,6 +47,13 @@ class TestAnalyticRRSmu:
         # Each mu bin = rr[0, :] / 4; all equal
         np.testing.assert_allclose(rr[0], rr[0, 0], rtol=1e-10)
 
+    def test_partial_mu_range_scales_rr(self):
+        """With mu_max < 1 only that fraction of random pairs is counted."""
+        s_bins = np.array([1.0, 2.0])
+        full = _analytic_rr_smu(s_bins, 1.0, 4, boxsize=100.0, n_points=1)
+        half = _analytic_rr_smu(s_bins, 0.5, 4, boxsize=100.0, n_points=1)
+        np.testing.assert_allclose(half, 0.5 * full, rtol=1e-12)
+
     def test_invalid_mu_max_raises(self):
         s_bins = np.array([0.0, 1.0])
         with pytest.raises(ValueError):
@@ -56,6 +63,12 @@ class TestAnalyticRRSmu:
         with pytest.raises(ValueError):
             _analytic_rr_smu(
                 np.array([1.0]), mu_max=1.0, n_mu_bins=4, boxsize=100.0, n_points=1
+            )
+
+    def test_invalid_n_mu_bins_raises(self):
+        with pytest.raises(ValueError, match="n_mu_bins"):
+            _analytic_rr_smu(
+                np.array([1.0, 2.0]), mu_max=1.0, n_mu_bins=0, boxsize=100.0, n_points=1
             )
 
 
@@ -97,7 +110,7 @@ class TestProjectRsdMultipoles:
         n_s, n_mu = 5, 10
         xi_grid = np.ones((n_s, n_mu))
         s_bins = np.linspace(0.0, 50.0, n_s + 1)
-        s_mid, xi0, xi2 = _project_rsd_multipoles(
+        s_mid, xi0, xi2, _ = _project_rsd_multipoles(
             xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
         )
         assert s_mid.shape == (n_s,)
@@ -110,7 +123,7 @@ class TestProjectRsdMultipoles:
         C = 2.5
         xi_grid = np.full((n_s, n_mu), C)
         s_bins = np.linspace(1.0, 5.0, n_s + 1)
-        _, xi0, _ = _project_rsd_multipoles(
+        _, xi0, _, _ = _project_rsd_multipoles(
             xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
         )
         # xi0 = sum(C * 1 * dmu) = C * sum(dmu) = C * 1.0
@@ -121,7 +134,7 @@ class TestProjectRsdMultipoles:
         n_s, n_mu = 4, 200
         xi_grid = np.full((n_s, n_mu), 3.0)
         s_bins = np.linspace(1.0, 5.0, n_s + 1)
-        _, _, xi2 = _project_rsd_multipoles(
+        _, _, xi2, _ = _project_rsd_multipoles(
             xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
         )
         np.testing.assert_allclose(xi2, 0.0, atol=1e-2)
@@ -130,7 +143,7 @@ class TestProjectRsdMultipoles:
         n_s, n_mu = 3, 5
         s_bins = np.array([0.0, 1.0, 2.0, 3.0])
         xi_grid = np.ones((n_s, n_mu))
-        s_mid, _, _ = _project_rsd_multipoles(
+        s_mid, _, _, _ = _project_rsd_multipoles(
             xi_grid, mu_max=1.0, n_mu_bins=n_mu, s_bins=s_bins
         )
         expected = np.array([0.5, 1.5, 2.5])

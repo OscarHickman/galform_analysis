@@ -129,8 +129,8 @@ def avg_hmf_given_redshift_and_subvolumes(
     """HMF from combined halos across multiple subvolumes for one snapshot.
 
     Pools all halos from the given subvolumes before binning, normalising by
-    n_used * V_ivol (each subvolume is an independent realisation of the same
-    full box).
+    the summed volume of the subvolumes used (each subvolume is an independent
+    realisation of the same full box, so this is n_used * V_ivol).
 
     Args:
         iz_num: Snapshot number (e.g. 207 for 'iz207').
@@ -141,7 +141,8 @@ def avg_hmf_given_redshift_and_subvolumes(
 
     Returns:
         dict with keys:
-            iz, z, centers, phi, counts, V_total, V_ivol, n_used, n_requested.
+            iz, z, centers, phi, counts, V_total (summed volume of the
+            subvolumes used), V_ivol, n_used, n_requested.
         None if no subvolume produced valid data.
     """
     if bins is None:
@@ -154,9 +155,8 @@ def avg_hmf_given_redshift_and_subvolumes(
         return None
 
     all_logM = []
-    V_ivol = None
+    volumes_used = []
     z = None
-    n_used = 0
 
     for iv in ivols:
         try:
@@ -168,8 +168,6 @@ def avg_hmf_given_redshift_and_subvolumes(
         mhalo = d.get("mhalo")
         if z is None:
             z = d.get("z")
-        if V_ivol is None:
-            V_ivol = V_current
         close_snapshot(d)
 
         if V_current is None or V_current <= 0 or mhalo is None:
@@ -184,15 +182,16 @@ def avg_hmf_given_redshift_and_subvolumes(
             continue
 
         all_logM.append(np.log10(mhalo_filtered))
-        n_used += 1
+        volumes_used.append(V_current)
 
-    if n_used == 0 or V_ivol is None or V_ivol <= 0:
+    if not volumes_used:
         return None
 
+    V_total = float(np.sum(volumes_used))
     all_logM = np.concatenate(all_logM)
     counts, edges = np.histogram(all_logM, bins=bins)
     dlogM = np.diff(edges)
-    phi = counts / (dlogM * n_used * V_ivol)
+    phi = counts / (dlogM * V_total)
     centers = 0.5 * (edges[1:] + edges[:-1])
 
     return {
@@ -201,9 +200,9 @@ def avg_hmf_given_redshift_and_subvolumes(
         "centers": centers,
         "phi": phi,
         "counts": counts,
-        "V_total": V_ivol,
-        "V_ivol": V_ivol,
-        "n_used": n_used,
+        "V_total": V_total,
+        "V_ivol": volumes_used[0],
+        "n_used": len(volumes_used),
         "n_requested": len(ivols),
     }
 

@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install in editable mode (use uv for speed)
-uv pip install -e ".[dev]"
+# Install in editable mode with every optional extra (use uv for speed)
+uv pip install -e ".[all,dev]"
 
 # Run all tests
 pytest tests
@@ -18,10 +18,10 @@ pytest tests/galform_analysis/analysis/correlation/test_subvol_weighted_correcti
 pytest tests -k "test_name"
 
 # Lint
-ruff check galform_analysis
+ruff check galform_analysis tests
 
 # Format
-black galform_analysis
+ruff format galform_analysis tests
 ```
 
 ## Architecture
@@ -41,7 +41,7 @@ Each `ivol` is an **independent full-box realisation** (not a spatial tile) of t
 | Config | `galform_analysis/config.py` | `SimulationConfig`, `set_base_dir`, `load_redshift_mapping` |
 | Readers | `galform_analysis/readers/loaders.py` | Low-level HDF5 open/read; `read_snapshot_data` returns raw arrays + open file handle |
 | Utils | `galform_analysis/utils/read_galaxies.py` | `read_galaxy_arrays`, `read_galaxy_positions`, `read_halo_positions` – filtered, normalised NumPy arrays |
-| Analysis | `galform_analysis/analysis/` | SMF, HMF, HOD, 2PCF, NPCF, RSD multipoles |
+| Analysis | `galform_analysis/analysis/` | SMF, HMF, HOD, 2PCF, RSD multipoles |
 | Aggregation | `galform_analysis/analysis/aggregation.py` | Scan & stack data across many ivols using polars |
 
 ### Key data-flow for correlation functions
@@ -72,8 +72,9 @@ Tests use synthetic HDF5 files built by `tests/conftest.py` (`write_galaxy_hdf5`
 
 ### Dependencies
 
-Runtime: `numpy`, `scipy`, `polars`, `h5py`, `matplotlib`, `seaborn`, `Corrfunc`, `sugc`, `galform_execution`
-Dev extras: `pytest`, `ruff`, `black`, `build`
-Science extras (optional): `astropy`, `hmf`, `halotools`
+Runtime: `numpy`, `polars`, `h5py`, `matplotlib`, `galform_execution`
+Extras: `clustering` (`Corrfunc`), `science` (`scipy`, `hmf`, `camb`, `colossus`), `all` (both), `dev` (`pytest`, `pytest-cov`, `ruff`, `build`, `twine`)
+
+Optional dependencies are imported lazily via `galform_analysis._optional.import_optional`, never at module level, so the base install works from wheels alone. CI runs the tests against the installed wheel both without extras and with `[all]`; tests needing an extra must skip when it is absent.
 
 `N_SUBVOLUMES = 1024` is an internal fallback constant used when the HDF5 `Parameters/n_subvolumes` field is absent. Use `SimulationConfig` for all external access to simulation parameters.

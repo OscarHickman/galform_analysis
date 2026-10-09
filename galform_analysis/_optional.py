@@ -13,6 +13,7 @@ from types import ModuleType
 _EXTRA_FOR_PACKAGE = {
     "Corrfunc": "clustering",
     "hmf": "science",
+    "astropy": "science",
     "camb": "science",
     "colossus": "science",
     "scipy": "science",

@@ -46,7 +46,7 @@ SMF/HMF/HOD. Optional features are available as extras:
 | Extra | Installs | Needed for |
 |---|---|---|
 | `clustering` | Corrfunc | correlation functions, w_p, bias, RSD multipoles |
-| `science` | hmf, CAMB, colossus, SciPy | theoretical HMFs, linear matter ξ(r) |
+| `science` | hmf, astropy, CAMB, colossus, SciPy | theoretical HMFs, linear matter ξ(r) |
 | `all` | both of the above | everything |
 
 ```bash
@@ -60,7 +60,7 @@ for example `sudo apt-get install libgsl-dev` (Debian/Ubuntu),
 optional dependency is missing, the functions that need it raise an
 `ImportError` naming the extra to install. The rest of the package still works.
 
-galform_analysis supports Python 3.10–3.13 and is tested on Linux.
+galform_analysis supports Python 3.10–3.14 and is tested on Linux.
 
 ## Quick start
 
@@ -86,7 +86,7 @@ from galform_analysis import (
 sim = SimulationConfig("L800")
 print(sim.box_size, sim.omega_m, sim.h0, sim.n_subvolumes)
 
-# Snapshot closest to z = 1 for this simulation, e.g. "iz155"
+# Snapshot closest to z = 1 for this simulation: "iz176"
 snapshot = find_snapshot_at_redshift(1.0, "L800")
 z = get_snapshot_redshift(snapshot, "L800")
 ```
@@ -140,7 +140,8 @@ compute nodes, set these (and `OMP_NUM_THREADS`) to your allocation.
 - **Data location**: call `galform_analysis.set_base_dir(path)` or set the
   `GALFORM_BASE_DIR` environment variable. Functions that take a snapshot
   number (such as `271` for `iz271`) rather than a path resolve it against
-  this directory.
+  this directory, unless you pass `base_dir=`. There is no default: if none is
+  configured these functions raise an error explaining how to set one.
 - **Simulation configs**: these come from the
   [galform_execution](https://pypi.org/project/galform_execution/) package, so
   analysis and execution use identical parameters. A copy bundled with this

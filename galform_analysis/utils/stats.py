@@ -8,6 +8,8 @@ reported uncertainty.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 
@@ -45,24 +47,14 @@ def positive_std(arr: np.ndarray, axis: int = 0, ddof: int = 0) -> np.ndarray:
 
 def positive_percentile(arr: np.ndarray, q: float, axis: int = 0) -> np.ndarray:
     """Compute percentile `q` over strictly positive samples; NaN if none."""
-    a = np.asarray(arr)
-    # Select only positive values along axis by reshaping/fancy indexing
-    # We'll compute percentiles per column when axis=0 (common case)
+    a = np.asarray(arr, dtype=float)
     if a.size == 0:
         return np.array([])
-    if axis != 0:
-        # Delegate to numpy after moving axis 0 to requested axis
-        a = np.moveaxis(a, axis, 0)
-    # a has runs on axis 0
-    out = []
-    for i in range(a.shape[1]):
-        col = a[:, i]
-        pos = col[col > 0]
-        if pos.size == 0:
-            out.append(np.nan)
-        else:
-            out.append(float(np.nanpercentile(pos, q)))
-    return np.array(out)
+    positive = np.where(a > 0, a, np.nan)
+    with warnings.catch_warnings():
+        # All-NaN slices (no positive samples) correctly give NaN.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanpercentile(positive, q, axis=axis)
 
 
 def positive_se(arr: np.ndarray, axis: int = 0) -> np.ndarray:

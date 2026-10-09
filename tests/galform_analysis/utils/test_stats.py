@@ -72,3 +72,20 @@ def test_all_functions_shape():
     assert positive_std(_DATA).shape == (3,)
     assert positive_percentile(_DATA, q=25).shape == (3,)
     assert positive_se(_DATA).shape == (3,)
+
+
+def test_positive_percentile_other_axis_and_1d():
+    pct_rows = positive_percentile(_DATA.T, q=50, axis=1)
+    np.testing.assert_allclose(pct_rows, positive_percentile(_DATA, q=50))
+    assert positive_percentile(np.array([-1.0, 2.0, 4.0]), q=50) == 3.0
+
+
+def test_positive_percentile_empty():
+    assert positive_percentile(np.zeros((0, 3)), q=50).size == 0
+
+
+def test_positive_std_ddof_and_axis():
+    np.testing.assert_allclose(
+        positive_std(_DATA, ddof=1)[2], np.std([2.0, 4.0, 6.0], ddof=1)
+    )
+    np.testing.assert_allclose(positive_std(_DATA.T, axis=1), positive_std(_DATA))

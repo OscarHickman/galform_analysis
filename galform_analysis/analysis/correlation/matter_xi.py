@@ -49,6 +49,7 @@ def compute_matter_xi(
 
     if rbins is None:
         rbins = DEFAULT_RBINS
+    rbins = np.asarray(rbins, dtype=float)
     r_centers = 0.5 * (rbins[:-1] + rbins[1:])
 
     pars = camb.CAMBparams()

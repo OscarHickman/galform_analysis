@@ -13,7 +13,7 @@ the stellar-mass threshold.
 Central/satellite decomposition:
   - A galaxy is flagged as **FOF central** if it is the central
     (``is_central==1``) of the main (most massive) subhalo within its FOF
-    group, identified by ``mhalo / mhhalo > FOF_CENTRAL_RATIO_THRETSHOLD``.
+    group, identified by ``mhalo / mhhalo > FOF_CENTRAL_RATIO_THRESHOLD``.
   - Satellites = total - centrals.
 """
 
@@ -80,7 +80,7 @@ def _load_hod_data(
         if mhhalo.size == 0:
             raise KeyError("No host-halo mass field found (mhhalo/mhalo/mchalo)")
 
-        # Own subhalo mass (used for FOF-central identification)
+        # Own subhalo mass (only needed for the central/satellite split)
         mhalo = _get_first_array(g, ["mhalo", "mchalo"])
 
         # Central flag
@@ -97,10 +97,9 @@ def _load_hod_data(
             )
 
         # ---- Align lengths & flatten ----
-        all_arrs: Dict[str, np.ndarray] = {
-            "mhhalo": mhhalo,
-            "mhalo": mhalo,
-        }
+        all_arrs: Dict[str, np.ndarray] = {"mhhalo": mhhalo}
+        if mhalo.size:
+            all_arrs["mhalo"] = mhalo
         if is_central is not None:
             all_arrs["is_central"] = is_central
         if mstar.size:

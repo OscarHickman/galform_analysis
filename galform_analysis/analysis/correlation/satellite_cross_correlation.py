@@ -21,6 +21,8 @@ from galform_analysis.readers.loaders import (
     resolve_redshift,
 )
 
+from .correlation import _resolve_boxsize, _subvolume_metadata, _wrap_into_box
+
 
 def _load_galaxy_positions(
     iz_path: str,
@@ -122,13 +124,33 @@ def compute_xi_cross_corrfunc(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
 ) -> pl.DataFrame:
-    """Compute cross-correlation xi(r) between two samples using Corrfunc.DD."""
+    """Compute the cross-correlation xi_AB(r) of two samples in a periodic box.
+
+    Pairs are counted with Corrfunc.theory.DD and normalised with the analytic
+    random expectation, xi = DD / (n_A n_B V_shell / L^3) - 1.
+
+    Args:
+        positions_a: (N_A, 3) positions of sample A.
+        positions_b: (N_B, 3) positions of sample B.
+        boxsize: Periodic box side (same units as positions and rbins).
+        rbins: Radial bin edges. Defaults to config.DEFAULT_RBINS. Edges at or
+            beyond boxsize/2 are dropped.
+        nthreads: Number of OpenMP threads for Corrfunc.
+
+    Returns:
+        DataFrame with columns ['r', 'xi', 'npairs'] and metadata in df.attrs.
+        xi is NaN when either sample is empty.
+
+    Raises:
+        ValueError: If fewer than two bin edges lie below boxsize/2.
+    """
     if rbins is None:
         rbins = DEFAULT_RBINS
     rbins = np.asarray(rbins, dtype=float)
 
+    # Corrfunc requires rmax < boxsize/2 for periodic boxes; drop larger edges.
     rmax_periodic = boxsize / 2.0
-    rbins = rbins[rbins <= rmax_periodic]
+    rbins = rbins[rbins < rmax_periodic]
     if len(rbins) < 2:
         raise ValueError(
             f"No valid rbins within periodic limit (rmax={rmax_periodic:.2f})."
@@ -148,10 +170,8 @@ def compute_xi_cross_corrfunc(
         df.attrs = {"rbins": rbins, "n1": n1, "n2": n2, "boxsize": boxsize}
         return df
 
-    pos_a = np.fmod(positions_a, boxsize)
-    pos_a = np.where(pos_a < 0, pos_a + boxsize, pos_a)
-    pos_b = np.fmod(positions_b, boxsize)
-    pos_b = np.where(pos_b < 0, pos_b + boxsize, pos_b)
+    pos_a = _wrap_into_box(positions_a, boxsize)
+    pos_b = _wrap_into_box(positions_b, boxsize)
 
     corrfunc_DD = import_optional("Corrfunc.theory.DD").DD
     results = corrfunc_DD(
@@ -203,7 +223,24 @@ def satellite_central_cross_correlation(
     host_halo_mass_min: Optional[float] = None,
     boxsize_override: Optional[float] = None,
 ) -> Optional[pl.DataFrame]:
-    """Compute cross-correlation between satellites and centrals for one subvolume."""
+    """Compute the satellite–central cross-correlation for one subvolume.
+
+    Args:
+        iz_path: Snapshot directory.
+        ivol: Subvolume index.
+        rbins: Radial bin edges (Mpc/h). Defaults to config.DEFAULT_RBINS.
+        nthreads: Number of OpenMP threads for Corrfunc.
+        satellite_stellar_mass_min: Stellar mass cut for satellites (Msun/h).
+        central_stellar_mass_min: Stellar mass cut for centrals (Msun/h).
+        host_halo_mass_min: Host halo mass (mhhalo) cut for both samples.
+        boxsize_override: Periodic box side in Mpc/h. None = read it from
+            ``Parameters/volume`` in the file.
+
+    Returns:
+        DataFrame from compute_xi_cross_corrfunc with extra attrs (iz, ivol,
+        z, n_sat, n_cen), or None if the file cannot be read or either sample
+        is empty.
+    """
     try:
         pos_sat, z_sat = _load_galaxy_positions(
             iz_path,
@@ -223,14 +260,12 @@ def satellite_central_cross_correlation(
         if pos_sat.size == 0 or pos_cen.size == 0:
             return None
 
-        if boxsize_override is not None:
-            boxsize = float(boxsize_override)
-        else:
-            extent = np.ptp(np.vstack([pos_sat, pos_cen]), axis=0)
-            boxsize = float(np.max(extent))
-
-        if not np.isfinite(boxsize) or boxsize <= 0:
-            raise RuntimeError(f"Invalid box size for {iz_path}/ivol{ivol}: {boxsize}")
+        boxsize = _resolve_boxsize(
+            np.vstack([pos_sat, pos_cen]),
+            boxsize_override,
+            _subvolume_metadata(iz_path, ivol)["boxsize"],
+            f"{iz_path}/ivol{ivol}",
+        )
 
         df = compute_xi_cross_corrfunc(
             pos_sat,

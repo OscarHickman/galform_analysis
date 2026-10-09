@@ -35,8 +35,10 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Astronomy",
     "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
 ]
 dependencies = [
     "numpy>=1.23.0",
@@ -56,6 +58,7 @@ clustering = [
 science = [
     "scipy>=1.7.0",
     "hmf>=3.0",
+    "astropy>=5.0",
     "camb>=1.0",
     "colossus>=1.3.0",
 ]
@@ -75,6 +78,7 @@ Homepage = "https://github.com/OscarHickman/galform_analysis"
 Repository = "https://github.com/OscarHickman/galform_analysis"
 Issues = "https://github.com/OscarHickman/galform_analysis/issues"
 Changelog = "https://github.com/OscarHickman/galform_analysis/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/OscarHickman/galform_analysis#readme"
 
 [tool.setuptools.dynamic]
 version = {attr = "galform_analysis.__version__"}
@@ -84,7 +88,7 @@ where = ["."]
 include = ["galform_analysis*"]
 
 [tool.setuptools.package-data]
-galform_analysis = ["redshift_lists/*.txt", "sim_configs/*.json"]
+galform_analysis = ["py.typed", "redshift_lists/*.txt", "sim_configs/*.json"]
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]

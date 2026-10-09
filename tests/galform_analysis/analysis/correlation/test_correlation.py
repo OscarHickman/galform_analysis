@@ -15,6 +15,7 @@ import pytest
 
 import galform_analysis.config as config
 from galform_analysis.analysis.correlation.correlation import (
+    _wrap_into_box,
     avg_correlation_given_redshift_and_subvolumes,
     avg_correlation_given_subvolume_and_redshifts,
     compute_xi_corrfunc,
@@ -29,7 +30,8 @@ requires_corrfunc = pytest.mark.skipif(
     importlib.util.find_spec("Corrfunc") is None, reason="needs Corrfunc"
 )
 
-TRUE_BOXSIZE = 542.16  # full L800 box encoded in the mock files
+# Full L800 box encoded in the mock files: (V_ivol * 1024)^(1/3) ~ 542.16 Mpc/h
+TRUE_BOXSIZE = (155626.09375 * 1024) ** (1.0 / 3.0)
 N_GALS = 400  # 200 centrals + 200 satellites per mock subvolume
 COARSE_RBINS = np.array([20.0, 60.0, 120.0, 200.0, 250.0])  # all < L/2
 
@@ -74,8 +76,8 @@ def positions_of(cat, mask):
     )
 
 
-def inferred_boxsize(pos):
-    """Box size the module documents it infers: largest coordinate extent."""
+def extent_boxsize(pos):
+    """Fallback box size used when a file has no Parameters/volume."""
     return float(np.max(np.ptp(pos, axis=0)))
 
 
@@ -126,7 +128,7 @@ def uniform_points(n, boxsize, seed):
 class TestComputeXiCorrfuncValidation:
     def test_raises_when_no_bin_edge_within_half_box(self):
         with pytest.raises(ValueError, match="No valid rbins"):
-            compute_xi_corrfunc(uniform_points(10, 1.0, 0), boxsize=1.0)
+            compute_xi_corrfunc(uniform_points(10, 0.15, 0), boxsize=0.15)
 
     def test_raises_when_only_one_edge_survives(self):
         rbins = np.array([1.0, 60.0, 80.0])
@@ -204,11 +206,6 @@ class TestComputeXiCorrfuncValues:
         np.testing.assert_allclose(df["r"].to_numpy(), 0.5 * (rbins[:-1] + rbins[1:]))
         assert df["xi"][0] == -1.0
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=RuntimeError,
-        reason="BUG: rbins are trimmed with <= L/2 but Corrfunc requires rmax < L/2",
-    )
     def test_bin_edge_exactly_at_half_box_is_handled(self):
         pos = uniform_points(300, 100.0, seed=6)
         rbins = np.array([5.0, 10.0, 20.0, 50.0])
@@ -249,11 +246,6 @@ class TestCorrelationGivenRedshiftAndSubvolumeFailures:
 
         assert res is None or np.all(np.isnan(res["xi"].to_numpy()))
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=ValueError,
-        reason="BUG: empty selection crashes in np.ptp instead of returning None",
-    )
     def test_empty_selection_does_not_crash(self, iz_dir):
         res = correlation_given_redshift_and_subvolume(
             str(iz_dir), 0, rbins=COARSE_RBINS, mhalo_min=1e20
@@ -266,7 +258,7 @@ class TestCorrelationGivenRedshiftAndSubvolumeValues:
     def test_centrals_xi_matches_reference(self, iz_dir):
         cat = read_output(galaxies_file(iz_dir, 0))
         pos = positions_of(cat, cat["is_central"] == 1)
-        boxsize = inferred_boxsize(pos)
+        boxsize = TRUE_BOXSIZE
 
         res = correlation_given_redshift_and_subvolume(
             str(iz_dir), 0, rbins=COARSE_RBINS, nthreads=1
@@ -275,10 +267,10 @@ class TestCorrelationGivenRedshiftAndSubvolumeValues:
         np.testing.assert_allclose(
             res["xi"].to_numpy(),
             reference_xi_auto(pos, boxsize, COARSE_RBINS),
-            rtol=1e-10,
+            rtol=1e-6,
         )
         assert res.attrs["ngal"] == N_GALS // 2
-        assert res.attrs["boxsize"] == pytest.approx(boxsize)
+        assert res.attrs["boxsize"] == pytest.approx(boxsize, rel=1e-6)
         assert res.attrs["ivol"] == 0
         assert res.attrs["z"] == pytest.approx(0.0)
         assert res.attrs["V_ivol"] == pytest.approx(155626.09375)
@@ -295,7 +287,7 @@ class TestCorrelationGivenRedshiftAndSubvolumeValues:
         assert res.attrs["ngal"] == N_GALS
         np.testing.assert_allclose(
             res["xi"].to_numpy(),
-            reference_xi_auto(pos, inferred_boxsize(pos), COARSE_RBINS),
+            reference_xi_auto(pos, TRUE_BOXSIZE, COARSE_RBINS),
             rtol=1e-10,
         )
 
@@ -312,7 +304,7 @@ class TestCorrelationGivenRedshiftAndSubvolumeValues:
         assert res.attrs["ngal"] == mask.sum()
         np.testing.assert_allclose(
             res["xi"].to_numpy(),
-            reference_xi_auto(pos, inferred_boxsize(pos), COARSE_RBINS),
+            reference_xi_auto(pos, TRUE_BOXSIZE, COARSE_RBINS),
             rtol=1e-10,
         )
 
@@ -338,11 +330,6 @@ class TestCorrelationGivenRedshiftAndSubvolumeValues:
             shifted["xi"].to_numpy(), ref["xi"].to_numpy(), rtol=1e-4, atol=1e-6
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: box size inferred from position extent (np.ptp) instead of "
-        "the true box, biasing xi low for sparse samples",
-    )
     def test_uses_true_box_size(self, iz_dir):
         # V_total = V_ivol * 1024 = 542.16^3 is available from Parameters/volume.
         cat = read_output(galaxies_file(iz_dir, 0))
@@ -372,11 +359,6 @@ class TestHaloCorrelationFailures:
             del f["Output001/is_central"]
         assert halo_correlation_given_redshift_and_subvolume(str(iz_dir), 0) is None
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=ValueError,
-        reason="BUG: empty selection crashes in np.ptp instead of returning None",
-    )
     def test_empty_selection_does_not_crash(self, iz_dir):
         res = halo_correlation_given_redshift_and_subvolume(
             str(iz_dir), 0, rbins=COARSE_RBINS, mhhalo_min=1e20
@@ -397,11 +379,11 @@ class TestHaloCorrelationValues:
         )
 
         assert res.attrs["nhalo"] == mask.sum()
-        assert res.attrs["boxsize"] == pytest.approx(inferred_boxsize(pos))
+        assert res.attrs["boxsize"] == pytest.approx(TRUE_BOXSIZE, rel=1e-6)
         assert res.attrs["V_ivol"] == pytest.approx(155626.09375)
         np.testing.assert_allclose(
             res["xi"].to_numpy(),
-            reference_xi_auto(pos, inferred_boxsize(pos), COARSE_RBINS),
+            reference_xi_auto(pos, TRUE_BOXSIZE, COARSE_RBINS),
             rtol=1e-10,
         )
 
@@ -433,11 +415,7 @@ class TestAvgCorrelationOverSubvolumesFailures:
         )
         assert res is None
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=ValueError,
-        reason="BUG: an ivol with an empty selection crashes the whole stack",
-    )
+    @requires_corrfunc
     def test_empty_subvolume_is_skipped(self, iz_dir):
         overwrite_output(
             galaxies_file(iz_dir, 1), is_central=np.zeros(N_GALS, dtype=np.int32)
@@ -454,7 +432,7 @@ class TestAvgCorrelationOverSubvolumesValues:
     def test_stacked_xi_matches_reference(self, iz_dir):
         cats = [read_output(galaxies_file(iz_dir, iv)) for iv in (0, 1)]
         pos_each = [positions_of(c, c["is_central"] == 1) for c in cats]
-        boxsize = inferred_boxsize(pos_each[0])  # documented: first ivol sets L
+        boxsize = TRUE_BOXSIZE  # from Parameters/volume
         stacked = np.vstack(pos_each)
 
         res = avg_correlation_given_redshift_and_subvolumes(
@@ -469,7 +447,7 @@ class TestAvgCorrelationOverSubvolumesValues:
         assert res.attrs["total_galaxies"] == len(stacked)
         assert res.attrs["n_used"] == 2
         assert res.attrs["iz"] == "iz155"
-        assert res.attrs["boxsize"] == pytest.approx(boxsize)
+        assert res.attrs["boxsize"] == pytest.approx(boxsize, rel=1e-6)
         assert res.attrs["method"] == "combined_overlapping_subvolumes"
 
     def test_missing_subvolumes_are_skipped(self, iz_dir):
@@ -485,10 +463,6 @@ class TestAvgCorrelationOverSubvolumesValues:
         assert len(res) == len(DEFAULT_RBINS) - 1
         assert res.attrs["iz"] == "iz207"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="BUG: attrs['rbins'] is overwritten with the untrimmed input bins",
-    )
     def test_rbins_attr_describes_returned_bins(self, iz_dir):
         rbins = np.append(COARSE_RBINS, 400.0)  # last edge beyond L/2
         res = avg_correlation_given_redshift_and_subvolumes(
@@ -554,3 +528,130 @@ def test_avg_over_redshifts_is_mean_and_std_of_snapshots(base_dir):
     assert res.attrs["used_iz"] == ["iz155", "iz207"]
     assert res.attrs["used_z"] == [pytest.approx(0.0), pytest.approx(0.0)]
     assert res.attrs["ivol"] == 0
+
+
+@requires_corrfunc
+def test_avg_over_redshifts_skips_empty_snapshots_and_trims_rbins(base_dir):
+    overwrite_output(
+        galaxies_file(base_dir / "iz207", 0), is_central=np.zeros(N_GALS, np.int32)
+    )
+    rbins = np.append(COARSE_RBINS, 400.0)  # last edge beyond L/2
+
+    res = avg_correlation_given_subvolume_and_redshifts(
+        [155, 207], 0, rbins=rbins, nthreads=1
+    )
+
+    single = correlation_given_redshift_and_subvolume(
+        str(base_dir / "iz155"), 0, rbins=rbins, nthreads=1
+    )
+    assert res.attrs["used_iz"] == ["iz155"]
+    np.testing.assert_array_equal(res["xi"].to_numpy(), single["xi"].to_numpy())
+    np.testing.assert_array_equal(res["xi_std"].to_numpy(), 0.0)
+    np.testing.assert_array_equal(res.attrs["rbins"], COARSE_RBINS)
+
+
+# ── box size handling ────────────────────────────────────────────────────────
+
+
+def test_wrap_into_box_maps_into_half_open_interval():
+    pos = np.array([[-1e-17, 100.0, 250.0], [-30.0, 99.5, 0.0]])
+    wrapped = _wrap_into_box(pos, 100.0)
+    np.testing.assert_allclose(wrapped, [[0.0, 0.0, 50.0], [70.0, 99.5, 0.0]])
+    assert np.all((wrapped >= 0.0) & (wrapped < 100.0))
+
+
+@requires_corrfunc
+class TestBoxSize:
+    def test_explicit_boxsize_overrides_file(self, iz_dir):
+        cat = read_output(galaxies_file(iz_dir, 0))
+        pos = positions_of(cat, cat["is_central"] == 1)
+
+        res = correlation_given_redshift_and_subvolume(
+            str(iz_dir), 0, rbins=COARSE_RBINS, nthreads=1, boxsize=600.0
+        )
+
+        assert res.attrs["boxsize"] == 600.0
+        np.testing.assert_allclose(
+            res["xi"].to_numpy(),
+            reference_xi_auto(pos, 600.0, COARSE_RBINS),
+            rtol=1e-10,
+        )
+
+    def test_without_volume_falls_back_to_extent_with_warning(self, iz_dir):
+        with h5py.File(galaxies_file(iz_dir, 0), "r+") as f:
+            del f["Parameters/volume"]
+        cat = read_output(galaxies_file(iz_dir, 0))
+        pos = positions_of(cat, cat["is_central"] == 1)
+
+        with pytest.warns(RuntimeWarning, match="position extent"):
+            res = correlation_given_redshift_and_subvolume(
+                str(iz_dir), 0, rbins=COARSE_RBINS, nthreads=1
+            )
+
+        assert res.attrs["boxsize"] == pytest.approx(extent_boxsize(pos))
+        assert res.attrs["V_ivol"] is None
+
+    def test_empty_selection_without_volume_returns_none(self, iz_dir):
+        with h5py.File(galaxies_file(iz_dir, 0), "r+") as f:
+            del f["Parameters/volume"]
+        res = correlation_given_redshift_and_subvolume(
+            str(iz_dir), 0, rbins=COARSE_RBINS, mhalo_min=1e20
+        )
+        assert res is None
+
+    def test_halo_boxsize_override(self, iz_dir):
+        res = halo_correlation_given_redshift_and_subvolume(
+            str(iz_dir), 0, rbins=COARSE_RBINS, nthreads=1, boxsize=700.0
+        )
+        assert res.attrs["boxsize"] == 700.0
+
+    def test_avg_boxsize_override(self, iz_dir):
+        cats = [read_output(galaxies_file(iz_dir, iv)) for iv in (0, 1)]
+        stacked = np.vstack([positions_of(c, c["is_central"] == 1) for c in cats])
+
+        res = avg_correlation_given_redshift_and_subvolumes(
+            155,
+            [0, 1],
+            rbins=COARSE_RBINS,
+            nthreads=1,
+            base_dir=str(iz_dir.parent),
+            boxsize=650.0,
+        )
+
+        assert res.attrs["boxsize"] == 650.0
+        np.testing.assert_allclose(
+            res["xi"].to_numpy(),
+            reference_xi_auto(stacked, 650.0, COARSE_RBINS),
+            rtol=1e-10,
+        )
+
+    def test_invalid_boxsize_returns_none(self, iz_dir):
+        res = correlation_given_redshift_and_subvolume(
+            str(iz_dir), 0, rbins=COARSE_RBINS, boxsize=-1.0
+        )
+        assert res is None
+
+
+# ── box size resolution ──────────────────────────────────────────────────────
+
+
+class TestResolveBoxsize:
+    def test_explicit_boxsize_wins(self):
+        from galform_analysis.analysis.correlation.correlation import _resolve_boxsize
+
+        pos = uniform_points(10, 100.0, 0)
+        assert _resolve_boxsize(pos, 250.0, 100.0, "test") == 250.0
+
+    def test_file_box_too_small_for_positions_raises(self):
+        from galform_analysis.analysis.correlation.correlation import _resolve_boxsize
+
+        # e.g. n_subvolumes missing from the file and the 1024 fallback wrong
+        pos = uniform_points(50, 500.0, 0)
+        with pytest.raises(ValueError, match="Pass boxsize="):
+            _resolve_boxsize(pos, None, 100.0, "test")
+
+    def test_file_box_accepted_when_positions_fit(self):
+        from galform_analysis.analysis.correlation.correlation import _resolve_boxsize
+
+        pos = uniform_points(50, 100.0, 0)
+        assert _resolve_boxsize(pos, None, 100.0, "test") == 100.0

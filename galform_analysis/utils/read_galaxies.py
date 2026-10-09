@@ -1,7 +1,7 @@
 """Centralized readers for galaxies.hdf5 files.
 
 This module provides reusable helpers for loading galaxy data from a single
-GALFORM subvolume into NumPy arrays or pandas DataFrames, with consistent
+GALFORM subvolume into NumPy arrays or polars DataFrames, with consistent
 filtering and metadata handling.
 """
 
@@ -13,26 +13,33 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 import numpy as np
 import polars as pl
 
-from galform_analysis.config import N_SUBVOLUMES
 from galform_analysis.readers.loaders import (
-    _get_first_array,
     get_output_group,
     open_galaxies_hdf5,
+    read_volumes,
     resolve_redshift,
 )
+
+_POSITION_KEYS = (("xgal", "x"), ("ygal", "y"), ("zgal", "z"))
 
 
 def _normalize_arrays(
     arrays: Dict[str, np.ndarray],
 ) -> Tuple[Dict[str, np.ndarray], int]:
-    """Ensure arrays are 1D and trimmed to a common length."""
+    """Flatten arrays to 1D and check they describe the same galaxies.
+
+    ``None`` entries (fields absent from the file) are dropped.
+
+    Raises:
+        ValueError: If the remaining arrays have different lengths.
+    """
     arrays = {k: np.ravel(v) for k, v in arrays.items() if v is not None}
     if not arrays:
         return {}, 0
-    lengths = [len(v) for v in arrays.values()]
-    n = min(lengths)
-    arrays = {k: v[:n] for k, v in arrays.items()}
-    return arrays, n
+    lengths = {k: len(v) for k, v in arrays.items()}
+    if len(set(lengths.values())) > 1:
+        raise ValueError(f"Galaxy arrays have inconsistent lengths: {lengths}")
+    return arrays, next(iter(lengths.values()))
 
 
 def _apply_mask(
@@ -40,6 +47,68 @@ def _apply_mask(
 ) -> Dict[str, np.ndarray]:
     """Apply a boolean mask to all arrays."""
     return {k: v[mask] for k, v in arrays.items()}
+
+
+def _first_present(g, candidates) -> Optional[np.ndarray]:
+    """First of ``candidates`` present in group ``g``, or None if none is."""
+    for name in candidates:
+        if name in g:
+            return np.asarray(g[name])
+    return None
+
+
+def _read_positions(g, arrays: Dict[str, np.ndarray]) -> None:
+    for key, alias in _POSITION_KEYS:
+        if key not in g:
+            raise KeyError(
+                "Could not find xgal/ygal/zgal position arrays in Output group"
+            )
+        arrays[alias] = np.asarray(g[key])
+
+
+def _read_fields(g, arrays: Dict[str, np.ndarray], fields) -> None:
+    for name in fields or ():
+        if name not in arrays and name in g:
+            arrays[name] = np.asarray(g[name])
+
+
+def _cut_mask(
+    arrays: Dict[str, np.ndarray], n: int, cuts: Dict[str, Optional[float]]
+) -> np.ndarray:
+    """Mask selecting rows with ``arrays[field] >= minimum`` for every cut."""
+    mask = np.ones(n, dtype=bool)
+    for field, minimum in cuts.items():
+        if minimum is None:
+            continue
+        if field not in arrays:
+            raise KeyError(f"{field} field not found - cannot apply {field} cut")
+        mask &= arrays[field] >= minimum
+    return mask
+
+
+def _read_subvolume(
+    iz_path: str, ivol: int, collect
+) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+    """Open one galaxies.hdf5, run ``collect(g) -> (arrays, mask)``, add metadata."""
+    f = open_galaxies_hdf5(iz_path, ivol=ivol)
+    if f is None:
+        raise FileNotFoundError(
+            f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}"
+        )
+    try:
+        g = get_output_group(f)
+        if g is None:
+            raise RuntimeError("No OutputNNN group found in HDF5 file")
+        arrays, mask = collect(g)
+        meta: Dict[str, Any] = {
+            "iz": Path(iz_path).name,
+            "ivol": ivol,
+            "z": resolve_redshift(f, iz_path, ivol),
+            **read_volumes(f),
+        }
+        return _apply_mask(arrays, mask), meta
+    finally:
+        f.close()
 
 
 def read_galaxy_arrays(
@@ -58,6 +127,9 @@ def read_galaxy_arrays(
     When centrals_only=False, returns all galaxies (centrals + satellites).
     For dark matter halos, use read_halo_arrays() instead.
 
+    Derived fields that are absent from the file are left out of the result
+    instead of being returned empty.
+
     Args:
         iz_path: Path to snapshot directory (e.g., /.../iz207)
         ivol: Subvolume index
@@ -70,95 +142,45 @@ def read_galaxy_arrays(
         mstar_min: Minimum stellar mass (mstar) threshold in M_sun/h; None = no cut
 
     Returns:
-        Tuple of (arrays, metadata)
+        Tuple of (arrays, metadata). Metadata holds iz, ivol, z, V_ivol,
+        V_total and n_subvolumes.
+
+    Raises:
+        FileNotFoundError: If the file is missing or unreadable.
+        RuntimeError: If the file has no OutputNNN group.
+        KeyError: If a field needed for a requested cut is missing.
+        ValueError: If the per-galaxy arrays have inconsistent lengths.
     """
-    f = open_galaxies_hdf5(iz_path, ivol=ivol)
-    if f is None:
-        raise FileNotFoundError(
-            f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}"
-        )
 
-    try:
-        g = get_output_group(f)
-        if g is None:
-            raise RuntimeError("No OutputNNN group found in HDF5 file")
-
+    def collect(g):
         arrays: Dict[str, np.ndarray] = {}
-
         if include_positions:
-            for key, alias in (("xgal", "x"), ("ygal", "y"), ("zgal", "z")):
-                if key not in g:
-                    raise KeyError(
-                        "Could not find xgal/ygal/zgal position arrays in Output group"
-                    )
-                arrays[alias] = np.asarray(g[key])
-
+            _read_positions(g, arrays)
         if include_derived:
-            m_disk = _get_first_array(g, ["mstars_disk"])
-            m_bulge = _get_first_array(g, ["mstars_bulge"])
-            if m_disk.size and m_bulge.size:
-                arrays["mstar"] = m_disk + m_bulge
+            if "mstars_disk" in g and "mstars_bulge" in g:
+                arrays["mstar"] = np.asarray(g["mstars_disk"]) + np.asarray(
+                    g["mstars_bulge"]
+                )
             else:
-                arrays["mstar"] = _get_first_array(
+                arrays["mstar"] = _first_present(
                     g, ["mstars", "StellarMass", "Mstar", "mstars_allburst"]
                 )
-
-            arrays["mhalo"] = _get_first_array(
-                g, ["mhalo", "mchalo", "Mhalo", "M_Halo"]
-            )
-            arrays["sfr"] = _get_first_array(g, ["mstardot", "Sfr", "sfr", "sfr_disk"])
-
-            if "is_central" in g:
-                arrays["is_central"] = np.asarray(g["is_central"])
-
-        if fields:
-            for name in fields:
-                if name in arrays:
-                    continue
-                if name in g:
-                    arrays[name] = np.asarray(g[name])
+            arrays["mhalo"] = _first_present(g, ["mhalo", "mchalo", "Mhalo", "M_Halo"])
+            arrays["sfr"] = _first_present(g, ["mstardot", "Sfr", "sfr", "sfr_disk"])
+            arrays["is_central"] = _first_present(g, ["is_central"])
+        _read_fields(g, arrays, fields)
 
         arrays, n = _normalize_arrays(arrays)
-
-        mask = np.ones(n, dtype=bool)
+        if centrals_only and "is_central" not in arrays:
+            raise KeyError(
+                "is_central field not found - cannot filter for central galaxies"
+            )
+        mask = _cut_mask(arrays, n, {"mhalo": mhalo_min, "mstar": mstar_min})
         if centrals_only:
-            if "is_central" not in arrays:
-                raise KeyError(
-                    "is_central field not found - cannot filter for central galaxies"
-                )
             mask &= arrays["is_central"] == 1
+        return arrays, mask
 
-        if mhalo_min is not None:
-            if "mhalo" not in arrays:
-                raise KeyError("mhalo field not found - cannot apply halo mass cut")
-            mask &= arrays["mhalo"] >= mhalo_min
-
-        if mstar_min is not None:
-            if "mstar" not in arrays:
-                raise KeyError("mstar field not found - cannot apply stellar mass cut")
-            mask &= arrays["mstar"] >= mstar_min
-
-        arrays = _apply_mask(arrays, mask)
-        meta: Dict[str, Any] = {
-            "iz": Path(iz_path).name,
-            "ivol": ivol,
-            "z": resolve_redshift(f, iz_path, ivol),
-            "V_total": None,
-            "V_ivol": None,
-        }
-
-        if "Parameters" in f and "volume" in f["Parameters"]:
-            V_ivol = float(np.array(f["Parameters"]["volume"]))
-            meta["V_ivol"] = V_ivol
-            n_subvol = int(np.array(f["Parameters"].get("n_subvolumes", N_SUBVOLUMES)))
-            meta["V_total"] = V_ivol * n_subvol if n_subvol and n_subvol > 0 else V_ivol
-
-        return arrays, meta
-    finally:
-        try:
-            f.close()
-        except Exception:
-            pass
+    return _read_subvolume(iz_path, ivol, collect)
 
 
 def read_galaxies_dataframe(
@@ -170,6 +192,7 @@ def read_galaxies_dataframe(
     centrals_only: bool = True,
     mhalo_min: Optional[float] = None,
     return_metadata: bool = False,
+    mstar_min: Optional[float] = None,
 ):
     """Read galaxies.hdf5 and return a Polars DataFrame.
 
@@ -185,6 +208,7 @@ def read_galaxies_dataframe(
         include_derived=include_derived,
         centrals_only=centrals_only,
         mhalo_min=mhalo_min,
+        mstar_min=mstar_min,
     )
 
     df = pl.DataFrame(arrays)
@@ -219,78 +243,25 @@ def read_halo_arrays(
     Returns:
         Tuple of (arrays, metadata)
     """
-    f = open_galaxies_hdf5(iz_path, ivol=ivol)
-    if f is None:
-        raise FileNotFoundError(
-            f"Missing or unreadable galaxies.hdf5 at {iz_path}/ivol{ivol}"
-        )
 
-    try:
-        g = get_output_group(f)
-        if g is None:
-            raise RuntimeError("No OutputNNN group found in HDF5 file")
-
+    def collect(g):
         arrays: Dict[str, np.ndarray] = {}
-
         if include_positions:
-            for key, alias in (("xgal", "x"), ("ygal", "y"), ("zgal", "z")):
-                if key not in g:
-                    raise KeyError(
-                        "Could not find xgal/ygal/zgal position arrays in Output group"
-                    )
-                arrays[alias] = np.asarray(g[key])
-
+            _read_positions(g, arrays)
         if include_derived:
-            arrays["mhhalo"] = _get_first_array(g, ["mhhalo", "mhalo_host"])
-
-            if "is_central" in g:
-                arrays["is_central"] = np.asarray(g["is_central"])
-
-        if fields:
-            for name in fields:
-                if name in arrays:
-                    continue
-                if name in g:
-                    arrays[name] = np.asarray(g[name])
+            arrays["mhhalo"] = _first_present(g, ["mhhalo", "mhalo_host"])
+            arrays["is_central"] = _first_present(g, ["is_central"])
+        _read_fields(g, arrays, fields)
 
         arrays, n = _normalize_arrays(arrays)
-
-        # Filter to DM halos: use all central galaxies as halo representatives
-        # Each central galaxy (is_central==1) represents its (sub)halo center
-        # This includes both main FOF halos and subhalos within larger structures
-        mask = np.ones(n, dtype=bool)
+        # Each central galaxy (is_central==1) represents its (sub)halo centre.
         if "is_central" not in arrays:
             raise KeyError("is_central field required for halo sample")
+        mask = _cut_mask(arrays, n, {"mhhalo": mhhalo_min})
         mask &= arrays["is_central"] == 1
+        return arrays, mask
 
-        if mhhalo_min is not None:
-            if "mhhalo" not in arrays:
-                raise KeyError("mhhalo field not found - cannot apply halo mass cut")
-            mask &= arrays["mhhalo"] >= mhhalo_min
-
-        arrays = _apply_mask(arrays, mask)
-
-        # Metadata
-        meta: Dict[str, Any] = {
-            "iz": Path(iz_path).name,
-            "ivol": ivol,
-            "z": resolve_redshift(f, iz_path, ivol),
-            "V_total": None,
-            "V_ivol": None,
-        }
-
-        if "Parameters" in f and "volume" in f["Parameters"]:
-            V_ivol = float(np.array(f["Parameters"]["volume"]))
-            meta["V_ivol"] = V_ivol
-            n_subvol = int(np.array(f["Parameters"].get("n_subvolumes", N_SUBVOLUMES)))
-            meta["V_total"] = V_ivol * n_subvol if n_subvol and n_subvol > 0 else V_ivol
-
-        return arrays, meta
-    finally:
-        try:
-            f.close()
-        except Exception:
-            pass
+    return _read_subvolume(iz_path, ivol, collect)
 
 
 def read_halo_positions(

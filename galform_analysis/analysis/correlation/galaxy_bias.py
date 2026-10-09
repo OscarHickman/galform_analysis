@@ -12,6 +12,13 @@ import numpy as np
 import polars as pl
 
 
+def _same_grid(a, b) -> bool:
+    """True if two 1-D grids have the same length and values."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    return a.shape == b.shape and bool(np.allclose(a, b))
+
+
 def compute_galaxy_bias(
     xi_galaxy: pl.DataFrame,
     xi_matter: pl.DataFrame,
@@ -23,24 +30,33 @@ def compute_galaxy_bias(
         xi_matter: DataFrame with columns 'r' and 'xi' from compute_matter_xi.
 
     Returns:
-        DataFrame with columns 'r' and 'bias'.
+        DataFrame with columns 'r' and 'bias'. The bias is sqrt(|ratio|), so
+        it is always non-negative.
+
+    Raises:
+        ValueError: If the two inputs were not measured on the same bins.
+
+    When both inputs carry matching ``attrs['rbins']`` but different ``r``
+    (e.g. pair-weighted mean separations vs bin centres), xi_matter is
+    interpolated onto the galaxy ``r``.
     """
     rbins_gal = xi_galaxy.attrs.get("rbins", None)
     rbins_mat = xi_matter.attrs.get("rbins", None)
 
-    if (
-        rbins_gal is not None
-        and rbins_mat is not None
-        and np.allclose(rbins_gal, rbins_mat)
-    ):
-        bins_match = True
+    same_r = _same_grid(xi_galaxy["r"], xi_matter["r"])
+    if rbins_gal is not None and rbins_mat is not None:
+        bins_match = _same_grid(rbins_gal, rbins_mat)
     else:
-        bins_match = np.allclose(xi_galaxy["r"], xi_matter["r"])
+        bins_match = same_r
 
     if not bins_match:
-        raise ValueError("Radial bins of xi_galaxy and xi_matter do not match.")
+        raise ValueError(
+            "Radial bins of xi_galaxy and xi_matter do not match. Galaxy xi(r) "
+            "drops bin edges >= boxsize/2; compute xi_matter with the bins in "
+            "xi_galaxy.attrs['rbins']."
+        )
 
-    if not np.allclose(xi_galaxy["r"], xi_matter["r"]):
+    if not same_r:
         xi_matter_interp = np.interp(xi_galaxy["r"], xi_matter["r"], xi_matter["xi"])
     else:
         xi_matter_interp = xi_matter["xi"].to_numpy()
@@ -71,7 +87,12 @@ def avg_galaxy_bias_over_subvolumes(
 
     Returns:
         DataFrame with columns 'r', 'bias', 'bias_std'.
+
+    Raises:
+        ValueError: If xi_gal_list is empty or bins do not match.
     """
+    if not xi_gal_list:
+        raise ValueError("xi_gal_list is empty.")
     biases = [
         compute_galaxy_bias(xg, xi_matter)["bias"].to_numpy() for xg in xi_gal_list
     ]

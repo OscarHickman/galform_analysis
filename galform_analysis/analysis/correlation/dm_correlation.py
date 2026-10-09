@@ -31,15 +31,21 @@ def matter_xi_at_snapshot(
         ns: Scalar spectral index (0.961 for L800/WMAP, 1.0 for Millennium).
 
     Returns:
-        DataFrame with columns ['r', 'xi'], or None on failure.
+        DataFrame with columns ['r', 'xi'], or None if the snapshot cannot be
+        read. A snapshot with no recorded redshift is treated as z = 0.
+
+    Raises:
+        ImportError: If camb is not installed (galform_analysis[science]).
     """
     try:
         data = read_snapshot_data(iz_path, ivol=0)
-        z = data.get("z") or 0.0
-        close_snapshot(data)
-        return compute_matter_xi(sim, z=float(z), rbins=rbins, ns=ns)
-    except Exception:
+    except (FileNotFoundError, RuntimeError):
         return None
+    try:
+        z = data.get("z")
+    finally:
+        close_snapshot(data)
+    return compute_matter_xi(sim, z=float(z or 0.0), rbins=rbins, ns=ns)
 
 
 def matter_xi_at_snapshots(
@@ -99,11 +105,19 @@ def dm_correlations_given_redshifts_and_subvolume(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
     mhhalo_min: Optional[float] = None,
+    base_dir: Optional[str] = None,
 ) -> List[Optional[pl.DataFrame]]:
-    """Compute DM 2PCF for a list of snapshots in one subvolume."""
+    """Compute DM 2PCF for a list of snapshots in one subvolume.
+
+    Returns one entry per snapshot, None where the data is unavailable.
+    ``base_dir`` defaults to get_base_dir().
+    """
+    if base_dir is None:
+        base_dir = str(get_base_dir())
+
     results = []
     for iz_num in iz_nums:
-        iz_path = os.path.join(str(get_base_dir()), f"iz{iz_num}")
+        iz_path = os.path.join(base_dir, f"iz{iz_num}")
         res = dm_correlation_given_redshift_and_subvolume(
             iz_path=iz_path,
             ivol=ivol,
@@ -123,21 +137,27 @@ def avg_dm_correlation_given_subvolume_and_redshifts(
     rbins: Optional[np.ndarray] = None,
     nthreads: int = 4,
     mhhalo_min: Optional[float] = None,
+    base_dir: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Average DM 2PCF across multiple redshifts for one subvolume."""
+    """Average DM 2PCF across multiple redshifts for one subvolume.
+
+    Returns a dict with r, xi_mean, xi_std (NaN-aware over snapshots), rbins
+    and per-snapshot ngal/z/iz lists, or None if no snapshot is available.
+    """
     results = dm_correlations_given_redshifts_and_subvolume(
         iz_nums=iz_nums,
         ivol=ivol,
         rbins=rbins,
         nthreads=nthreads,
         mhhalo_min=mhhalo_min,
+        base_dir=base_dir,
     )
     valid = [res for res in results if res is not None]
     if len(valid) == 0:
         return None
 
-    r = valid[0]["r"]
-    xi_stack = np.vstack([res["xi"] for res in valid])
+    r = valid[0]["r"].to_numpy()
+    xi_stack = np.vstack([res["xi"].to_numpy() for res in valid])
     xi_mean = np.nanmean(xi_stack, axis=0)
     xi_std = np.nanstd(xi_stack, axis=0)
 

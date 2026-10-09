@@ -97,6 +97,15 @@ def write_galaxy_hdf5(
         g.create_dataset("TreeID", data=tree_id)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_base_dir(monkeypatch):
+    """Start every test with no base directory, so none can touch real data."""
+    import galform_analysis.config as config
+
+    monkeypatch.delenv("GALFORM_BASE_DIR", raising=False)
+    monkeypatch.setattr(config, "BASE_DIR", None)
+
+
 @pytest.fixture
 def galform_iz_dir(tmp_path):
     """Temp dir with iz155/ivol{0,1}/galaxies.hdf5 mock files."""

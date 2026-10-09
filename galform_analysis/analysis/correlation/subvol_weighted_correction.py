@@ -62,6 +62,10 @@ def _select_halo_id_array(
         if valid.size == 0:
             continue
         if np.unique(valid).size > 1:
+            if arr.dtype.kind not in "iu":
+                # Non-finite float IDs become the -1 "no halo" sentinel rather
+                # than an undefined integer cast.
+                arr = np.where(np.isfinite(arr), arr, -1)
             return arr.astype(np.int64, copy=False), key
 
     return None, None
@@ -204,9 +208,13 @@ def _paircounts_r_cross(
     return npairs
 
 
-def _choose2(n: int) -> float:
-    """Number of unique unordered pairs from n points."""
-    return 0.5 * n * (n - 1)
+def _n_ordered_pairs(n: int) -> float:
+    """Number of ordered pairs (i, j), i != j, from n points.
+
+    Corrfunc auto-counts (``autocorr=1``) count every unordered pair twice, so
+    DD and RR auto counts are normalised by n (n - 1), not n (n - 1) / 2.
+    """
+    return float(n) * (float(n) - 1.0)
 
 
 def load_subvolume_galaxies(
@@ -386,9 +394,9 @@ def compute_weighted_wp_from_catalogue(
         rnd, rp_bins=rp_bins, pimax=pimax, boxsize=boxsize, nthreads=nthreads
     )
 
-    dd_norm = dd_total / _choose2(nd)
+    dd_norm = dd_total / _n_ordered_pairs(nd)
     dr_norm = dr / (nd * nr)
-    rr_norm = rr / _choose2(nr)
+    rr_norm = rr / _n_ordered_pairs(nr)
     with np.errstate(divide="ignore", invalid="ignore"):
         xi_standard = (dd_norm - 2.0 * dr_norm + rr_norm) / rr_norm
 
@@ -400,7 +408,7 @@ def compute_weighted_wp_from_catalogue(
         alpha = float(m_selected) / float(k_total)
         beta = float(m_selected * (k_total - 1)) / float(k_total * (m_selected - 1))
         dd_corr = alpha * dd_auto + beta * dd_cross
-        dd_corr_norm = dd_corr / _choose2(nd)
+        dd_corr_norm = dd_corr / _n_ordered_pairs(nd)
         with np.errstate(divide="ignore", invalid="ignore"):
             xi_corrected = (dd_corr_norm - 2.0 * dr_norm + rr_norm) / rr_norm
 
@@ -485,9 +493,9 @@ def compute_weighted_xi_from_catalogue(
     dr = _paircounts_r_cross(pos, rnd, rbins=rbins, boxsize=boxsize, nthreads=nthreads)
     rr = _paircounts_r_auto(rnd, rbins=rbins, boxsize=boxsize, nthreads=nthreads)
 
-    dd_norm = dd_total / _choose2(nd)
+    dd_norm = dd_total / _n_ordered_pairs(nd)
     dr_norm = dr / (nd * nr)
-    rr_norm = rr / _choose2(nr)
+    rr_norm = rr / _n_ordered_pairs(nr)
     with np.errstate(divide="ignore", invalid="ignore"):
         xi_standard = (dd_norm - 2.0 * dr_norm + rr_norm) / rr_norm
 
@@ -499,7 +507,7 @@ def compute_weighted_xi_from_catalogue(
         alpha = float(m_selected) / float(k_total)
         beta = float(m_selected * (k_total - 1)) / float(k_total * (m_selected - 1))
         dd_corr = alpha * dd_auto + beta * dd_cross
-        dd_corr_norm = dd_corr / _choose2(nd)
+        dd_corr_norm = dd_corr / _n_ordered_pairs(nd)
         with np.errstate(divide="ignore", invalid="ignore"):
             xi_corrected = (dd_corr_norm - 2.0 * dr_norm + rr_norm) / rr_norm
 
