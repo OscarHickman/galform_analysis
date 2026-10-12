@@ -22,6 +22,9 @@ redshift-space distortions.
   subvolumes and snapshots.
 - **Luminosity functions**: in any band GALFORM wrote (SDSS, UKIRT, Bj,
   GALEX, JWST, ...), rest or observer frame, AB or Vega, total/disk/bulge.
+- **Dust attenuation**: GALFORM's diffuse-dust model (Lacey et al. 2016
+  parameters by default), reproducing GALFORM's attenuated magnitudes, for
+  luminosity functions and per-galaxy magnitudes.
 - **Theoretical predictions** *(optional)*: halo mass functions from
   [hmf](https://github.com/halofit/hmf) with GALFORM's Mvir mass definition,
   the GPS+ model, and the linear matter correlation function from CAMB.
@@ -149,6 +152,17 @@ avg = avg_lf_given_redshift_and_subvolumes(
 Use `frame="observer"` for observer-frame bands and `component="disk"` or
 `"bulge"` for one component's light.
 
+To include dust, pass `dust="lacey16"`. This applies GALFORM's diffuse-dust model
+with random inclinations; `inclination="average"`, `"face-on"` or an angle
+are also accepted. The attenuation tables come with GALFORM: set
+`GALFORM_DATA_DIR` to GALFORM's `Data` directory.
+
+```python
+avg_dusty = avg_lf_given_redshift_and_subvolumes(
+    271, ivols=list(range(8)), band="Bj", system="Vega", dust="lacey16"
+)
+```
+
 ### Correlation functions (requires `clustering`)
 
 ```python
@@ -187,6 +201,7 @@ directory of the repository, including
 [reading snapshots](https://github.com/OscarHickman/galform_analysis/blob/main/examples/readers/load_snapshot.ipynb),
 [stellar mass functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/smf.ipynb),
 [luminosity functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/luminosity_functions/lf.ipynb),
+[dust attenuation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/dust/dust_attenuation.ipynb),
 [correlation functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/correlation.ipynb)
 and [RSD multipoles](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/redshift_space_distortions/multipoles.ipynb).
 

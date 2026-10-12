@@ -9,6 +9,7 @@
 *.fits
 *.npy
 *.npz
+!tests/data/*.npz
 *.pkl
 *.parquet
 data/
@@ -148,5 +149,6 @@ GEMINI.md
 
 scripts/
 data/
+!tests/data/
 legacy/
 science/

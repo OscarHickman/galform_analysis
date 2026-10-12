@@ -8,6 +8,7 @@ from .loaders import (
     open_galaxies_hdf5,
     read_snapshot_data,
 )
+from .magnitudes import read_band_magnitudes
 
 __all__ = [
     "read_snapshot_data",
@@ -18,4 +19,5 @@ __all__ = [
     "list_bands",
     "find_band",
     "luminosity_to_magnitude",
+    "read_band_magnitudes",
 ]

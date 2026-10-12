@@ -1,8 +1,9 @@
 """Luminosity function (LF) computation utilities.
 
-Magnitudes are GALFORM's intrinsic (dust-free) AB absolute magnitudes,
+Magnitudes are GALFORM's AB absolute magnitudes,
 ``M - 5 log10 h = -2.5 log10(L_disk + L_bulge)``, optionally converted to
-Vega with GALFORM's ``a0_ab`` offsets, so phi is in (Mpc/h)^-3 mag^-1.
+Vega with GALFORM's ``a0_ab`` offsets, so phi is in (Mpc/h)^-3 mag^-1. They are
+intrinsic unless a dust model is given (see :mod:`galform_analysis.dust`).
 See :mod:`galform_analysis.readers.bands` for how bands are named and
 selected.
 """
@@ -19,65 +20,24 @@ from galform_analysis.analysis.mass_functions._common import (
     _avg_phi_over_subvolumes,
 )
 from galform_analysis.config import DEFAULT_MAGNITUDE_BINS, get_base_dir
-from galform_analysis.readers.bands import (
-    COMPONENTS,
-    SYSTEMS,
-    ab_to_system_offset,
-    band_label,
-    band_luminosity,
-    find_band,
-    luminosity_to_magnitude,
-)
-from galform_analysis.readers.loaders import (
-    get_output_group,
-    open_galaxies_hdf5,
-    read_volumes,
-    resolve_redshift,
+from galform_analysis.dust.galaxy import Inclination
+from galform_analysis.dust.models import DustModel
+from galform_analysis.readers.magnitudes import (
+    Band,
+    check_magnitude_options,
+    read_band_magnitudes,
 )
 
-Band = Union[str, int]
-_BAND_KEYS = ("band", "band_index", "frame", "component", "system")
-
-
-def _check_choices(component: str, system: str) -> None:
-    if component not in COMPONENTS:
-        raise ValueError(
-            f"component must be one of {sorted(COMPONENTS)}, got {component!r}"
-        )
-    if system not in SYSTEMS:
-        raise ValueError(f"system must be one of {list(SYSTEMS)}, got {system!r}")
-
-
-def _read_magnitudes(
-    iz_path: str, ivol: int, band: Band, frame: str, component: str, system: str
-) -> Optional[Dict[str, Any]]:
-    """Magnitudes of one subvolume plus band, volume and redshift metadata.
-
-    Returns None if the file or its band data is missing; raises ValueError
-    if ``band`` is not in the file's band table.
-    """
-    f = open_galaxies_hdf5(iz_path, ivol=ivol)
-    if f is None:
-        return None
-    with f:
-        g = get_output_group(f)
-        if g is None or "Bands" not in f or "bandname" not in f["Bands"]:
-            return None
-        index = find_band(f, band, frame=frame)
-        lum = band_luminosity(g, index, component)
-        if lum is None:
-            return None
-        label, band_frame = band_label(f, index)
-        return {
-            "mag": luminosity_to_magnitude(lum) + ab_to_system_offset(f, index, system),
-            "band": label,
-            "band_index": index,
-            "frame": band_frame,
-            "component": component,
-            "system": system,
-            "z": resolve_redshift(f, iz_path, ivol),
-            "V_ivol": read_volumes(f)["V_ivol"],
-        }
+_BAND_KEYS = (
+    "band",
+    "band_index",
+    "frame",
+    "component",
+    "system",
+    "dust",
+    "inclination",
+)
+Dust = Optional[Union[str, DustModel]]
 
 
 def lf_given_redshift_and_subvolume(
@@ -88,6 +48,9 @@ def lf_given_redshift_and_subvolume(
     frame: str = "rest",
     component: str = "total",
     system: str = "AB",
+    dust: Dust = None,
+    inclination: Inclination = "random",
+    seed: int = 0,
 ) -> Optional[Dict[str, Any]]:
     """Compute the luminosity function of one band for a single subvolume.
 
@@ -101,10 +64,15 @@ def lf_given_redshift_and_subvolume(
         frame: 'rest' or 'observer'. Identical at z = 0.
         component: 'total' (disk + bulge), 'disk' or 'bulge'.
         system: 'AB' or 'Vega' magnitudes; ``bins`` are in this system.
+        dust: None for intrinsic magnitudes, or 'lacey16', 'baugh05' or a
+            ``DustModel`` for GALFORM's diffuse-dust attenuation.
+        inclination: With dust: 'random' (isotropic), 'average', 'face-on'
+            or degrees.
+        seed: Seed for random inclinations (see ``read_band_magnitudes``).
 
     Returns:
         dict with keys: iz, ivol, z, band, band_index, frame, component,
-        system, centers, phi [(Mpc/h)^-3 mag^-1], counts, V_ivol.
+        system, dust, inclination, centers, phi [(Mpc/h)^-3 mag^-1], counts, V_ivol.
         None if data is missing or no galaxy has positive luminosity.
 
     Raises:
@@ -114,13 +82,25 @@ def lf_given_redshift_and_subvolume(
             typo is not mistaken for missing data; the multi-snapshot
             functions inherit this.
         KeyError: if Vega magnitudes are requested from a file without
-            ``Bands/a0_ab``.
+            ``Bands/a0_ab``, or dust from one without the gas properties.
+        FileNotFoundError: if the dust attenuation table cannot be found
+            (set GALFORM_DATA_DIR).
     """
-    _check_choices(component, system)
+    check_magnitude_options(component, system, dust, inclination)
     if bins is None:
         bins = DEFAULT_MAGNITUDE_BINS
 
-    d = _read_magnitudes(iz_path, ivol, band, frame, component, system)
+    d = read_band_magnitudes(
+        iz_path,
+        ivol,
+        band,
+        frame=frame,
+        component=component,
+        system=system,
+        dust=dust,
+        inclination=inclination,
+        seed=seed,
+    )
     if d is None or d["V_ivol"] is None or d["V_ivol"] <= 0:
         return None
     mag = d["mag"][np.isfinite(d["mag"])]
@@ -150,6 +130,9 @@ def lfs_given_redshifts_and_subvolume(
     frame: str = "rest",
     component: str = "total",
     system: str = "AB",
+    dust: Dust = None,
+    inclination: Inclination = "random",
+    seed: int = 0,
     base_dir: Optional[str] = None,
 ) -> Optional[pl.DataFrame]:
     """LF for one subvolume across multiple snapshots, as a long-form DataFrame.
@@ -157,7 +140,7 @@ def lfs_given_redshifts_and_subvolume(
     Args:
         ivol: Subvolume index.
         iz_nums: Snapshot numbers (e.g. [121, 155, 207, 271]).
-        band, bins, frame, component, system: As for
+        band, bins, frame, component, system, dust, inclination, seed: As for
             ``lf_given_redshift_and_subvolume``.
         base_dir: Base directory; defaults to configured base dir.
 
@@ -179,6 +162,9 @@ def lfs_given_redshifts_and_subvolume(
             frame=frame,
             component=component,
             system=system,
+            dust=dust,
+            inclination=inclination,
+            seed=seed,
         )
         if res is None:
             continue
@@ -209,6 +195,9 @@ def avg_lf_given_redshift_and_subvolumes(
     frame: str = "rest",
     component: str = "total",
     system: str = "AB",
+    dust: Dust = None,
+    inclination: Inclination = "random",
+    seed: int = 0,
     base_dir: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Average LF over a list of subvolumes for one snapshot.
@@ -216,7 +205,7 @@ def avg_lf_given_redshift_and_subvolumes(
     Args:
         iz_num: Snapshot number (e.g. 271 for 'iz271').
         ivols: Subvolume indices to average over.
-        band, bins, frame, component, system: As for
+        band, bins, frame, component, system, dust, inclination, seed: As for
             ``lf_given_redshift_and_subvolume``.
         base_dir: Base directory; defaults to configured base dir.
 
@@ -241,6 +230,9 @@ def avg_lf_given_redshift_and_subvolumes(
         frame=frame,
         component=component,
         system=system,
+        dust=dust,
+        inclination=inclination,
+        seed=seed,
     )
     if res is None:
         return None
@@ -256,6 +248,9 @@ def avg_lf_given_redshifts_and_subvolume(
     frame: str = "rest",
     component: str = "total",
     system: str = "AB",
+    dust: Dust = None,
+    inclination: Inclination = "random",
+    seed: int = 0,
     base_dir: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Average LF for one subvolume across multiple snapshots.
@@ -263,7 +258,7 @@ def avg_lf_given_redshifts_and_subvolume(
     Args:
         ivol: Subvolume index.
         iz_nums: Snapshot numbers to average over.
-        band, bins, frame, component, system: As for
+        band, bins, frame, component, system, dust, inclination, seed: As for
             ``lf_given_redshift_and_subvolume``.
         base_dir: Base directory; defaults to configured base dir.
 
@@ -296,6 +291,9 @@ def avg_lf_given_redshifts_and_subvolume(
         frame=frame,
         component=component,
         system=system,
+        dust=dust,
+        inclination=inclination,
+        seed=seed,
     )
     if res is None:
         return None

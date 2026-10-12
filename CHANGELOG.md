@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Dust attenuation** (`galform_analysis.dust`): GALFORM's diffuse-dust
+  model, vectorised over galaxies. Dust lives in the gas disk
+  (central tau_V0 = C_V Z_cold Sigma_gas0); disk and bulge light are attenuated
+  using the Ferrara et al. (1999) tables, by inclination, wavelength and
+  bulge/disk size. Ongoing bursts add their own dust. Presets `lacey16`
+  (fcloud = 0.5, the lc16 model) and `baugh05`, or any `DustModel`. It
+  reproduces the dust-attenuated magnitudes of GALFORM's own post-processing
+  to < 1e-5 mag on L800/lc16 galaxies from GALEX-FUV to IRAC 8 micron. Burst
+  dust follows GALFORM's in-run code, because the post-processing tool leaves
+  the burst dust mass unset. Not included: extra attenuation of stars younger
+  than t_esc inside molecular clouds, which needs GALFORM's `neta` tables.
+- Every luminosity-function function takes `dust=`, `inclination=`
+  ("random", "average", "face-on" or degrees) and `seed=`.
+- `read_band_magnitudes`: per-galaxy magnitudes of one subvolume, intrinsic
+  or with dust.
+- Example notebook `examples/dust/dust_attenuation.ipynb`.
+
 ### Changed
 
 - Example notebooks use the `k.wang` style from
