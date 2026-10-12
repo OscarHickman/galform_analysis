@@ -230,7 +230,7 @@ metadata in [`CITATION.cff`](https://github.com/OscarHickman/galform_analysis/bl
 @software{galform_analysis,
   author  = {Hickman, Oscar},
   title   = {galform_analysis: A modular Python framework for analysing GALFORM simulation outputs},
-  version = {0.3.0},
+  version = {0.4.0},
   url     = {https://github.com/OscarHickman/galform_analysis}
 }
 ```
