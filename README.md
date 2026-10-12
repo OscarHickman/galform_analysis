@@ -5,205 +5,236 @@
 [![CI](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/OscarHickman/galform_analysis/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A modular Python framework for reading and analysing outputs of the
-[GALFORM](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462.3854L) semi-analytic
-model of galaxy formation, stored as `galaxies.hdf5` files. It covers everything
-from low-level HDF5 I/O to mass functions, clustering statistics and
-redshift-space distortions.
+Python tools for reading the `galaxies.hdf5` files written by the
+[GALFORM](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462.3854L) galaxy
+formation model and measuring things from them: mass and luminosity functions,
+halo occupation, dust attenuation and clustering.
 
-## Features
-
-- **I/O**: robust readers for GALFORM `galaxies.hdf5` files, tolerant of
-  different output versions and incomplete subvolumes.
-- **Aggregation**: scan a snapshot directory and stack galaxies across
-  subvolumes into [polars](https://pola.rs) DataFrames.
-- **Mass functions**: stellar mass functions (SMF), halo mass functions (HMF)
-  and halo occupation distributions (HOD), per subvolume or averaged over
-  subvolumes and snapshots.
-- **Luminosity functions**: in any band GALFORM wrote (SDSS, UKIRT, Bj,
-  GALEX, JWST, ...), rest or observer frame, AB or Vega, total/disk/bulge.
-- **Dust attenuation**: GALFORM's diffuse-dust model (Lacey et al. 2016
-  parameters by default), reproducing GALFORM's attenuated magnitudes, for
-  luminosity functions and per-galaxy magnitudes.
-- **Theoretical predictions** *(optional)*: halo mass functions from
-  [hmf](https://github.com/halofit/hmf) with GALFORM's Mvir mass definition,
-  the GPS+ model, and the linear matter correlation function from CAMB.
-- **Clustering** *(optional)*: real-space 2-point correlation functions,
-  satellite–central cross-correlations and galaxy bias, built on
-  [Corrfunc](https://github.com/manodeep/Corrfunc).
-- **Subvolume-weighted corrections** *(optional)*: ξ(r) and projected w_p(r_p)
-  from an auto/cross pair-count decomposition that removes the sub-sampling
-  bias when only some subvolumes are used.
-- **Redshift-space distortions** *(optional)*: ξ(s, μ) and the multipoles
-  ξ₀, ξ₂, ξ₄.
-- **Simulation metadata**: box sizes, cosmologies and snapshot redshifts for
-  L800, Millennium I/II, EAGLE, COLIBRE, FLAMINGO, Dove and nIFTy.
-
-## Installation
+## Install
 
 ```bash
 pip install galform_analysis
 ```
 
-The base install covers I/O, aggregation, simulation metadata and the
-SMF/HMF/HOD. Optional features are available as extras:
+This is enough for reading data, mass functions, luminosity functions and
+dust. Two extras add the rest:
 
-| Extra | Installs | Needed for |
+| Extra | Adds | For |
 |---|---|---|
 | `clustering` | Corrfunc | correlation functions, w_p, bias, RSD multipoles |
-| `science` | hmf, astropy, CAMB, colossus, SciPy | theoretical HMFs, linear matter ξ(r) |
-| `all` | both of the above | everything |
+| `science` | hmf, astropy, CAMB, colossus, SciPy | theoretical halo mass functions, linear matter ξ(r) |
+| `all` | both | everything |
 
 ```bash
 pip install "galform_analysis[all]"
 ```
 
-**Note on `clustering`:** Corrfunc is distributed only as source and compiles
-during installation. It needs a C compiler with OpenMP and the GSL headers,
-for example `sudo apt-get install libgsl-dev` (Debian/Ubuntu),
-`brew install gsl` (macOS) or `module load gsl` on an HPC cluster. If an
-optional dependency is missing, the functions that need it raise an
-`ImportError` naming the extra to install. The rest of the package still works.
+Corrfunc is compiled during installation, so `clustering` needs a C compiler
+with OpenMP and the GSL headers (`sudo apt-get install libgsl-dev`,
+`brew install gsl`, or `module load gsl` on a cluster). If an extra is
+missing, only the functions that need it fail, with an error saying which
+extra to install.
 
-galform_analysis supports Python 3.10–3.14 and is tested on Linux.
+Python 3.10 to 3.14 is supported.
 
-## Quick start
+## Before you start
 
-GALFORM writes one directory per snapshot, each holding one or more
-subvolumes:
+GALFORM writes one directory per snapshot, with one or more subvolumes in
+each:
 
 ```
 <base_dir>/iz<NNN>/ivol<M>/galaxies.hdf5
 ```
 
-Each `ivol` is an independent realisation of the full simulation box, not a
-spatial tile of it.
+Each `ivol` is an independent realisation of the whole simulation box, not a
+piece of it.
 
-### Simulation metadata
+Tell the package where your output is, once per session:
 
 ```python
-from galform_analysis import (
-    SimulationConfig,
-    find_snapshot_at_redshift,
-    get_snapshot_redshift,
-)
+import galform_analysis
 
-sim = SimulationConfig("L800")
-print(sim.box_size, sim.omega_m, sim.h0, sim.n_subvolumes)
-
-# Snapshot closest to z = 1 for this simulation: "iz176"
-snapshot = find_snapshot_at_redshift(1.0, "L800")
-z = get_snapshot_redshift(snapshot, "L800")
+galform_analysis.set_base_dir("/path/to/Galform_Out/L800/model")
 ```
 
-### Reading a subvolume
+or set the `GALFORM_BASE_DIR` environment variable. Functions that take a
+snapshot number, such as `271` for `iz271`, look inside this directory.
+Functions that take a path, such as `".../iz271"`, do not need it.
+
+**Units.** Masses are in M☉/h and lengths in Mpc/h, as GALFORM writes
+them. Number densities φ are per (Mpc/h)³ per dex (mass functions) or per
+magnitude (luminosity functions). Absolute magnitudes are M − 5 log₁₀ h.
+
+## How to
+
+### Read one subvolume
 
 ```python
 from galform_analysis import close_snapshot, read_snapshot_data
 
 data = read_snapshot_data("/path/to/Galform_Out/L800/model/iz271", ivol=0)
-mstar = data["mstar"]  # stellar mass (disk + bulge), M_sun/h
-mhalo = data["mhalo"]  # halo mass, M_sun/h
+mstar = data["mstar"]   # stellar mass, disk + bulge
+mhalo = data["mhalo"]   # halo mass
 print(data["z"], data["V_ivol"])
-close_snapshot(data)  # releases the open HDF5 file handle
+close_snapshot(data)    # close the HDF5 file
 ```
 
-### Stellar and halo mass functions
+For a table with positions and other fields, use
+`galform_analysis.utils.read_galaxies.read_galaxies_dataframe`.
+
+### Measure a stellar mass function
 
 ```python
-from galform_analysis import set_base_dir, smf_given_redshift_and_subvolume
-from galform_analysis.analysis import avg_smf_given_redshift_and_subvolumes
+from galform_analysis import (
+    avg_smf_given_redshift_and_subvolumes,
+    smf_given_redshift_and_subvolume,
+)
 
-set_base_dir("/path/to/Galform_Out/L800/model")
-
+# One subvolume
 smf = smf_given_redshift_and_subvolume("/path/to/Galform_Out/L800/model/iz271", ivol=0)
-smf["centers"], smf["phi"]  # log10(M*) bin centres, phi in (Mpc/h)^-3 dex^-1
+smf["centers"], smf["phi"]   # log10(M*) bin centres and phi
 
-# Mean and scatter over subvolumes 0-7 of snapshot iz271, under the base dir
+# Mean and scatter over subvolumes 0-7 of iz271
 avg = avg_smf_given_redshift_and_subvolumes(271, ivols=list(range(8)))
 avg["phi"], avg["phi_std"]
 ```
 
-### Luminosity functions
+Halo mass functions work the same way (`hmf_given_redshift_and_subvolume`,
+`avg_hmf_given_redshift_and_subvolumes`), as does the halo occupation
+distribution (`hod_given_redshift_and_subvolume` in
+`galform_analysis.analysis`). Pass `bins=` to change the bins.
 
-GALFORM writes intrinsic (dust-free) luminosities for every band in its filter
-list. Bands are named by the first word of their GALFORM description:
+### Measure a luminosity function
+
+GALFORM stores a luminosity for every galaxy in every band listed in its run
+parameters. To see which bands a run has:
+
+```python
+from galform_analysis import list_bands
+
+list_bands("/path/to/Galform_Out/L800/model/iz271")
+```
+
+Pick a band by its `label`, which is the first word of the GALFORM band name,
+such as `"SDSS-r"`, `"UKIRT-K"` or `"Bj"`. Labels are case-sensitive: `"R"` is
+Cousins R and `"SDSS-r"` is SDSS r.
 
 ```python
 from galform_analysis import (
     avg_lf_given_redshift_and_subvolumes,
     lf_given_redshift_and_subvolume,
-    list_bands,
 )
 
-list_bands("/path/to/Galform_Out/L800/model/iz271")  # index, label, frame, ...
-
+# r band, one subvolume
 lf = lf_given_redshift_and_subvolume(
     "/path/to/Galform_Out/L800/model/iz271", ivol=0, band="SDSS-r"
 )
-lf["centers"], lf["phi"]  # M - 5log10(h) bin centres, phi in (Mpc/h)^-3 mag^-1
+lf["centers"], lf["phi"]   # magnitude bin centres and phi
 
-# K band in Vega magnitudes, averaged over subvolumes 0-7 of iz271
+# K band in Vega magnitudes, averaged over subvolumes 0-7
 avg = avg_lf_given_redshift_and_subvolumes(
     271, ivols=list(range(8)), band="UKIRT-K", system="Vega"
 )
 ```
 
-Use `frame="observer"` for observer-frame bands and `component="disk"` or
-`"bulge"` for one component's light.
+Other options: `frame="observer"` for observer-frame magnitudes, and
+`component="disk"` or `"bulge"` for the light of one component only.
 
-To include dust, pass `dust="lacey16"`. This applies GALFORM's diffuse-dust model
-with random inclinations; `inclination="average"`, `"face-on"` or an angle
-are also accepted. The attenuation tables come with GALFORM: set
-`GALFORM_DATA_DIR` to GALFORM's `Data` directory.
+### Add dust
 
-```python
-avg_dusty = avg_lf_given_redshift_and_subvolumes(
-    271, ivols=list(range(8)), band="Bj", system="Vega", dust="lacey16"
-)
+By default luminosities are intrinsic, with no dust. Pass `dust="lacey16"` to
+apply GALFORM's dust model with the parameters of Lacey et al. (2016). The
+result matches the dust-attenuated magnitudes GALFORM itself produces.
+
+The dust model reads attenuation tables that ship with GALFORM, so first set
+`GALFORM_DATA_DIR` to the `Data` directory of your GALFORM copy:
+
+```bash
+export GALFORM_DATA_DIR=/path/to/galform/Data
 ```
 
-### Correlation functions (requires `clustering`)
+```python
+from galform_analysis import (
+    avg_lf_given_redshift_and_subvolumes,
+    read_band_magnitudes,
+)
+
+# bJ luminosity function with dust
+avg = avg_lf_given_redshift_and_subvolumes(
+    271, ivols=list(range(8)), band="Bj", system="Vega", dust="lacey16"
+)
+
+# Magnitudes of every galaxy in one subvolume, with and without dust
+iz = "/path/to/Galform_Out/L800/model/iz271"
+intrinsic = read_band_magnitudes(iz, 0, "SDSS-r")["mag"]
+attenuated = read_band_magnitudes(iz, 0, "SDSS-r", dust="lacey16")["mag"]
+```
+
+Each galaxy gets a random orientation, the same in every band, so colours
+are consistent. Use `inclination="face-on"`, `"average"` or an angle in
+degrees to change this, and `seed=` to change the random draw.
+
+Not included: the extra dimming of very young stars (under 1 Myr old) inside
+their birth clouds. GALFORM needs extra tables for this that are not in
+`galaxies.hdf5`. It mostly affects the far-UV.
+
+### Measure a correlation function (needs `clustering`)
 
 ```python
 import numpy as np
 from galform_analysis import compute_xi_corrfunc
 
 rng = np.random.default_rng(1)
-positions = rng.uniform(0, 100.0, size=(20_000, 3))  # (N, 3) array, Mpc/h
-rbins = np.logspace(0, 1.5, 11)  # 1-32 Mpc/h
+positions = rng.uniform(0, 100.0, size=(20_000, 3))   # (N, 3) array in Mpc/h
+rbins = np.logspace(0, 1.5, 11)                       # 1 to 32 Mpc/h
 xi = compute_xi_corrfunc(positions, boxsize=100.0, rbins=rbins, nthreads=4)
-xi["r"], xi["xi"]  # consistent with zero for a uniform random field
+xi["r"], xi["xi"]   # a polars DataFrame; xi is close to zero for random points
 ```
 
-Functions that read data take `nthreads` arguments for Corrfunc. On shared
-compute nodes, set these (and `OMP_NUM_THREADS`) to your allocation.
+To go straight from a subvolume, use `correlation_given_redshift_and_subvolume`.
+On a shared machine, set `nthreads` (and `OMP_NUM_THREADS`) to the number of
+cores you have been given.
 
-## Configuration
+### Look up a simulation
 
-- **Data location**: call `galform_analysis.set_base_dir(path)` or set the
-  `GALFORM_BASE_DIR` environment variable. Functions that take a snapshot
-  number (such as `271` for `iz271`) rather than a path resolve it against
-  this directory, unless you pass `base_dir=`. There is no default: if none is
-  configured these functions raise an error explaining how to set one.
-- **Simulation configs**: these come from the
-  [galform_execution](https://pypi.org/project/galform_execution/) package, so
-  analysis and execution use identical parameters. A copy bundled with this
-  package is used as a fallback.
-- **Snapshot redshifts**: `load_redshift_mapping(sim_name)` maps `iz` indices
-  to redshifts for simulations with a bundled redshift list.
+```python
+from galform_analysis import SimulationConfig, find_snapshot_at_redshift
 
-## Examples
+sim = SimulationConfig("L800")
+print(sim.box_size, sim.omega_m, sim.h0, sim.n_subvolumes)
 
-Jupyter notebooks covering each module are in the
-[`examples/`](https://github.com/OscarHickman/galform_analysis/tree/main/examples)
-directory of the repository, including
-[reading snapshots](https://github.com/OscarHickman/galform_analysis/blob/main/examples/readers/load_snapshot.ipynb),
-[stellar mass functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/smf.ipynb),
-[luminosity functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/luminosity_functions/lf.ipynb),
-[dust attenuation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/dust/dust_attenuation.ipynb),
-[correlation functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/correlation.ipynb)
-and [RSD multipoles](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/redshift_space_distortions/multipoles.ipynb).
+find_snapshot_at_redshift(1.0, "L800")   # the snapshot nearest z = 1
+```
+
+Simulations included: L800, Millennium I and II, EAGLE, COLIBRE, FLAMINGO,
+Dove and nIFTy. Their settings come from the
+[galform_execution](https://pypi.org/project/galform_execution/) package, so
+analysis and runs use the same values.
+
+## Example notebooks
+
+The [`examples/`](https://github.com/OscarHickman/galform_analysis/tree/main/examples)
+folder has one notebook per topic, each run on the L800 simulation:
+
+| Topic | Notebook |
+|---|---|
+| Reading a snapshot | [load_snapshot](https://github.com/OscarHickman/galform_analysis/blob/main/examples/readers/load_snapshot.ipynb) |
+| Galaxy tables and positions | [read_galaxies](https://github.com/OscarHickman/galform_analysis/blob/main/examples/utils/read_galaxies.ipynb) |
+| Stacking all subvolumes | [aggregation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/aggregation.ipynb) |
+| Stellar mass function | [smf](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/smf.ipynb) |
+| Halo mass function | [hmf](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/hmf.ipynb) |
+| Halo occupation | [hod](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/hod.ipynb) |
+| Luminosity functions | [lf](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/luminosity_functions/lf.ipynb) |
+| Dust attenuation | [dust_attenuation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/dust/dust_attenuation.ipynb) |
+| Correlation function | [correlation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/correlation.ipynb) |
+| Galaxy bias | [bias](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/bias.ipynb) |
+| Satellite–central cross-correlation | [cross_correlation](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/cross_correlation.ipynb) |
+| Using only some subvolumes | [subvol_weighted](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/subvol_weighted.ipynb) |
+| Redshift-space multipoles | [multipoles](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/redshift_space_distortions/multipoles.ipynb) |
+
+The figures use the `k.wang` style from
+[oh-mpl-paper](https://pypi.org/project/oh-mpl-paper/), which sizes them for
+an MNRAS column.
 
 ## Development
 
@@ -212,24 +243,25 @@ git clone https://github.com/OscarHickman/galform_analysis.git
 cd galform_analysis
 pip install -e ".[all,dev]"
 
-pytest tests --cov       # test suite with coverage (CI requires >= 80%)
-ruff check galform_analysis tests
-ruff format galform_analysis tests
+pytest tests --cov                   # tests and coverage (CI needs 80% or more)
+ruff check galform_analysis tests    # lint
+ruff format galform_analysis tests   # format
 ```
 
-The tests build synthetic `galaxies.hdf5` files that follow the real GALFORM
-schema, so no simulation data is needed. Tests that need an optional
-dependency are skipped when it is not installed.
+The tests make small fake `galaxies.hdf5` files with the same layout as real
+ones, so no simulation data is needed. Tests for an extra are skipped if it is
+not installed. The tests that compare the dust model with GALFORM's own output
+also need `GALFORM_DATA_DIR`.
 
 ## Citation
 
-If you use galform_analysis in your research, please cite it using the
-metadata in [`CITATION.cff`](https://github.com/OscarHickman/galform_analysis/blob/main/CITATION.cff):
+If you use galform_analysis in published work, please cite it
+([`CITATION.cff`](https://github.com/OscarHickman/galform_analysis/blob/main/CITATION.cff)):
 
 ```bibtex
 @software{galform_analysis,
   author  = {Hickman, Oscar},
-  title   = {galform_analysis: A modular Python framework for analysing GALFORM simulation outputs},
+  title   = {galform_analysis: Python tools for analysing GALFORM galaxy formation model outputs},
   version = {0.4.0},
   url     = {https://github.com/OscarHickman/galform_analysis}
 }
