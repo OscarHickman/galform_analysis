@@ -29,6 +29,7 @@ requirements:
     - polars >=1.0.0
     - h5py >=3.0.0
     - galform_execution >=0.2.4
+    - oh-mpl-paper >=0.1.0
   run_constrained:
     # Optional extras ([clustering], [science]); not installed by default.
     - corrfunc >=2.3.0

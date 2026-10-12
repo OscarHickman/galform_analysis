@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Example notebooks use the `k.wang` style from
+  [oh-mpl-paper](https://pypi.org/project/oh-mpl-paper/), now a dependency,
+  and were re-run on L800/lc16.
+
 ## [0.3.0] - 2026-10-12
 
 ### Added

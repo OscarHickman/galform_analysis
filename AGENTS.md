@@ -74,7 +74,9 @@ Tests use synthetic HDF5 files built by `tests/conftest.py` (`write_galaxy_hdf5`
 
 ### Dependencies
 
-Runtime: `numpy`, `polars`, `h5py`, `matplotlib`, `galform_execution`
+Runtime: `numpy`, `polars`, `h5py`, `matplotlib`, `galform_execution`, `oh-mpl-paper`
+
+Example notebooks style figures with `oh_mpl_paper.setconfig("k.wang")` (MNRAS single-column, constrained layout). Don't call `fig.tight_layout()`, and size multi-panel figures to the double-column width, e.g. `figsize=(6.97, 2.8)`.
 Extras: `clustering` (`Corrfunc`), `science` (`scipy`, `hmf`, `camb`, `colossus`), `all` (both), `dev` (`pytest`, `pytest-cov`, `ruff`, `build`, `twine`)
 
 Optional dependencies are imported lazily via `galform_analysis._optional.import_optional`, never at module level, so the base install works from wheels alone. CI runs the tests against the installed wheel both without extras and with `[all]`; tests needing an extra must skip when it is absent.
