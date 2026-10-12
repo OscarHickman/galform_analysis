@@ -7,10 +7,14 @@ from galform_analysis.analysis import (
     aggregate_snapshot,
     avg_hmf_given_redshift_and_subvolumes,
     avg_hmf_given_redshifts_and_subvolume,
+    avg_lf_given_redshift_and_subvolumes,
+    avg_lf_given_redshifts_and_subvolume,
     avg_smf_given_redshift_and_subvolumes,
     avg_smf_given_redshifts_and_subvolume,
     hmf_given_redshift_and_subvolume,
     hmfs_given_redshifts_and_subvolume,
+    lf_given_redshift_and_subvolume,
+    lfs_given_redshifts_and_subvolume,
     smf_given_redshift_and_subvolume,
     smfs_given_redshifts_and_subvolume,
 )
@@ -37,7 +41,7 @@ from galform_analysis.config import (
     load_sim_config,
     set_base_dir,
 )
-from galform_analysis.readers import close_snapshot, read_snapshot_data
+from galform_analysis.readers import close_snapshot, list_bands, read_snapshot_data
 
 __all__ = [
     "__version__",
@@ -55,6 +59,7 @@ __all__ = [
     # I/O
     "read_snapshot_data",
     "close_snapshot",
+    "list_bands",
     # Aggregation
     "aggregate_snapshot",
     # HMF
@@ -67,6 +72,11 @@ __all__ = [
     "smfs_given_redshifts_and_subvolume",
     "avg_smf_given_redshift_and_subvolumes",
     "avg_smf_given_redshifts_and_subvolume",
+    # Luminosity functions
+    "lf_given_redshift_and_subvolume",
+    "lfs_given_redshifts_and_subvolume",
+    "avg_lf_given_redshift_and_subvolumes",
+    "avg_lf_given_redshifts_and_subvolume",
     # Galaxy 2PCF
     "compute_xi_corrfunc",
     "correlation_given_redshift_and_subvolume",
