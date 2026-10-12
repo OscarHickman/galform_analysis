@@ -46,12 +46,18 @@ def write_band_catalogue(
     redshift=None,
     write_band_table=True,
     write_band_lums=True,
+    gas=None,
+    parameters=None,
+    lambda_eff=None,
 ):
     """Write ``base/iz<iz_num>/ivol<ivol>/galaxies.hdf5`` and return its iz dir.
 
     ``lum_disk`` and ``lum_bulge`` map a 1-based band index to an array of
     luminosities; bands not listed get zeros. ``lum_bulge`` defaults to zeros.
-    ``a0_ab`` is written as ``Bands/a0_ab`` unless it is None.
+    ``a0_ab`` is written as ``Bands/a0_ab`` unless it is None. ``gas`` maps
+    output-group dataset names (e.g. ``mcold``) to per-galaxy arrays and
+    ``parameters`` maps ``Parameters`` names (e.g. ``h0``) to scalars.
+    ``lambda_eff`` defaults to 5000 A for every band.
     """
     lum_bulge = lum_bulge or {}
     n_gal = len(next(iter(lum_disk.values())))
@@ -59,16 +65,18 @@ def write_band_catalogue(
     ivol_dir = iz_dir / f"ivol{ivol}"
     ivol_dir.mkdir(parents=True, exist_ok=True)
     with h5py.File(ivol_dir / "galaxies.hdf5", "w") as f:
+        params = f.create_group("Parameters")
         if volume is not None:
-            f.create_group("Parameters").create_dataset(
-                "volume", data=np.float64(volume)
-            )
+            params.create_dataset("volume", data=np.float64(volume))
+        for name, value in (parameters or {}).items():
+            params.create_dataset(name, data=np.float64(value))
         if write_band_table:
             table = f.create_group("Bands")
             table.create_dataset("bandname", data=[b[0].encode() for b in bands])
             table.create_dataset("iselect", data=np.array([b[1] for b in bands]))
             table.create_dataset("idband", data=np.array([b[2] for b in bands]))
-            table.create_dataset("lambda_eff", data=np.full(len(bands), 5000.0))
+            lam = np.full(len(bands), 5000.0) if lambda_eff is None else lambda_eff
+            table.create_dataset("lambda_eff", data=np.asarray(lam, np.float32))
             table.create_dataset("nband", data=np.int32(len(bands)))
             if a0_ab is not None:
                 table.create_dataset("a0_ab", data=np.asarray(a0_ab, np.float32))
@@ -77,6 +85,8 @@ def write_band_catalogue(
         g.create_dataset("mstars_bulge", data=np.ones(n_gal))
         if redshift is not None:
             g.create_dataset("redshift", data=np.float64(redshift))
+        for name, arr in (gas or {}).items():
+            g.create_dataset(name, data=np.asarray(arr, dtype=np.float32))
         if write_band_lums:
             lums = g.create_group("Bands")
             zeros = np.zeros(n_gal, dtype=np.float32)
