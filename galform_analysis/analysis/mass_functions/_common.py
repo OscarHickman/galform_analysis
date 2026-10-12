@@ -55,3 +55,39 @@ def _avg_phi_over_snapshots(
         "n_used": per_phi_arr.shape[0],
         "n_requested": len(iz_nums),
     }
+
+
+def _avg_phi_over_subvolumes(
+    single_fn: Callable,
+    iz_num: int,
+    ivols: List[int],
+    bins: np.ndarray,
+    base_dir: str,
+    **kwargs,
+) -> Optional[Dict[str, Any]]:
+    """Average phi across subvolumes of one snapshot.
+
+    Calls single_fn(iz_path, ivol, bins=bins, **kwargs) for each subvolume and
+    averages the resulting phi arrays. ``first`` holds the first valid result,
+    so callers can copy per-snapshot metadata from it.
+    """
+    iz_path = os.path.join(base_dir, f"iz{iz_num}")
+    if not os.path.isdir(iz_path):
+        return None
+
+    results = [single_fn(iz_path, iv, bins=bins, **kwargs) for iv in ivols]
+    results = [res for res in results if res is not None]
+    if not results:
+        return None
+
+    per_phi = np.array([res["phi"] for res in results])
+    return {
+        "iz": f"iz{iz_num}",
+        "z": results[0]["z"],
+        "centers": results[0]["centers"],
+        "phi": per_phi.mean(axis=0),
+        "phi_std": per_phi.std(axis=0),
+        "n_used": per_phi.shape[0],
+        "n_requested": len(ivols),
+        "first": results[0],
+    }

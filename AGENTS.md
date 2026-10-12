@@ -41,7 +41,8 @@ Each `ivol` is an **independent full-box realisation** (not a spatial tile) of t
 | Config | `galform_analysis/config.py` | `SimulationConfig`, `set_base_dir`, `load_redshift_mapping` |
 | Readers | `galform_analysis/readers/loaders.py` | Low-level HDF5 open/read; `read_snapshot_data` returns raw arrays + open file handle |
 | Utils | `galform_analysis/utils/read_galaxies.py` | `read_galaxy_arrays`, `read_galaxy_positions`, `read_halo_positions` – filtered, normalised NumPy arrays |
-| Analysis | `galform_analysis/analysis/` | SMF, HMF, HOD, 2PCF, RSD multipoles |
+| Bands | `galform_analysis/readers/bands.py` | Filter table lookup (`list_bands`, `find_band`), per-band luminosities → magnitudes |
+| Analysis | `galform_analysis/analysis/` | SMF, HMF, HOD, luminosity functions, 2PCF, RSD multipoles |
 | Aggregation | `galform_analysis/analysis/aggregation.py` | Scan & stack data across many ivols using polars |
 
 ### Key data-flow for correlation functions
@@ -63,6 +64,7 @@ Sourced from `galform_execution` (PyPI package) at runtime: `galform_execution/c
 - Halo mass = `mhalo` (subhalo), `mhhalo` (host/FOF)
 - Positions = `xgal`, `ygal`, `zgal` in Mpc/h, spanning [0, 542.16)
 - Central galaxies: `is_central == 1`
+- Band luminosities = `OutputNNN/Bands/BandNNN_Lum_{Disk,Bulge}` (NNN = 1-based row of the file-level `Bands/bandname` table). Intrinsic (no dust). Magnitude `M_AB - 5 log10 h = -2.5 log10(L_disk + L_bulge)`; `M_Vega = M_AB + Bands/a0_ab`. `Bands/iselect`: 0 = rest frame, 1 = observer frame, ≥2 = special outputs. Bands are named by the first word of `bandname` (case-sensitive: `R` is Cousins, `SDSS-r` is SDSS)
 - `CompletionFlag == 1` means the subvolume finished successfully
 - All masses in M_sun/h
 

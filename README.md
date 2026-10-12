@@ -20,6 +20,8 @@ redshift-space distortions.
 - **Mass functions**: stellar mass functions (SMF), halo mass functions (HMF)
   and halo occupation distributions (HOD), per subvolume or averaged over
   subvolumes and snapshots.
+- **Luminosity functions**: in any band GALFORM wrote (SDSS, UKIRT, Bj,
+  GALEX, JWST, ...), rest or observer frame, AB or Vega, total/disk/bulge.
 - **Theoretical predictions** *(optional)*: halo mass functions from
   [hmf](https://github.com/halofit/hmf) with GALFORM's Mvir mass definition,
   the GPS+ model, and the linear matter correlation function from CAMB.
@@ -119,6 +121,34 @@ avg = avg_smf_given_redshift_and_subvolumes(271, ivols=list(range(8)))
 avg["phi"], avg["phi_std"]
 ```
 
+### Luminosity functions
+
+GALFORM writes intrinsic (dust-free) luminosities for every band in its filter
+list. Bands are named by the first word of their GALFORM description:
+
+```python
+from galform_analysis import (
+    avg_lf_given_redshift_and_subvolumes,
+    lf_given_redshift_and_subvolume,
+    list_bands,
+)
+
+list_bands("/path/to/Galform_Out/L800/model/iz271")  # index, label, frame, ...
+
+lf = lf_given_redshift_and_subvolume(
+    "/path/to/Galform_Out/L800/model/iz271", ivol=0, band="SDSS-r"
+)
+lf["centers"], lf["phi"]  # M - 5log10(h) bin centres, phi in (Mpc/h)^-3 mag^-1
+
+# K band in Vega magnitudes, averaged over subvolumes 0-7 of iz271
+avg = avg_lf_given_redshift_and_subvolumes(
+    271, ivols=list(range(8)), band="UKIRT-K", system="Vega"
+)
+```
+
+Use `frame="observer"` for observer-frame bands and `component="disk"` or
+`"bulge"` for one component's light.
+
 ### Correlation functions (requires `clustering`)
 
 ```python
@@ -156,6 +186,7 @@ Jupyter notebooks covering each module are in the
 directory of the repository, including
 [reading snapshots](https://github.com/OscarHickman/galform_analysis/blob/main/examples/readers/load_snapshot.ipynb),
 [stellar mass functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/mass_functions/smf.ipynb),
+[luminosity functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/luminosity_functions/lf.ipynb),
 [correlation functions](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/correlation/correlation.ipynb)
 and [RSD multipoles](https://github.com/OscarHickman/galform_analysis/blob/main/examples/analysis/redshift_space_distortions/multipoles.ipynb).
 

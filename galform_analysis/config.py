@@ -238,3 +238,5 @@ DEFAULT_RBINS = np.logspace(-1, 1.5, 21)
 DEFAULT_STELLAR_MASS_BINS = np.arange(8.0, 12.6, 0.2)
 DEFAULT_HALO_MASS_BINS = np.arange(10.0, 15.5, 0.2)
 DEFAULT_SSFR_BINS = np.arange(-10.0, 5.0, 0.1)
+# Absolute magnitude M - 5 log10 h, bright to faint.
+DEFAULT_MAGNITUDE_BINS = np.arange(-25.0, -13.9, 0.25)

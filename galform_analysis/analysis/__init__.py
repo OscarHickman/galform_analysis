@@ -6,6 +6,12 @@ from .correlation import (
     compute_xi_corrfunc,
     correlation_given_redshift_and_subvolume,
 )
+from .luminosity_functions import (
+    avg_lf_given_redshift_and_subvolumes,
+    avg_lf_given_redshifts_and_subvolume,
+    lf_given_redshift_and_subvolume,
+    lfs_given_redshifts_and_subvolume,
+)
 from .mass_functions import (
     avg_hmf_given_redshift_and_subvolumes,
     avg_hmf_given_redshifts_and_subvolume,
@@ -40,6 +46,11 @@ __all__ = [
     "hods_given_redshifts_and_subvolume",
     "avg_hod_given_redshift_and_subvolumes",
     "avg_hod_given_redshifts_and_subvolume",
+    # Luminosity functions
+    "lf_given_redshift_and_subvolume",
+    "lfs_given_redshifts_and_subvolume",
+    "avg_lf_given_redshift_and_subvolumes",
+    "avg_lf_given_redshifts_and_subvolume",
     # Correlation functions
     "compute_xi_corrfunc",
     "correlation_given_redshift_and_subvolume",

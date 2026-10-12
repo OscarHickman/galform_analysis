@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Luminosity functions** (`galform_analysis.analysis.luminosity_functions`):
+  `lf_given_redshift_and_subvolume`, `lfs_given_redshifts_and_subvolume`,
+  `avg_lf_given_redshift_and_subvolumes` and
+  `avg_lf_given_redshifts_and_subvolume`, mirroring the SMF API. They read
+  GALFORM's intrinsic per-band luminosities (`Bands/BandNNN_Lum_Disk/Bulge`)
+  and use GALFORM's conversion `M - 5 log10 h = -2.5 log10(L)` (AB). Options:
+  `frame` ("rest"/"observer"), `system` ("AB"/"Vega", via `Bands/a0_ab`) and
+  `component` ("total"/"disk"/"bulge"). Also `schechter_magnitude` for
+  overlaying Schechter fits.
+- `galform_analysis.readers.bands`: `list_bands` (filter table of a file),
+  `find_band`, `band_luminosity`, `ab_to_system_offset` and
+  `luminosity_to_magnitude`.
+- `DEFAULT_MAGNITUDE_BINS` in `galform_analysis.config`.
+- Example notebook `examples/analysis/luminosity_functions/lf.ipynb`.
+
 ## [0.2.0] - 2026-10-09
 
 Several fixes below change numerical results. **Recompute** any subvolume-

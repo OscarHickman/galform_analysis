@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 
 from galform_analysis.config import N_SUBVOLUMES
+from galform_analysis.readers.bands import band_luminosity
 
 _IVOL_DIR_RE = re.compile(r"^ivol(\d+)$")
 # "z = 1.496", but not the "z=" inside "iz= 155".
@@ -252,13 +253,9 @@ def _band_index(names: List[str], band: str) -> Optional[int]:
 
 def _band_luminosity(g: h5py.Group, index: Optional[int]) -> Optional[np.ndarray]:
     """Disk + bulge luminosity for band ``index``, or None if unavailable."""
-    if index is None or "Bands" not in g:
+    if index is None:
         return None
-    key_disk = f"Band{index:03d}_Lum_Disk"
-    key_bulge = f"Band{index:03d}_Lum_Bulge"
-    if key_disk not in g["Bands"] or key_bulge not in g["Bands"]:
-        return None
-    return np.array(g["Bands"][key_disk]) + np.array(g["Bands"][key_bulge])
+    return band_luminosity(g, index, "total")
 
 
 def read_snapshot_data(iz_path: str, ivol: int = 0) -> Dict[str, Any]:
