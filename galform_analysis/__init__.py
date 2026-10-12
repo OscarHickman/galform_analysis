@@ -2,7 +2,7 @@
 
 __version__ = "0.3.0"
 
-from galform_analysis import analysis, config
+from galform_analysis import analysis, config, dust
 from galform_analysis.analysis import (
     aggregate_snapshot,
     avg_hmf_given_redshift_and_subvolumes,
@@ -41,13 +41,19 @@ from galform_analysis.config import (
     load_sim_config,
     set_base_dir,
 )
-from galform_analysis.readers import close_snapshot, list_bands, read_snapshot_data
+from galform_analysis.readers import (
+    close_snapshot,
+    list_bands,
+    read_band_magnitudes,
+    read_snapshot_data,
+)
 
 __all__ = [
     "__version__",
     # Submodules
     "config",
     "analysis",
+    "dust",
     # Configuration
     "set_base_dir",
     "get_base_dir",
@@ -60,6 +66,7 @@ __all__ = [
     "read_snapshot_data",
     "close_snapshot",
     "list_bands",
+    "read_band_magnitudes",
     # Aggregation
     "aggregate_snapshot",
     # HMF
