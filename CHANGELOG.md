@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- README rewritten as short how-to recipes, with every example checked
+  against real L800 output. Clearer notebook introductions, which now say
+  which extras each notebook needs. Plainer package description and citation
+  title.
+
 ## [0.4.0] - 2026-10-13
 
 ### Added

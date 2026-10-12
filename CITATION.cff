@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Hickman"
   given-names: "Oscar"
-title: "galform_analysis: A modular Python framework for analysing GALFORM simulation outputs"
+title: "galform_analysis: Python tools for analysing GALFORM galaxy formation model outputs"
 version: 0.4.0
 date-released: 2026-10-13
 url: "https://github.com/OscarHickman/galform_analysis"
@@ -15,8 +15,8 @@ keywords:
   - semi-analytic model
   - cosmology
 abstract: >-
-  A modular Python framework for reading and analysing GALFORM HDF5
-  simulation outputs. It aggregates data across simulation subvolumes and
-  computes stellar and halo mass functions, halo occupation distributions,
-  two-point correlation functions with subvolume-weighted corrections, galaxy
-  bias and redshift-space distortion multipoles.
+  Python tools for reading the galaxies.hdf5 files written by the GALFORM
+  galaxy formation model and measuring stellar and halo mass functions,
+  luminosity functions with GALFORM's dust attenuation, halo occupation
+  distributions, two-point correlation functions (including corrections for
+  using only some subvolumes), galaxy bias and redshift-space multipoles.
