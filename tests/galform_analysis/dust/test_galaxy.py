@@ -74,6 +74,10 @@ class TestInclinations:
         np.testing.assert_array_equal(inclinations("face-on", 2), [0.0, 0.0])
         np.testing.assert_array_equal(inclinations(60.0, 2), [60.0, 60.0])
 
+    def test_negative_seed(self):
+        with pytest.raises(ValueError, match="seed"):
+            inclinations("random", 3, seed=(-1, 0))
+
     @pytest.mark.parametrize("bad", ["edge-on", -1.0, 91.0])
     def test_invalid(self, bad):
         with pytest.raises(ValueError, match="inclination"):
@@ -107,6 +111,21 @@ class TestBandAttenuation:
             assert rest_wavelength(f, SPECIAL, 1.0) < 0
             with pytest.raises(ValueError, match="redshift"):
                 rest_wavelength(f, K_OBS, None)
+
+    def test_lightcone_bands_are_unsupported(self, tmp_path):
+        bands = [("UKIRT-K  UKIRT K filter", -1, 49)]
+        iz_dir = write_band_catalogue(
+            tmp_path,
+            271,
+            0,
+            lum_disk={1: np.ones(3)},
+            bands=bands,
+            a0_ab=None,
+            lambda_eff=[22000.0],
+        )
+        with h5py.File(iz_dir / "ivol0" / "galaxies.hdf5", "r") as f:
+            with pytest.raises(ValueError, match="lightcone"):
+                rest_wavelength(f, 1, 0.5)
 
     def test_stellar_pop_z_ref_blocks_observer_frame(self, tmp_path):
         iz_dir = write(tmp_path)

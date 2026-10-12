@@ -75,6 +75,11 @@ class TestDustAtten:
         edge_of_grid = np.exp(-table.taueff[-1, 2, 2, 0, 0])
         assert 0.0 < disk[0] < edge_of_grid
 
+    def test_bulge_can_be_skipped(self, table):
+        disk, bulge, _ = dust_atten(table, *gas_disk(), 5500.0, H0, [30.0], bulge=False)
+        assert disk[0] < 1.0
+        np.testing.assert_array_equal(bulge, [1.0])
+
     @pytest.mark.parametrize("lam", [50.0, 2.0e5])
     def test_wavelength_outside_table_raises(self, table, lam):
         with pytest.raises(ValueError, match="outside the dust table"):
@@ -128,6 +133,12 @@ class TestDiffuseAttenuation:
             table, **self.common(burst=np.array([True]), rfacburst=0.0)
         )
         np.testing.assert_allclose(off, quiet)
+
+    def test_negative_metals_are_clipped(self, table):
+        disk, bulge = diffuse_attenuation(
+            table, **self.common(cold_metal=np.array([-1e-3]))
+        )
+        np.testing.assert_allclose([disk, bulge], [[1.0], [1.0]])
 
     def test_tiny_gas_mass_is_metal_free(self, table):
         disk, bulge = diffuse_attenuation(

@@ -117,9 +117,13 @@ def read_attenuation_table(path: Union[str, Path]) -> AttenuationTable:
     with np.errstate(divide="ignore"):
         taueff_ave = np.where(ave > 0.0, -np.log(ave), _TAUEFF_ZERO_ATTEN)
 
+    for arr in (inc, tauv0, re_h, taueff, taueff_ave):
+        arr.flags.writeable = False  # tables are cached and shared
+    invlam = 1.0 / lam
+    invlam.flags.writeable = False
     return AttenuationTable(
         inc=inc,
-        invlam=1.0 / lam,
+        invlam=invlam,
         tauv0=tauv0,
         re_h=re_h,
         taueff=taueff,
@@ -146,21 +150,26 @@ def _angle_average(inc: np.ndarray, atten: np.ndarray) -> np.ndarray:
 def find_dust_table(name: str, data_dir: Optional[Union[str, Path]] = None) -> Path:
     """Locate a GALFORM dust table such as ``dust_MW_hz1.0.dat``.
 
-    Looks for ``name`` as a path, then in ``<data_dir>/dust/``, then in
-    ``$GALFORM_DATA_DIR/dust/`` (the GALFORM ``Data`` directory).
+    A ``name`` containing a directory (e.g. ``/path/to/dust_MW_hz1.0.dat``)
+    is used as given. A bare file name is looked for in ``<data_dir>/dust/``,
+    then in ``$GALFORM_DATA_DIR/dust/`` (the GALFORM ``Data`` directory).
 
     Raises:
         FileNotFoundError: if the table is in none of these places.
     """
-    candidates = [Path(name)]
-    for root in (data_dir, os.environ.get("GALFORM_DATA_DIR")):
-        if root:
-            candidates.append(Path(root) / "dust" / name)
+    if len(Path(name).parts) > 1:
+        candidates = [Path(name)]
+    else:
+        candidates = [
+            Path(root) / "dust" / name
+            for root in (data_dir, os.environ.get("GALFORM_DATA_DIR"))
+            if root
+        ]
     for path in candidates:
         if path.is_file():
             return path
+    tried = ", ".join(str(p) for p in candidates) or "no data directory given"
     raise FileNotFoundError(
-        f"GALFORM dust table {name!r} not found (tried "
-        f"{', '.join(str(p) for p in candidates)}). Pass data_dir= or set "
+        f"GALFORM dust table {name!r} not found ({tried}). Pass data_dir= or set "
         "GALFORM_DATA_DIR to your GALFORM 'Data' directory."
     )

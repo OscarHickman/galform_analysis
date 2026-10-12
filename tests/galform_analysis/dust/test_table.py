@@ -61,6 +61,11 @@ def test_padding(table):
     np.testing.assert_array_equal(atten[:, :, 0], atten[:, :, 1])
 
 
+def test_arrays_are_read_only(table):
+    with pytest.raises(ValueError):
+        table.taueff[0, 0, 0, 0, 0] = 1.0
+
+
 def test_angle_average_lies_between_extremes(table):
     face_on = table.taueff[:, :, 0]
     edge_on = table.taueff[:, :, -1]
@@ -96,6 +101,13 @@ class TestFindDustTable:
         path = write_dust_table(tmp_path / "dust" / "x.dat")
         monkeypatch.setenv("GALFORM_DATA_DIR", str(tmp_path))
         assert find_dust_table("x.dat") == path
+
+    def test_bare_name_is_not_taken_from_cwd(self, tmp_path, monkeypatch):
+        write_dust_table(tmp_path / "x.dat")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GALFORM_DATA_DIR", raising=False)
+        with pytest.raises(FileNotFoundError, match="no data directory"):
+            find_dust_table("x.dat")
 
     def test_missing(self, tmp_path, monkeypatch):
         monkeypatch.delenv("GALFORM_DATA_DIR", raising=False)

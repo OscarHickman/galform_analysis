@@ -62,9 +62,17 @@ def inclinations(
     """Per-galaxy inclinations in degrees, or None for the isotropic average.
 
     'random' draws isotropic orientations (cos i uniform), as GALFORM does,
-    from ``numpy.random.default_rng(seed)``.
+    from ``numpy.random.default_rng(seed)``. The draw depends only on the seed
+    and the number of galaxies, so with the per-subvolume seeds used by
+    ``read_band_magnitudes`` the i-th galaxy of a subvolume gets the same
+    orientation in every band (and in every snapshot).
+
+    Raises:
+        ValueError: for an unknown inclination or a negative seed.
     """
     check_inclination(inclination)
+    if any(int(s) < 0 for s in np.atleast_1d(seed)):
+        raise ValueError(f"seed must be non-negative, got {seed!r}")
     if inclination == "average":
         return None
     if inclination == "random":
@@ -81,10 +89,20 @@ def _scalar(f: h5py.File, key: str) -> float:
 
 def rest_wavelength(f: h5py.File, index: int, z: Optional[float]) -> float:
     """Rest-frame effective wavelength [A] of band ``index``; <= 0 for bands
-    GALFORM does not attenuate (bolometric, Lyman continuum, ...)."""
+    GALFORM does not attenuate (bolometric, Lyman continuum, ...).
+
+    Raises:
+        ValueError: for lightcone interpolation bands (``iselect = -1``),
+            whose redshift offset is not in galaxies.hdf5.
+    """
     table = f["Bands"]
     lam = float(np.ravel(table["lambda_eff"][()])[index - 1])
     iselect = int(np.ravel(table["iselect"][()])[index - 1])
+    if iselect < 0:
+        raise ValueError(
+            f"band {index} is a lightcone interpolation band (iselect={iselect}); "
+            "dust attenuation is not supported for it"
+        )
     if iselect >= 2 or lam <= 0:
         return -1.0
     if iselect == 1:

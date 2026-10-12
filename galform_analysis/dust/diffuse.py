@@ -131,6 +131,7 @@ def dust_atten(
     lam: float,
     h0: float,
     inc_deg: Optional[np.ndarray] = None,
+    bulge: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Attenuation of disk and bulge light by a dusty exponential disk.
 
@@ -143,6 +144,7 @@ def dust_atten(
         h0: Hubble parameter h.
         inc_deg: Inclination per galaxy in degrees (0 = face-on), or None for
             the isotropic average.
+        bulge: False to skip the bulge attenuation (returned as ones).
 
     Returns:
         ``(atten_disk, atten_bulge, tauv0)``: factors multiplying the disk and
@@ -174,6 +176,8 @@ def dust_atten(
     interp = _Interpolator(table, lam, inc_deg)
     lo, x, extrap = _tauv_factors(table.tauv0, tauv0)
     taueff_disk = interp.along_tauv(lo, x, extrap, extrap, 0, 0)
+    if not bulge:
+        return np.exp(-taueff_disk), ones, tauv0
     taueff_bulge = _bulge_taueff(
         table, interp, tauv0, lo, x, extrap, re_h1, (re == 0) | (h == 0)
     )
@@ -197,10 +201,9 @@ def _bulge_taueff(table, interp, tauv0, lo, x, extrap, re_h1, no_geometry):
         out = np.where(inside, (1 - freh) * t0 + freh * t1, out)
 
     if np.any(small):
-        # Endpoint re/h, with the bulge seeing the disk's own tau_V0. GALFORM
-        # takes the log of the tau_V0 grid from the disk's extrapolation flag.
-        lo_b, x_b, extrap_b = _tauv_factors(table.tauv0, tauv0)
-        t = interp.along_tauv(lo_b, x_b, extrap, extrap_b, 0, 1)
+        # Endpoint re/h, with the bulge seeing the disk's own tau_V0, so the
+        # tau_V0 interpolation factors are the disk's.
+        t = interp.along_tauv(lo, x, extrap, extrap, 0, 1)
         out = np.where(small, t, out)
     return out
 
@@ -231,7 +234,8 @@ def diffuse_attenuation(
         ``(atten_disk, atten_bulge)`` factors per galaxy.
     """
     mcold = np.asarray(mcold, dtype=np.float64)
-    zcold = _metallicity(cold_metal, mcold)
+    # Clip rounding-level negative metal masses, as GALFORM does for bursts.
+    zcold = _metallicity(np.maximum(np.asarray(cold_metal), 0.0), mcold)
     disk, bulge, _ = dust_atten(
         table, (1.0 - fcloud) * mcold, zcold, rdisk, rbulge, lam, h0, inc_deg
     )
@@ -251,6 +255,7 @@ def diffuse_attenuation(
         lam,
         h0,
         inc_deg,
+        bulge=False,
     )
     # Burst dust attenuates only the burst (bulge) light.
     return disk, bulge * np.where(burst, burst_atten, 1.0)
