@@ -143,15 +143,19 @@ Other options: `frame="observer"` for observer-frame magnitudes, and
 ### Add dust
 
 By default luminosities are intrinsic, with no dust. Pass `dust="lacey16"` to
-apply GALFORM's dust model with the parameters of Lacey et al. (2016). The
-result matches the dust-attenuated magnitudes GALFORM itself produces.
+apply GALFORM's dust model with the parameters of Lacey et al. (2016).
 
-The dust model reads attenuation tables that ship with GALFORM, so first set
-`GALFORM_DATA_DIR` to the `Data` directory of your GALFORM copy:
+GALFORM is not public, so this package does not contain its dust model.
+Instead it runs the dust code in your own GALFORM checkout. Point
+`GALFORM_DIR` at a checkout that you have built with CMake:
 
 ```bash
-export GALFORM_DATA_DIR=/path/to/galform/Data
+export GALFORM_DIR=/path/to/galform    # build expected in /path/to/galform/build
 ```
+
+If the build is somewhere else, also set `GALFORM_BUILD_DIR`. The first time
+you use dust, a small program is compiled against your GALFORM build, using
+the same compiler, and kept in `~/.cache/galform_analysis` for later.
 
 ```python
 from galform_analysis import (
@@ -250,8 +254,8 @@ ruff format galform_analysis tests   # format
 
 The tests make small fake `galaxies.hdf5` files with the same layout as real
 ones, so no simulation data is needed. Tests for an extra are skipped if it is
-not installed. The tests that compare the dust model with GALFORM's own output
-also need `GALFORM_DATA_DIR`.
+not installed. The tests that run GALFORM's dust code
+need `GALFORM_DIR` (a built GALFORM checkout) and are skipped without it.
 
 ## Citation
 

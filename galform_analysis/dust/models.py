@@ -1,4 +1,4 @@
-"""Dust model parameter sets, as used by GALFORM's dust post-processing."""
+"""Parameter sets for GALFORM's dust model."""
 
 from dataclasses import dataclass
 
@@ -9,8 +9,8 @@ class DustModel:
 
     Attributes:
         name: Label for the model.
-        table: Attenuation table: a file name looked up in
-            ``$GALFORM_DATA_DIR/dust/``, or a path.
+        table: GALFORM dust table: a file name in ``<GALFORM_DIR>/Data/dust``,
+            or a path.
         fcloud: Fraction of the cold gas (and its dust) in molecular clouds;
             the remaining ``1 - fcloud`` is diffuse.
         rfacburst: Radius of a burst's dust disk over the bulge half-mass

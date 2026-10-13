@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Dust now runs GALFORM's own code from your checkout.** galform_analysis
+  no longer contains any dust model. Set `GALFORM_DIR` to a built GALFORM
+  checkout. The first time dust is used, a small driver is compiled against
+  that build (with the same compiler and libraries) and cached. Results are
+  unchanged. `GALFORM_DATA_DIR` is no longer used. Removed
+  `read_attenuation_table`, `AttenuationTable`, `find_dust_table`,
+  `dust_atten`, `diffuse_attenuation` and `CV_DUST`.
+
 - README rewritten as short how-to recipes, with every example checked
   against real L800 output. Clearer notebook introductions, which now say
   which extras each notebook needs. Plainer package description and citation
@@ -18,16 +26,9 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **Dust attenuation** (`galform_analysis.dust`): GALFORM's diffuse-dust
-  model, vectorised over galaxies. Dust lives in the gas disk
-  (central tau_V0 = C_V Z_cold Sigma_gas0); disk and bulge light are attenuated
-  using the Ferrara et al. (1999) tables, by inclination, wavelength and
-  bulge/disk size. Ongoing bursts add their own dust. Presets `lacey16`
-  (fcloud = 0.5, the lc16 model) and `baugh05`, or any `DustModel`. It
-  reproduces the dust-attenuated magnitudes of GALFORM's own post-processing
-  to < 1e-5 mag on L800/lc16 galaxies from GALEX-FUV to IRAC 8 micron. Burst
-  dust follows GALFORM's in-run code, because the post-processing tool leaves
-  the burst dust mass unset. Not included: extra attenuation of stars younger
-  than t_esc inside molecular clouds, which needs GALFORM's `neta` tables.
+  attenuation for magnitudes and luminosity functions, with presets
+  `lacey16` and `baugh05`. Matches GALFORM's own dust-attenuated magnitudes.
+  Not included: the extra dimming of very young stars in their birth clouds.
 - Every luminosity-function function takes `dust=`, `inclination=`
   ("random", "average", "face-on" or degrees) and `seed=`.
 - `read_band_magnitudes`: per-galaxy magnitudes of one subvolume, intrinsic

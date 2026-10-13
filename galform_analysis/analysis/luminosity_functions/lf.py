@@ -84,7 +84,7 @@ def lf_given_redshift_and_subvolume(
         KeyError: if Vega magnitudes are requested from a file without
             ``Bands/a0_ab``, or dust from one without the gas properties.
         FileNotFoundError: if the dust attenuation table cannot be found
-            (set GALFORM_DATA_DIR).
+            (set GALFORM_DIR to your GALFORM checkout).
     """
     check_magnitude_options(component, system, dust, inclination)
     if bins is None:
