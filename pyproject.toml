@@ -91,7 +91,7 @@ where = ["."]
 include = ["galform_analysis*"]
 
 [tool.setuptools.package-data]
-galform_analysis = ["py.typed", "redshift_lists/*.txt", "sim_configs/*.json"]
+galform_analysis = ["py.typed", "redshift_lists/*.txt", "sim_configs/*.json", "dust/*.F90"]
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]

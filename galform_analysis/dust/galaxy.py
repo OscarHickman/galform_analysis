@@ -1,14 +1,16 @@
-"""Diffuse-dust attenuation of GALFORM galaxies read from galaxies.hdf5."""
+"""Dust attenuation of GALFORM galaxies read from galaxies.hdf5.
 
-from functools import lru_cache
-from typing import Optional, Tuple, Union
+The attenuation itself is computed by GALFORM's own code, run from your
+checkout (see :mod:`galform_analysis.dust.galform`).
+"""
+
+from typing import Dict, Optional, Tuple, Union
 
 import h5py
 import numpy as np
 
-from .diffuse import diffuse_attenuation
+from .galform import dust_driver, dust_table, find_galform, run_dust_driver
 from .models import DUST_MODELS, DustModel
-from .table import AttenuationTable, find_dust_table, read_attenuation_table
 
 Inclination = Union[str, float]
 INCLINATIONS = ("random", "average", "face-on")
@@ -45,15 +47,6 @@ def check_inclination(inclination: Inclination) -> None:
             )
     elif not 0.0 <= float(inclination) <= 90.0:
         raise ValueError(f"inclination must be in [0, 90] deg, got {inclination}")
-
-
-@lru_cache(maxsize=8)
-def _read_table_cached(path: str) -> AttenuationTable:
-    return read_attenuation_table(path)
-
-
-def _load_table(name: str) -> AttenuationTable:
-    return _read_table_cached(str(find_dust_table(name)))
 
 
 def inclinations(
@@ -120,6 +113,38 @@ def rest_wavelength(f: h5py.File, index: int, z: Optional[float]) -> float:
     return lam
 
 
+# Gas below this mass (Msun/h) is treated as metal-free, as in GALFORM.
+_MCOLD_TINY = 1.0
+
+
+def _metallicity(metals: np.ndarray, gas: np.ndarray) -> np.ndarray:
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(gas > _MCOLD_TINY, np.maximum(metals, 0.0) / gas, 0.0)
+
+
+def _driver_inputs(
+    data: Dict[str, np.ndarray], model: DustModel, efold: float
+) -> Dict[str, np.ndarray]:
+    """Per-galaxy inputs to GALFORM's diffuse-dust routine.
+
+    A fraction ``fcloud`` of the cold gas is in clouds, so the diffuse dust
+    follows the rest. An ongoing burst (younger than ``efold`` e-folding
+    times) has its own dust, in a disk ``rfacburst`` times the bulge size.
+    """
+    burst = (data["tburst"] < efold * data["tsfburst"]) & (model.rfacburst > 0)
+    mburst = np.where(burst, data["mcold_burst"], 0.0)
+    return {
+        "mdisk": (1.0 - model.fcloud) * data["mcold"],
+        "zdisk": _metallicity(data["cold_metal"], data["mcold"]),
+        "rdisk": data["rdisk"],
+        "rbulge": data["rbulge"],
+        "mburst": (1.0 - model.fcloud) * mburst,
+        "zburst": _metallicity(np.where(burst, data["metals_burst"], 0.0), mburst),
+        "rburst": np.where(burst, model.rfacburst * data["rbulge"], 0.0),
+        "burst": burst,
+    }
+
+
 def band_attenuation(
     f: h5py.File,
     g: h5py.Group,
@@ -129,7 +154,7 @@ def band_attenuation(
     inclination: Inclination = "random",
     seed: Union[int, tuple] = 0,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Diffuse-dust attenuation of disk and bulge light in band ``index``.
+    """Attenuation of disk and bulge light in band ``index`` by diffuse dust.
 
     Args:
         f: Open galaxies.hdf5 file.
@@ -146,7 +171,9 @@ def band_attenuation(
 
     Raises:
         KeyError: if a field the dust model needs is missing.
-        FileNotFoundError: if the attenuation table cannot be found.
+        FileNotFoundError: if ``GALFORM_DIR`` is not set, GALFORM has not
+            been built, or the dust table is missing.
+        RuntimeError: if building or running GALFORM's dust code fails.
     """
     model = resolve_dust_model(dust)
     missing = [k for k in _DUST_FIELDS if k not in g]
@@ -158,19 +185,13 @@ def band_attenuation(
     if lam <= 0:
         return np.ones(n), np.ones(n)
 
-    efold = _scalar(f, "Parameters/efold")
-    return diffuse_attenuation(
-        _load_table(model.table),
-        mcold=data["mcold"],
-        cold_metal=data["cold_metal"],
-        rdisk=data["rdisk"],
-        rbulge=data["rbulge"],
-        mcold_burst=data["mcold_burst"],
-        metals_burst=data["metals_burst"],
-        burst=data["tburst"] < efold * data["tsfburst"],
-        fcloud=model.fcloud,
-        rfacburst=model.rfacburst,
-        lam=lam,
+    galform = find_galform()
+    atten, _ = run_dust_driver(
+        dust_driver(galform),
+        dust_table(galform, model.table),
+        lam=np.array([lam]),
         h0=_scalar(f, "Parameters/h0"),
         inc_deg=inclinations(inclination, n, seed),
+        **_driver_inputs(data, model, _scalar(f, "Parameters/efold")),
     )
+    return atten[0, 0], atten[1, 0]
