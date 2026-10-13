@@ -66,7 +66,7 @@ Sourced from `galform_execution` (PyPI package) at runtime: `galform_execution/c
 - Positions = `xgal`, `ygal`, `zgal` in Mpc/h, spanning [0, 542.16)
 - Central galaxies: `is_central == 1`
 - Band luminosities = `OutputNNN/Bands/BandNNN_Lum_{Disk,Bulge}` (NNN = 1-based row of the file-level `Bands/bandname` table). Intrinsic (no dust). Magnitude `M_AB - 5 log10 h = -2.5 log10(L_disk + L_bulge)`; `M_Vega = M_AB + Bands/a0_ab`. `Bands/iselect`: 0 = rest frame, 1 = observer frame, ≥2 = special outputs. Bands are named by the first word of `bandname` (case-sensitive: `R` is Cousins, `SDSS-r` is SDSS)
-- Dust inputs (output group): `mcold`, `cold_metal`, `rdisk`, `rbulge` (half-mass radii, Mpc/h), `mcold_burst`, `metals_burst`, `tburst`, `tsfburst`; `Parameters/h0`, `Parameters/efold`. The tests that run real GALFORM need `GALFORM_DIR` and are skipped otherwise.
+- Dust inputs (output group): `mcold`, `cold_metal`, `rdisk`, `rbulge` (half-mass radii, Mpc/h), `mcold_burst`, `metals_burst`, `tburst`, `tsfburst`; `Parameters/h0`, `Parameters/efold`.
 
 **GALFORM is private; this repo and its PyPI package are public.** Never copy, port or paraphrase GALFORM source (Fortran, dust tables, model internals) into this repo, its docs, tests or commit messages. Build on the user's checkout through `GALFORM_DIR` instead, as `galform_analysis/dust/` does.
 - `CompletionFlag == 1` means the subvolume finished successfully
