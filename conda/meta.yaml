@@ -1,5 +1,5 @@
 {% set name = "galform_analysis" %}
-{% set version = "0.4.0" %}
+{% set version = "0.4.1" %}
 {% set python_min = "3.10" %}
 
 package:
@@ -8,7 +8,9 @@ package:
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/galform_analysis-{{ version }}.tar.gz
-  sha256: b27fdba3ff1e499baf1f5e7d6b67cfa8af655b003e7764c10921d8e30f63df5c
+  # Replace with the sha256 of the sdist once it is on PyPI:
+  #   curl -sL <url above> | sha256sum
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
 
 build:
   noarch: python
