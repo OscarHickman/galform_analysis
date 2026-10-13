@@ -15,7 +15,6 @@ from galform_analysis.dust import LACEY16, band_attenuation, inclinations
 from galform_analysis.dust.galaxy import resolve_dust_model, rest_wavelength
 from galform_analysis.readers import read_band_magnitudes
 from tests.band_catalogue import magnitudes_to_luminosity, write_band_catalogue
-from tests.dust_table import write_dust_table
 
 N = 200
 K_REST, R_REST, SPECIAL, K_OBS = 1, 2, 3, 4
@@ -38,9 +37,9 @@ def gas(n=N, **overrides):
 
 
 @pytest.fixture
-def model(tmp_path):
-    table = write_dust_table(tmp_path / "dust.dat")
-    return dataclasses.replace(LACEY16, table=str(table))
+def model(fake_galform):
+    """The Lacey16 model, run by the stand-in GALFORM dust driver."""
+    return LACEY16
 
 
 def write(tmp_path, ivol=0, n=N, redshift=0.0, gas_fields=None, **kwargs):
@@ -168,11 +167,25 @@ class TestBandAttenuation:
         with f, pytest.raises(KeyError, match="rdisk"):
             band_attenuation(f, g, K_REST, model, 0.0)
 
-    def test_missing_table(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("GALFORM_DATA_DIR", raising=False)
+    def test_more_diffuse_gas_attenuates_more(self, tmp_path, model):
+        # baugh05 puts 75% of the gas in the diffuse medium, lacey16 50%.
         f, g = self.open(write(tmp_path))
-        with f, pytest.raises(FileNotFoundError, match="GALFORM_DATA_DIR"):
+        with f:
+            lacey, _ = band_attenuation(f, g, R_REST, "lacey16", 0.0, "face-on")
+            baugh, _ = band_attenuation(f, g, R_REST, "baugh05", 0.0, "face-on")
+        assert np.all(baugh < lacey)
+
+    def test_galform_dir_not_set(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("GALFORM_DIR", raising=False)
+        f, g = self.open(write(tmp_path))
+        with f, pytest.raises(FileNotFoundError, match="GALFORM_DIR"):
             band_attenuation(f, g, K_REST, "lacey16", 0.0)
+
+    def test_driver_failure_is_reported(self, tmp_path, model):
+        failing = dataclasses.replace(LACEY16, table="fail.dat")
+        f, g = self.open(write(tmp_path))
+        with f, pytest.raises(RuntimeError, match="fake failure"):
+            band_attenuation(f, g, K_REST, failing, 0.0)
 
 
 class TestReadBandMagnitudes:
