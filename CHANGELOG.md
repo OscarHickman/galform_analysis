@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Removed
+
+- The dust tests, their stand-in GALFORM driver and the GALFORM reference
+  data. The dust module needs a private GALFORM checkout, so it is no longer
+  tested here.
+
 ## [0.4.1] - 2026-10-13
 
 ### Changed
