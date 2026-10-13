@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.1] - 2026-10-13
 
 ### Changed
 
@@ -217,6 +217,7 @@ results made with earlier versions.
 
 Initial releases. 0.1.6–0.1.9 cannot be installed from PyPI (see above).
 
+[0.4.1]: https://github.com/OscarHickman/galform_analysis/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/OscarHickman/galform_analysis/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/OscarHickman/galform_analysis/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/OscarHickman/galform_analysis/compare/v0.1.9...v0.2.0
