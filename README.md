@@ -254,8 +254,8 @@ ruff format galform_analysis tests   # format
 
 The tests make small fake `galaxies.hdf5` files with the same layout as real
 ones, so no simulation data is needed. Tests for an extra are skipped if it is
-not installed. The tests that run GALFORM's dust code
-need `GALFORM_DIR` (a built GALFORM checkout) and are skipped without it.
+not installed. The dust module is not covered by the tests, because it needs a
+private GALFORM checkout.
 
 ## Citation
 
