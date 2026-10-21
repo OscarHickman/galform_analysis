@@ -23,9 +23,12 @@ using the midpoint rule on the mu bins. The line of sight is the z axis.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 
 from galform_analysis._optional import import_optional
+from galform_analysis.config import _require_boxsize
 
 
 def _counts_to_grid_smu(
@@ -165,14 +168,19 @@ def compute_weighted_rsd_multipoles(
     mu_max: float = 1.0,
     n_mu_bins: int = 120,
     k_total: int = 1024,
-    boxsize: float = 800.0,
+    boxsize: Optional[float] = None,
     nthreads: int = 4,
 ) -> dict:
     """Compute weighted separation/mu grids and Legendre multipoles.
 
     Returns standard and corrected monopole (xi_0), quadrupole (xi_2) and
-    hexadecapole (xi_4).
+    hexadecapole (xi_4). ``boxsize`` is the periodic box side in Mpc/h and is
+    required.
+
+    Raises:
+        ValueError: If ``boxsize`` is missing, non-finite or not positive.
     """
+    boxsize = _require_boxsize(boxsize, "compute_weighted_rsd_multipoles")
     galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
     random_pos = np.ascontiguousarray(random_pos, dtype=np.float64)
     galaxy_labels = np.asarray(galaxy_labels, dtype=np.int64)
@@ -267,10 +275,17 @@ def compute_standard_rsd_multipoles(
     s_bins: np.ndarray,
     mu_max: float = 1.0,
     n_mu_bins: int = 120,
-    boxsize: float = 800.0,
+    boxsize: Optional[float] = None,
     nthreads: int = 4,
 ) -> dict:
-    """Compute standard Landy-Szalay RSD multipoles without subvolume correction."""
+    """Compute standard Landy-Szalay RSD multipoles without subvolume correction.
+
+    ``boxsize`` is the periodic box side in Mpc/h and is required.
+
+    Raises:
+        ValueError: If ``boxsize`` is missing, non-finite or not positive.
+    """
+    boxsize = _require_boxsize(boxsize, "compute_standard_rsd_multipoles")
     galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
     random_pos = np.ascontiguousarray(random_pos, dtype=np.float64)
     s_bins = np.asarray(s_bins, dtype=np.float64)
@@ -315,10 +330,18 @@ def compute_direct_rsd_multipoles(
     s_bins: np.ndarray,
     mu_max: float = 1.0,
     n_mu_bins: int = 120,
-    boxsize: float = 800.0,
+    boxsize: Optional[float] = None,
     nthreads: int = 4,
 ) -> dict:
-    """Compute periodic-box RSD multipoles without a random catalog."""
+    """Compute periodic-box RSD multipoles without a random catalog.
+
+    ``boxsize`` is the periodic box side in Mpc/h and is required: the
+    analytic RR scales as 1 / boxsize**3.
+
+    Raises:
+        ValueError: If ``boxsize`` is missing, non-finite or not positive.
+    """
+    boxsize = _require_boxsize(boxsize, "compute_direct_rsd_multipoles")
     galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
     s_bins = np.asarray(s_bins, dtype=np.float64)
 
@@ -354,10 +377,18 @@ def compute_weighted_direct_rsd_multipoles(
     mu_max: float = 1.0,
     n_mu_bins: int = 120,
     k_total: int = 1024,
-    boxsize: float = 800.0,
+    boxsize: Optional[float] = None,
     nthreads: int = 4,
 ) -> dict:
-    """Compute weighted periodic-box RSD multipoles without random catalogs."""
+    """Compute weighted periodic-box RSD multipoles without random catalogs.
+
+    ``boxsize`` is the periodic box side in Mpc/h and is required: the
+    analytic RR scales as 1 / boxsize**3.
+
+    Raises:
+        ValueError: If ``boxsize`` is missing, non-finite or not positive.
+    """
+    boxsize = _require_boxsize(boxsize, "compute_weighted_direct_rsd_multipoles")
     galaxy_pos = np.ascontiguousarray(galaxy_pos, dtype=np.float64)
     galaxy_labels = np.asarray(galaxy_labels, dtype=np.int64)
     s_bins = np.asarray(s_bins, dtype=np.float64)

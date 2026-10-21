@@ -18,6 +18,7 @@ tests that call Corrfunc are skipped when it is absent.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import sys
 import warnings
 from pathlib import Path
@@ -360,7 +361,7 @@ class TestValidationAndEmpty:
 
     def test_wp_empty_catalogue_returns_nan(self):
         out = compute_weighted_wp_from_catalogue(
-            _EMPTY_CAT, 3, 8, np.array([1.0, 3.0, 5.0]), pimax=4
+            _EMPTY_CAT, 3, 8, np.array([1.0, 3.0, 5.0]), pimax=4, boxsize=BOX
         )
         np.testing.assert_allclose(out["rp"], [2.0, 4.0])
         assert np.all(np.isnan(out["wp_standard"]))
@@ -380,7 +381,7 @@ class TestValidationAndEmpty:
 
     def test_xi_empty_catalogue_returns_nan(self):
         out = compute_weighted_xi_from_catalogue(
-            _EMPTY_CAT, 2, 4, np.array([1.0, 2.0, 4.0])
+            _EMPTY_CAT, 2, 4, np.array([1.0, 2.0, 4.0]), boxsize=BOX
         )
         np.testing.assert_allclose(out["r"], [1.5, 3.0])
         assert np.all(np.isnan(out["xi_standard"]))
@@ -401,6 +402,40 @@ class TestValidationAndEmpty:
     def test_load_n_must_cover_max_n(self, func, tmp_path):
         with pytest.raises(ValueError, match="load_n_subvolumes"):
             func(str(tmp_path), IZ, [1, 3], k_total=4, load_n_subvolumes=2)
+
+
+class TestBoxsizeRequired:
+    """boxsize has no L800-specific default (it used to be 542.16)."""
+
+    _FUNCS = [
+        compute_weighted_wp_from_catalogue,
+        compute_weighted_xi_from_catalogue,
+        compute_weighted_xi_for_n_list,
+        compute_weighted_wp_for_n_list,
+    ]
+
+    @staticmethod
+    def _call(func, tmp_path, **kw):
+        if func is compute_weighted_wp_from_catalogue:
+            return func(_EMPTY_CAT, 2, 4, np.array([1.0, 2.0]), pimax=4, **kw)
+        if func is compute_weighted_xi_from_catalogue:
+            return func(_EMPTY_CAT, 2, 4, np.array([1.0, 2.0]), **kw)
+        return func(str(tmp_path), IZ, [1, 2], k_total=4, **kw)
+
+    @pytest.mark.parametrize("func", _FUNCS)
+    def test_no_numeric_default(self, func):
+        assert inspect.signature(func).parameters["boxsize"].default is None
+
+    @pytest.mark.parametrize("func", _FUNCS)
+    def test_missing_boxsize_raises(self, func, tmp_path):
+        with pytest.raises(ValueError, match="boxsize is required"):
+            self._call(func, tmp_path)
+
+    @pytest.mark.parametrize("func", _FUNCS)
+    @pytest.mark.parametrize("bad", [0.0, -1.0, np.nan, np.inf])
+    def test_invalid_boxsize_raises(self, func, bad, tmp_path):
+        with pytest.raises(ValueError, match="boxsize must be"):
+            self._call(func, tmp_path, boxsize=bad)
 
 
 # ---------------------------------------------------------------------------

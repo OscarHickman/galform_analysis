@@ -29,6 +29,7 @@ import numpy as np
 import polars as pl
 
 from galform_analysis._optional import import_optional
+from galform_analysis.config import _require_boxsize
 from galform_analysis.utils.read_galaxies import read_galaxy_arrays
 
 _HALO_ID_FIELDS = ("ihalof", "ihhalo", "DHaloID", "TreeID", "SubhaloID")
@@ -322,7 +323,7 @@ def compute_weighted_wp_from_catalogue(
     k_total: int,
     rp_bins: np.ndarray,
     pimax: int = 40,
-    boxsize: float = 542.16,
+    boxsize: Optional[float] = None,
     random_multiplier: float = 3.0,
     random_seed: int = 12345,
     nthreads: int = 8,
@@ -330,14 +331,20 @@ def compute_weighted_wp_from_catalogue(
     """Compute standard and auto/cross-corrected projected correlation functions.
 
     Notes:
+    - ``boxsize`` is the periodic box side in Mpc/h and is required.
     - The correction is only defined for m_selected > 1.
     - For m_selected == 1, corrected outputs are returned as NaN.
+
+    Raises:
+        ValueError: If the bins or ``pimax`` are invalid, or ``boxsize`` is
+            missing, non-finite or not positive.
     """
     rp_bins = np.asarray(rp_bins, dtype=np.float64)
     if rp_bins.ndim != 1 or len(rp_bins) < 2:
         raise ValueError("rp_bins must be a 1D array with at least two edges")
     if pimax < 1 or int(pimax) != pimax:
         raise ValueError("pimax must be a positive integer (pi bin width is 1)")
+    boxsize = _require_boxsize(boxsize, "compute_weighted_wp_from_catalogue")
 
     n_pi_bins = int(pimax)
     n_rp_bins = len(rp_bins) - 1
@@ -439,7 +446,7 @@ def compute_weighted_xi_from_catalogue(
     m_selected: int,
     k_total: int,
     rbins: np.ndarray,
-    boxsize: float = 542.16,
+    boxsize: Optional[float] = None,
     random_multiplier: float = 3.0,
     random_seed: int = 12345,
     nthreads: int = 8,
@@ -448,10 +455,16 @@ def compute_weighted_xi_from_catalogue(
 
     This variant is useful for direct comparison with existing cached xi(r)
     CSV outputs (e.g. n_subvol=1024) without re-running a costly full-box job.
+    ``boxsize`` is the periodic box side in Mpc/h and is required.
+
+    Raises:
+        ValueError: If ``rbins`` is invalid, or ``boxsize`` is missing,
+            non-finite or not positive.
     """
     rbins = np.asarray(rbins, dtype=np.float64)
     if rbins.ndim != 1 or len(rbins) < 2:
         raise ValueError("rbins must be a 1D array with at least two edges")
+    boxsize = _require_boxsize(boxsize, "compute_weighted_xi_from_catalogue")
 
     r_mid = 0.5 * (rbins[:-1] + rbins[1:])
     n_bins = len(rbins) - 1
@@ -533,7 +546,7 @@ def compute_weighted_xi_for_n_list(
     n_subvol_list: Sequence[int],
     k_total: int = 1024,
     rbins: Optional[np.ndarray] = None,
-    boxsize: float = 542.16,
+    boxsize: Optional[float] = None,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
     mstar_min_log10: Optional[float] = None,
@@ -544,7 +557,14 @@ def compute_weighted_xi_for_n_list(
     load_n_subvolumes: Optional[int] = None,
     partition_scheme: str = "ivol",
 ) -> pl.DataFrame:
-    """Compute standard and corrected xi(r) for multiple subvolume counts."""
+    """Compute standard and corrected xi(r) for multiple subvolume counts.
+
+    ``boxsize`` is the periodic box side in Mpc/h and is required.
+
+    Raises:
+        ValueError: If ``n_subvol_list`` or ``load_n_subvolumes`` is invalid,
+            or ``boxsize`` is missing, non-finite or not positive.
+    """
     if rbins is None:
         rbins = np.logspace(-1.0, 1.5, 21)
     rbins = np.asarray(rbins, dtype=np.float64)
@@ -560,6 +580,7 @@ def compute_weighted_xi_for_n_list(
         load_n = int(load_n_subvolumes)
     if load_n < max_n:
         raise ValueError("load_n_subvolumes must be >= max(n_subvol_list)")
+    boxsize = _require_boxsize(boxsize, "compute_weighted_xi_for_n_list")
 
     ivols = list(range(int(ivol_start), int(ivol_start) + load_n))
     full_cat = load_subvolume_galaxies(
@@ -620,7 +641,7 @@ def compute_weighted_wp_for_n_list(
     k_total: int = 1024,
     rp_bins: Optional[np.ndarray] = None,
     pimax: int = 40,
-    boxsize: float = 542.16,
+    boxsize: Optional[float] = None,
     centrals_only: bool = False,
     mhalo_min: Optional[float] = None,
     mstar_min_log10: Optional[float] = None,
@@ -634,6 +655,11 @@ def compute_weighted_wp_for_n_list(
     """Compute standard and corrected wp for multiple selected subvolume counts.
 
     Subvolumes are chosen deterministically as ivol_start..ivol_start+n-1.
+    ``boxsize`` is the periodic box side in Mpc/h and is required.
+
+    Raises:
+        ValueError: If ``n_subvol_list`` or ``load_n_subvolumes`` is invalid,
+            or ``boxsize`` is missing, non-finite or not positive.
     """
     if rp_bins is None:
         rp_bins = np.logspace(-1.0, 1.5, 16)
@@ -650,6 +676,7 @@ def compute_weighted_wp_for_n_list(
         load_n = int(load_n_subvolumes)
     if load_n < max_n:
         raise ValueError("load_n_subvolumes must be >= max(n_subvol_list)")
+    boxsize = _require_boxsize(boxsize, "compute_weighted_wp_for_n_list")
 
     ivols = list(range(int(ivol_start), int(ivol_start) + load_n))
     full_cat = load_subvolume_galaxies(

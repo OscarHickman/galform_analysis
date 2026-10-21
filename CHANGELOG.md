@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The GPS+ halo mass function now cites the published paper:
+  Fernández-García et al. (2026), A&A 707, L4
+  (doi:10.1051/0004-6361/202558431), with its title as published.
+
+### Fixed
+
+- **`boxsize` is now required by the RSD multipole and subvolume-weighted
+  clustering estimators.** The four RSD functions
+  (`compute_weighted_rsd_multipoles`, `compute_standard_rsd_multipoles`,
+  `compute_direct_rsd_multipoles`, `compute_weighted_direct_rsd_multipoles`)
+  defaulted to `boxsize=800.0`. That is L800's side in Mpc, not in Mpc/h
+  (542.16), so any call relying on it used the wrong periodic wrap, and the
+  direct estimators got an analytic RR about 3.2x too small
+  (`(800/542.16)^3`). The weighted xi/w_p functions
+  (`compute_weighted_{xi,wp}_{from_catalogue,for_n_list}`) defaulted to
+  542.16, which is wrong for any box other than L800. All eight now raise
+  `ValueError` when `boxsize` is missing, non-finite or not positive. For a
+  GALFORM run, use `SimulationConfig(sim).box_size`. Calls that already pass
+  `boxsize` give the same numbers as before. No call in the example notebooks
+  or in SaUCE_analysis relied on either default.
+
 ### Removed
 
 - The dust tests, their stand-in GALFORM driver and the GALFORM reference

@@ -232,6 +232,29 @@ def find_snapshot_at_redshift(
     return None
 
 
+def _require_boxsize(boxsize: Optional[float], caller: str) -> float:
+    """Return ``boxsize`` as a float, or raise if it is missing or invalid.
+
+    Estimators that take positions rather than a GALFORM file cannot read the
+    box size themselves, and a simulation-specific default silently gives the
+    wrong normalisation for any other box, so they require it.
+
+    Raises:
+        ValueError: If ``boxsize`` is None, non-finite or not positive.
+    """
+    if boxsize is None:
+        raise ValueError(
+            f"{caller}: boxsize is required (periodic box side in Mpc/h, e.g. "
+            "SimulationConfig('L800').box_size == 542.16). There is no default."
+        )
+    L = float(boxsize)
+    if not np.isfinite(L) or L <= 0.0:
+        raise ValueError(
+            f"{caller}: boxsize must be finite and positive, got {boxsize}"
+        )
+    return L
+
+
 N_SUBVOLUMES = 1024  # fallback when HDF5 Parameters/n_subvolumes is absent
 
 DEFAULT_RBINS = np.logspace(-1, 1.5, 21)

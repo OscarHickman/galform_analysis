@@ -4,6 +4,8 @@ These functions have no external dependencies (no Corrfunc) and can be tested
 with synthetic inputs directly.
 """
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -11,6 +13,10 @@ from galform_analysis.analysis.redshift_space_distortions.subvol_weighted_multip
     _analytic_rr_smu,
     _counts_to_grid_smu,
     _project_rsd_multipoles,
+    compute_direct_rsd_multipoles,
+    compute_standard_rsd_multipoles,
+    compute_weighted_direct_rsd_multipoles,
+    compute_weighted_rsd_multipoles,
 )
 
 # ---------------------------------------------------------------------------
@@ -148,3 +154,55 @@ class TestProjectRsdMultipoles:
         )
         expected = np.array([0.5, 1.5, 2.5])
         np.testing.assert_allclose(s_mid, expected)
+
+
+# ---------------------------------------------------------------------------
+# boxsize is required (no silent simulation-specific default)
+# ---------------------------------------------------------------------------
+
+_POS = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+_LABELS = np.array([0, 1, 1])
+_S_BINS = np.array([1.0, 2.0, 4.0])
+
+# Each estimator called with valid arguments except ``boxsize``.
+_RSD_CALLS = {
+    "weighted": lambda **kw: compute_weighted_rsd_multipoles(
+        _POS, _LABELS, _POS, _S_BINS, nthreads=1, **kw
+    ),
+    "standard": lambda **kw: compute_standard_rsd_multipoles(
+        _POS, _POS, _S_BINS, nthreads=1, **kw
+    ),
+    "direct": lambda **kw: compute_direct_rsd_multipoles(
+        _POS, _S_BINS, nthreads=1, **kw
+    ),
+    "weighted_direct": lambda **kw: compute_weighted_direct_rsd_multipoles(
+        _POS, _LABELS, _S_BINS, nthreads=1, **kw
+    ),
+}
+
+
+class TestBoxsizeRequired:
+    """Regression: boxsize defaulted to 800 (L800's side in Mpc, not Mpc/h)."""
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            compute_weighted_rsd_multipoles,
+            compute_standard_rsd_multipoles,
+            compute_direct_rsd_multipoles,
+            compute_weighted_direct_rsd_multipoles,
+        ],
+    )
+    def test_no_numeric_default(self, func):
+        assert inspect.signature(func).parameters["boxsize"].default is None
+
+    @pytest.mark.parametrize("name", sorted(_RSD_CALLS))
+    def test_missing_boxsize_raises(self, name):
+        with pytest.raises(ValueError, match="boxsize is required"):
+            _RSD_CALLS[name]()
+
+    @pytest.mark.parametrize("name", sorted(_RSD_CALLS))
+    @pytest.mark.parametrize("bad", [0.0, -542.16, np.nan, np.inf])
+    def test_invalid_boxsize_raises(self, name, bad):
+        with pytest.raises(ValueError, match="boxsize must be"):
+            _RSD_CALLS[name](boxsize=bad)

@@ -4,8 +4,9 @@ This module provides utilities for computing theoretical HMF predictions using
 the hmf library while maintaining consistency with GALFORM's mass definition (Mvir).
 
 Includes the GPS+ (Generalized Press-Schechter + triaxial collapse) model from:
-Fernández-García et al. (2025), "A redshift-independent theoretical halo mass
-function validated with the Uchuu simulations", arXiv:2512.05847
+Fernández-García et al. (2026), "A redshift-independent theoretical halo mass
+function validated with Uchuu simulations", A&A 707, L4,
+doi:10.1051/0004-6361/202558431, arXiv:2512.05847
 
 Units:
 - Masses are in M_sun/h, the unit of GALFORM's ``mhalo`` and of the hmf library,
@@ -317,7 +318,7 @@ def compute_theoretical_hmfs(
         z: Redshift
         bins: Mass bin edges in log10(M / [M_sun/h])
         use_mvir: If True, convert all to Mvir definition (GALFORM-compatible)
-        include_ps_plus: If True, include GPS+ (Fernández-García et al. 2025)
+        include_ps_plus: If True, include GPS+ (Fernández-García et al. 2026)
 
     Raises:
         ImportError: If an optional dependency (``science`` extra) is missing.
@@ -349,7 +350,7 @@ def compute_theoretical_hmfs(
         except Exception:
             models[model_name] = np.full(len(bins) - 1, np.nan)
 
-    # GPS+ from Fernández-García et al. (2025)
+    # GPS+ from Fernández-García et al. (2026)
     if include_ps_plus:
         try:
             ps_plus_hmf = create_press_schechter_plus(z=z, use_mvir=use_mvir)
@@ -416,9 +417,9 @@ def create_press_schechter_plus(
     """
     Create GPS+ (Generalized Press-Schechter + triaxial collapse) HMF.
 
-    Implements the theoretical framework from Fernández-García et al. (2025):
+    Implements the theoretical framework from Fernández-García et al. (2026):
     "A redshift-independent theoretical halo mass function validated with
-    the Uchuu simulations"
+    Uchuu simulations", A&A 707, L4, doi:10.1051/0004-6361/202558431,
     arXiv:2512.05847
 
     This implementation matches the exact GitHub code from https://github.com/uchuuproject/HMF_GPSplus
